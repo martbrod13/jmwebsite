@@ -93,7 +93,7 @@
       <footer class="site-footer">
         <div class="container footer-grid">
           <div class="footer-brand">
-            <img src="assets/img/logo-light.png" alt="${salon.brand} ${salon.tagline}" width="170" height="141">
+            <img src="assets/img/logo-gold.png" alt="${salon.brand} ${salon.tagline}" width="170" height="141">
             <p>Gabinet kosmetologii estetycznej w Krakowie.</p>
           </div>
           <div>

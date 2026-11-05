@@ -98,8 +98,8 @@
         <div class="profile-grid">
           <div class="card card-ink">
             ${firstAvailable
-              ? `<h2>10% zniżki na pierwszy zabieg</h2><p>Zniżka jest aktywna i naliczy się sama przy rezerwacji.</p><a class="btn btn-light" href="rezerwacja.html">Zarezerwuj wizytę</a>`
-              : `<h2>Zniżka powitalna wykorzystana</h2><p>Sprawdź oferty dla zarejestrowanych klientek poniżej.</p><a class="btn btn-light" href="rezerwacja.html">Zarezerwuj kolejną wizytę</a>`}
+              ? `<h2>10% zniżki na pierwszy zabieg</h2><p>Zniżka jest aktywna i naliczy się sama przy rezerwacji.</p><a class="btn btn-gold" href="rezerwacja.html">Zarezerwuj wizytę</a>`
+              : `<h2>Zniżka powitalna wykorzystana</h2><p>Sprawdź oferty dla zarejestrowanych klientek poniżej.</p><a class="btn btn-gold" href="rezerwacja.html">Zarezerwuj kolejną wizytę</a>`}
           </div>
           <div class="card">
             <h2>Najbliższa wizyta</h2>

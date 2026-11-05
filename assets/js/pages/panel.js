@@ -192,7 +192,7 @@
     return `
       <div class="admin">
         <aside class="admin-side">
-          <img src="assets/img/logo-light.png" alt="${JM.salon.brand}">
+          <img src="assets/img/logo-gold.png" alt="${JM.salon.brand}">
           <nav aria-label="Panel gabinetu"><ul class="admin-nav">
             ${views.map(([id, label]) => `<li><button type="button" data-view="${id}" ${id === view ? 'aria-current="true"' : ''}>${label}</button></li>`).join('')}
           </ul></nav>
