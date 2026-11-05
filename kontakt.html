@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kontakt | Justyna Mańka Beauty & Aesthetics</title>
+  <meta name="description" content="Gabinet kosmetologii estetycznej, ul. Tadeusza Kościuszki 52A, Kraków. Telefon +48 510 680 831, kontakt@justynamanka.pl.">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="icon" href="assets/img/favicon-32.png" sizes="32x32">
+  <link rel="apple-touch-icon" href="assets/img/favicon-180.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,500;1,6..96,400&family=Jost:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <script src="assets/js/config.js" defer></script>
+  <script src="assets/js/treatments.js" defer></script>
+  <script src="assets/js/store.js" defer></script>
+  <script src="assets/js/layout.js" defer></script>
+  <script src="assets/js/pages/kontakt.js" defer></script>
+</head>
+<body data-page="kontakt">
+<main id="main">
+  <div class="container page-head">
+    <p class="crumbs"><a href="index.html">Strona główna</a> / Kontakt</p>
+    <h1>Kontakt</h1>
+    <p class="lead">Zadzwoń, napisz albo <a href="rezerwacja.html">zarezerwuj wizytę online</a>.</p>
+  </div>
+  <div class="container contact-grid">
+    <div>
+      <ul class="contact-items" id="contact-items"></ul>
+      <h2 class="h2" style="font-size:1.75rem">Godziny otwarcia</h2>
+      <ul class="hours-list" id="hours" style="margin-bottom:48px"></ul>
+
+      <h2 class="h2" style="font-size:1.75rem">Napisz do nas</h2>
+      <form id="contact-form" novalidate>
+        <div class="form-grid">
+          <div class="field"><label for="c-name">Imię</label><input id="c-name" name="name" autocomplete="given-name" required></div>
+          <div class="field"><label for="c-contact">E-mail lub telefon</label><input id="c-contact" name="contact" required></div>
+          <div class="field span-2"><label for="c-msg">Wiadomość</label><textarea id="c-msg" name="message" required></textarea></div>
+        </div>
+        <p class="small muted">Twoje dane wykorzystamy tylko, żeby odpowiedzieć na wiadomość. Więcej w <a href="polityka-prywatnosci.html">polityce prywatności</a>.</p>
+        <button class="btn btn-primary" type="submit">Wyślij wiadomość</button>
+      </form>
+    </div>
+    <div>
+      <div class="map-box" id="mapa"></div>
+      <p class="small" style="margin-top:12px"><a id="maps-link" target="_blank" rel="noopener">Otwórz w Mapach Google i wyznacz trasę</a></p>
+    </div>
+  </div>
+</main>
+</body>
+</html>
