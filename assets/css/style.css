@@ -703,3 +703,13 @@ strong { font-weight: 500; }
 .page-head .lead { margin-inline: auto; }
 .page-head .btn { margin-top: 8px; }
 @media (min-width: 761px) { .chip-nav-sticky .chip-nav { justify-content: center; } }
+/* opisy zabiegów: bez cen, pełny opis */
+.acc-content .acc-lead { font-size: 1.1875rem; line-height: 1.7; color: var(--ink); }
+.acc-content > div > h3:first-child { margin-top: 0; }
+.acc-aside .dash-list { margin-bottom: 28px; padding-bottom: 26px; border-bottom: 1px solid var(--hair-soft); }
+.acc-aside dd { line-height: 1.6; }
+.aside-link { margin: 16px 0 0; text-align: center; font-size: .9375rem; }
+.aside-link a { text-decoration-color: var(--gold-deep); }
+.acc-meta span:first-child { min-width: 0; }
+.menu-links { display: flex; gap: 20px; margin-left: auto; }
+.menu-meta { justify-content: space-between; }

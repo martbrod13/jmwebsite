@@ -13,25 +13,28 @@
         <h3 style="margin:0">
           <button class="acc-trigger" type="button" aria-expanded="false" aria-controls="p-${t.id}">
             <span><span class="acc-title">${t.name}</span><span class="acc-sub">${t.short}</span></span>
-            <span class="acc-meta"><span>${S.formatDuration(t.duration)}</span><span>${S.formatPrice(t.price, t.from)}</span></span>
+            <span class="acc-meta"><span>${S.formatDuration(t.duration)}</span></span>
             <span class="acc-icon" aria-hidden="true"></span>
           </button>
         </h3>
         <div class="acc-panel" id="p-${t.id}" role="region" aria-label="${t.name}"><div>
           <div class="acc-content">
             <div>
-              <p>${t.desc}</p>
-              <h3>Dla kogo</h3>${list(t.forWhom)}
-              <h3>Przebieg</h3><p>${t.steps}</p>
-              <h3>Efekty</h3><p>${t.results}</p>
+              <h3>Czym jest</h3><p class="acc-lead">${t.what}</p>
+              <h3>Na czym polega</h3><p>${t.how}</p>
+              <h3>Na co pomaga</h3>${list(t.helps)}
+              <h3>Kiedy się go stosuje</h3><p>${t.when}</p>
+              <h3>Jak przebiega</h3><p>${t.steps}</p>
             </div>
             <aside class="acc-aside">
-              <p class="aside-price">${S.formatPrice(t.price, t.from)}</p>
+              <h3>Zalety zabiegu</h3>${list(t.benefits)}
               <dl>
-                <div><dt>Czas wizyty</dt><dd>${S.formatDuration(t.duration)}</dd></div>
+                <div><dt>Efekty i trwałość</dt><dd>${t.results}</dd></div>
                 <div><dt>Zalecana seria</dt><dd>${t.series}</dd></div>
+                <div><dt>Czas zabiegu</dt><dd>${S.formatDuration(t.duration)}</dd></div>
               </dl>
               <a class="btn btn-primary btn-block" href="rezerwacja.html?zabieg=${t.id}">Zarezerwuj ten zabieg</a>
+              <p class="aside-link"><a href="cennik.html#${t.category}">Sprawdź cenę w cenniku</a></p>
             </aside>
           </div>
         </div></div>

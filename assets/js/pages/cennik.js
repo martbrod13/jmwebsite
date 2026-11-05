@@ -10,8 +10,10 @@
       </div>
       <div class="menu-meta">
         <span class="menu-time">${S.formatDuration(t.duration)}</span>
-        <span class="menu-short">${t.short}</span>
-        <a class="menu-book" href="rezerwacja.html?zabieg=${t.id}" aria-label="Zarezerwuj: ${t.name}">Zarezerwuj</a>
+        <span class="menu-links">
+          ${t.id === 'konsultacja' ? '' : `<a class="menu-book" href="zabiegi.html#${t.id}" aria-label="Opis zabiegu: ${t.name}">Opis zabiegu</a>`}
+          <a class="menu-book" href="rezerwacja.html?zabieg=${t.id}" aria-label="Zarezerwuj: ${t.name}">Zarezerwuj</a>
+        </span>
       </div>
     </li>`;
   const section = (title, id, items) => `
