@@ -14,7 +14,7 @@
           <button class="acc-trigger" type="button" aria-expanded="false" aria-controls="p-${t.id}">
             <span><span class="acc-title">${t.name}</span><span class="acc-sub">${t.short}</span></span>
             <span class="acc-meta"><span>${S.formatDuration(t.duration)}</span><span>${S.formatPrice(t.price, t.from)}</span></span>
-            <span class="acc-icon">${ui.icons.chevron}</span>
+            <span class="acc-icon" aria-hidden="true"></span>
           </button>
         </h3>
         <div class="acc-panel" id="p-${t.id}" role="region" aria-label="${t.name}"><div>
@@ -26,8 +26,8 @@
               <h3>Efekty</h3><p>${t.results}</p>
             </div>
             <aside class="acc-aside">
+              <p class="aside-price">${S.formatPrice(t.price, t.from)}</p>
               <dl>
-                <div><dt>Cena</dt><dd class="price-big">${S.formatPrice(t.price, t.from)}</dd></div>
                 <div><dt>Czas wizyty</dt><dd>${S.formatDuration(t.duration)}</dd></div>
                 <div><dt>Zalecana seria</dt><dd>${t.series}</dd></div>
               </dl>
@@ -44,7 +44,7 @@
           <button class="acc-trigger" type="button" aria-expanded="false" aria-controls="p-${c.id}-info">
             <span><span class="acc-title">Przygotowanie, przeciwwskazania i zalecenia po zabiegu</span></span>
             <span class="acc-meta"></span>
-            <span class="acc-icon">${ui.icons.chevron}</span>
+            <span class="acc-icon" aria-hidden="true"></span>
           </button>
         </h3>
         <div class="acc-panel" id="p-${c.id}-info" role="region" aria-label="Przygotowanie i zalecenia: ${c.name}"><div>
@@ -66,6 +66,7 @@
     <section class="cat-block" id="${c.id}" aria-labelledby="h-${c.id}">
       <div class="cat-intro">
         <h2 id="h-${c.id}">${c.name}</h2>
+        <span class="ornament" aria-hidden="true"></span>
         <p>${c.about}</p>
       </div>
       <div class="acc">
