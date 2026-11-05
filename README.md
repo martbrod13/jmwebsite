@@ -9,12 +9,13 @@ Klikalny prototyp strony: wygląda i działa jak gotowa strona, ale wszystko dzi
 
 ### Jak otworzyć
 
-Najprościej: otwórz plik `index.html` w przeglądarce. Bardziej niezawodnie, z serwerem lokalnym:
+W terminalu VS Code, w folderze projektu:
 
 ```bash
-python3 -m http.server 8000
-# potem wejdź na http://localhost:8000
+npm run dev
 ```
+
+Strona działa pod adresem http://localhost:3000 (Ctrl + klik w link w terminalu). Po zapisaniu zmian w plikach odświeża się sama. Nie trzeba nic instalować poza Node.js. Zatrzymanie: Ctrl + C.
 
 ### Co jest w środku
 
