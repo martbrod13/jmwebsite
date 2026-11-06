@@ -5,6 +5,7 @@
 (function () {
   const S = JM.store;
   const salon = JM.salon;
+  const L = JM.L;
 
   const icons = {
     user: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
@@ -20,11 +21,11 @@
   };
 
   const nav = [
-    { href: 'zabiegi.html', label: 'Zabiegi', page: 'zabiegi' },
-    { href: 'cennik.html', label: 'Cennik', page: 'cennik' },
-    { href: 'rezerwacja.html', label: 'Zarezerwuj wizytę', page: 'rezerwacja' },
-    { href: 'galeria.html', label: 'Galeria', page: 'galeria' },
-    { href: 'kontakt.html', label: 'Kontakt', page: 'kontakt' }
+    { href: 'zabiegi.html', label: L('Zabiegi', 'Treatments'), page: 'zabiegi' },
+    { href: 'cennik.html', label: L('Cennik', 'Prices'), page: 'cennik' },
+    { href: 'rezerwacja.html', label: L('Zarezerwuj wizytę', 'Book a visit'), page: 'rezerwacja' },
+    { href: 'galeria.html', label: L('Galeria', 'Gallery'), page: 'galeria' },
+    { href: 'kontakt.html', label: L('Kontakt', 'Contact'), page: 'kontakt' }
   ];
 
   function h(html) {
@@ -35,7 +36,8 @@
   }
   function fmtDate(dateStr, withYear) {
     const d = new Date(dateStr + 'T12:00:00');
-    return JM.dayNames[d.getDay()].toLowerCase() + ', ' + d.getDate() + ' ' + JM.monthGen[d.getMonth()] + (withYear === false ? '' : ' ' + d.getFullYear());
+    const day = JM.lang === 'en' ? JM.dayNames[d.getDay()] : JM.dayNames[d.getDay()].toLowerCase();
+    return day + ', ' + d.getDate() + ' ' + JM.monthGen[d.getMonth()] + (withYear === false ? '' : ' ' + d.getFullYear());
   }
   function fmtShort(dateStr) {
     const d = new Date(dateStr + 'T12:00:00');
@@ -43,13 +45,13 @@
   }
   function hoursText() {
     const groups = [
-      ['Poniedziałek, wtorek, czwartek', JM.hours[1]],
-      ['Środa', JM.hours[3]],
-      ['Piątek', JM.hours[5]],
-      ['Sobota', JM.hours[6]],
-      ['Niedziela', null]
+      [L('Poniedziałek, wtorek, czwartek', 'Monday, Tuesday, Thursday'), JM.hours[1]],
+      [L('Środa', 'Wednesday'), JM.hours[3]],
+      [L('Piątek', 'Friday'), JM.hours[5]],
+      [L('Sobota', 'Saturday'), JM.hours[6]],
+      [L('Niedziela', 'Sunday'), null]
     ];
-    return groups.map(([d, hr]) => ({ day: d, hours: hr ? hr[0] + ':00–' + hr[1] + ':00' : 'nieczynne' }));
+    return groups.map(([d, hr]) => ({ day: d, hours: hr ? hr[0] + ':00–' + hr[1] + ':00' : L('nieczynne', 'closed') }));
   }
 
   let toastTimer;
@@ -65,23 +67,27 @@
     const items = nav.map((n) => `<li><a href="${n.href}"${n.page === page ? ' aria-current="page"' : ''}>${n.label}</a></li>`).join('');
     const account = user
       ? `<a class="nav-account" href="konto.html"${page === 'konto' ? ' aria-current="page"' : ''}>${icons.user}<span>${esc(user.firstName)}</span></a>`
-      : `<a class="nav-account" href="konto.html"${page === 'konto' ? ' aria-current="page"' : ''}>${icons.user}<span>Zaloguj się</span></a>`;
+      : `<a class="nav-account" href="konto.html"${page === 'konto' ? ' aria-current="page"' : ''}>${icons.user}<span>${L('Zaloguj się', 'Sign in')}</span></a>`;
+    const langs = [['pl', 'PL', 'Polski'], ['en', 'EN', 'English']]
+      .map(([code, short, full]) => `<button type="button" data-lang-set="${code}" lang="${code}" aria-label="${full}"${JM.lang === code ? ' aria-pressed="true"' : ' aria-pressed="false"'}>${short}</button>`)
+      .join('<span aria-hidden="true">/</span>');
     return h(`
       <header class="site-header">
-        <a class="skip-link" href="#main">Przejdź do treści</a>
+        <a class="skip-link" href="#main">${L('Przejdź do treści', 'Skip to content')}</a>
         <div class="container header-inner">
-          <a class="brand" href="index.html" aria-label="${salon.brand}, strona główna">
+          <a class="brand" href="index.html" aria-label="${salon.brand}, ${L('strona główna', 'home page')}">
             <img src="assets/img/logo-mark.png" alt="" width="58" height="44">
             <span class="brand-text"><span class="brand-name">${salon.brand}</span><span class="brand-sub">${salon.tagline}</span></span>
           </a>
-          <nav class="main-nav" aria-label="Menu główne"><ul>${items}</ul></nav>
+          <nav class="main-nav" aria-label="${L('Menu główne', 'Main menu')}"><ul>${items}</ul></nav>
           ${account}
+          <div class="lang-switch" role="group" aria-label="${L('Język strony', 'Site language')}">${langs}</div>
           <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="mobile-menu">
             <span class="menu-toggle-bars" aria-hidden="true"></span><span class="sr-only">Menu</span>
           </button>
         </div>
         <div class="mobile-menu" id="mobile-menu" hidden>
-          <ul>${items}<li><a href="konto.html">${user ? 'Moje konto' : 'Zaloguj się / Załóż konto'}</a></li></ul>
+          <ul>${items}<li><a href="konto.html">${user ? L('Moje konto', 'My account') : L('Zaloguj się / Załóż konto', 'Sign in / Create account')}</a></li></ul>
           <p class="mobile-menu-contact"><a href="tel:${salon.phoneHref}">${salon.phone}</a><br>${salon.street}, ${salon.city}</p>
         </div>
       </header>`);
@@ -94,10 +100,10 @@
         <div class="container footer-grid">
           <div class="footer-brand">
             <img src="assets/img/logo-gold.png" alt="${salon.brand} ${salon.tagline}" width="170" height="141">
-            <p>Gabinet kosmetologii estetycznej w Krakowie.</p>
+            <p>${L('Gabinet kosmetologii estetycznej w Krakowie.', 'Aesthetic cosmetology studio in Kraków.')}</p>
           </div>
           <div>
-            <h2 class="footer-title">Kontakt</h2>
+            <h2 class="footer-title">${L('Kontakt', 'Contact')}</h2>
             <ul class="footer-list">
               <li>${salon.street}<br>${salon.postal} ${salon.city}</li>
               <li><a href="tel:${salon.phoneHref}">${salon.phone}</a></li>
@@ -107,30 +113,30 @@
             </ul>
           </div>
           <div>
-            <h2 class="footer-title">Godziny otwarcia</h2>
+            <h2 class="footer-title">${L('Godziny otwarcia', 'Opening hours')}</h2>
             <ul class="footer-hours">${hrs}</ul>
           </div>
           <div>
-            <h2 class="footer-title">Informacje</h2>
+            <h2 class="footer-title">${L('Informacje', 'Information')}</h2>
             <ul class="footer-list">
-              <li><a href="regulamin.html">Regulamin</a></li>
-              <li><a href="polityka-prywatnosci.html">Polityka prywatności</a></li>
-              <li><a href="polityka-cookies.html">Polityka cookies</a></li>
-              <li><button type="button" class="link-button" data-cookie-settings>Ustawienia cookies</button></li>
-              <li><a href="panel.html">Panel gabinetu</a></li>
+              <li><a href="regulamin.html">${L('Regulamin', 'Terms and conditions')}</a></li>
+              <li><a href="polityka-prywatnosci.html">${L('Polityka prywatności', 'Privacy policy')}</a></li>
+              <li><a href="polityka-cookies.html">${L('Polityka cookies', 'Cookie policy')}</a></li>
+              <li><button type="button" class="link-button" data-cookie-settings>${L('Ustawienia cookies', 'Cookie settings')}</button></li>
+              <li><a href="panel.html">${L('Panel gabinetu', 'Studio panel')}</a></li>
             </ul>
           </div>
         </div>
         <div class="container footer-bottom">
           <p>© ${new Date().getFullYear()} ${salon.company}, NIP ${salon.nip}</p>
-          <p>Wersja demonstracyjna strony</p>
+          <p>${L('Wersja demonstracyjna strony', 'Demo version of the website')}</p>
         </div>
       </footer>`);
   }
 
   function mobileCta(page) {
     if (['rezerwacja', 'panel'].includes(page)) return null;
-    return h('<div class="mobile-cta"><a class="btn btn-primary btn-block" href="rezerwacja.html">Zarezerwuj wizytę</a></div>');
+    return h('<div class="mobile-cta"><a class="btn btn-primary btn-block" href="rezerwacja.html">' + L('Zarezerwuj wizytę', 'Book a visit') + '</a></div>');
   }
 
   /* ---------- Cookies ---------- */
@@ -138,12 +144,13 @@
     if (S.cookieConsent()) return;
     const el = h(`
       <section class="cookie-banner" role="dialog" aria-labelledby="cookie-title" aria-live="polite">
-        <h2 id="cookie-title">Pliki cookies</h2>
-        <p>Używamy plików cookies niezbędnych do działania strony, logowania i rezerwacji. Za Twoją zgodą wczytamy też mapę Google na stronie kontaktu. Szczegóły znajdziesz w <a href="polityka-cookies.html">polityce cookies</a>.</p>
+        <h2 id="cookie-title">${L('Pliki cookies', 'Cookies')}</h2>
+        <p>${L('Używamy plików cookies niezbędnych do działania strony, logowania i rezerwacji. Za Twoją zgodą wczytamy też mapę Google na stronie kontaktu. Szczegóły znajdziesz w <a href="polityka-cookies.html">polityce cookies</a>.',
+          'We use cookies that are needed for the site, signing in and booking to work. With your consent we will also load a Google map on the contact page. You can find the details in our <a href="polityka-cookies.html">cookie policy</a>.')}</p>
         <div class="cookie-actions">
-          <button class="btn btn-primary" type="button" data-cookie="all">Akceptuję wszystkie</button>
-          <button class="btn btn-outline" type="button" data-cookie="necessary">Tylko niezbędne</button>
-          <button class="link-button" type="button" data-cookie-settings>Ustawienia</button>
+          <button class="btn btn-primary" type="button" data-cookie="all">${L('Akceptuję wszystkie', 'Accept all')}</button>
+          <button class="btn btn-outline" type="button" data-cookie="necessary">${L('Tylko niezbędne', 'Necessary only')}</button>
+          <button class="link-button" type="button" data-cookie-settings>${L('Ustawienia', 'Settings')}</button>
         </div>
       </section>`);
     el.addEventListener('click', (e) => {
@@ -158,18 +165,18 @@
     const dlg = h(`
       <dialog class="modal" aria-labelledby="cs-title">
         <form method="dialog" class="modal-body">
-          <h2 id="cs-title">Ustawienia cookies</h2>
+          <h2 id="cs-title">${L('Ustawienia cookies', 'Cookie settings')}</h2>
           <div class="switch-row">
-            <div><strong>Niezbędne</strong><p>Logowanie, koszyk rezerwacji, zapamiętanie tych ustawień. Bez nich strona nie działa.</p></div>
-            <span class="badge">Zawsze aktywne</span>
+            <div><strong>${L('Niezbędne', 'Necessary')}</strong><p>${L('Logowanie, koszyk rezerwacji, zapamiętanie tych ustawień. Bez nich strona nie działa.', 'Signing in, your booking in progress, remembering these settings and your language. The site does not work without them.')}</p></div>
+            <span class="badge">${L('Zawsze aktywne', 'Always on')}</span>
           </div>
           <label class="switch-row">
-            <div><strong>Mapy Google</strong><p>Interaktywna mapa na stronie kontaktu. Google może zapisać własne cookies i poznać Twój adres IP.</p></div>
+            <div><strong>${L('Mapy Google', 'Google Maps')}</strong><p>${L('Interaktywna mapa na stronie kontaktu. Google może zapisać własne cookies i poznać Twój adres IP.', 'An interactive map on the contact page. Google may set its own cookies and see your IP address.')}</p></div>
             <input type="checkbox" class="switch" name="maps" ${c.maps ? 'checked' : ''}>
           </label>
           <div class="modal-actions">
-            <button class="btn btn-primary" value="save">Zapisz ustawienia</button>
-            <button class="btn btn-outline" value="cancel" formnovalidate>Anuluj</button>
+            <button class="btn btn-primary" value="save">${L('Zapisz ustawienia', 'Save settings')}</button>
+            <button class="btn btn-outline" value="cancel" formnovalidate>${L('Anuluj', 'Cancel')}</button>
           </div>
         </form>
       </dialog>`);
@@ -179,7 +186,7 @@
         S.setCookieConsent({ necessary: true, maps: dlg.querySelector('[name=maps]').checked });
         const banner = document.querySelector('.cookie-banner'); if (banner) banner.remove();
         document.dispatchEvent(new CustomEvent('jm:cookies'));
-        toast('Zapisano ustawienia cookies.');
+        toast(L('Zapisano ustawienia cookies.', 'Cookie settings saved.'));
       }
       dlg.remove();
     });
@@ -212,7 +219,13 @@
     }
     document.addEventListener('click', (e) => {
       if (e.target.closest('[data-cookie-settings]')) { e.preventDefault(); cookieSettings(); }
+      const lb = e.target.closest('[data-lang-set]');
+      if (lb && lb.dataset.langSet !== JM.lang) JM.setLang(lb.dataset.langSet);
     });
+    if (JM.lang === 'en') {
+      const t = document.querySelector('meta[name="title-en"]');
+      if (t) document.title = t.content;
+    }
     document.querySelectorAll('[data-fill]').forEach((el) => {
       const v = salon[el.dataset.fill]; if (v != null) el.textContent = v;
     });

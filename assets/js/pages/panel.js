@@ -6,6 +6,8 @@
   const S = JM.store, ui = JM.ui, esc = ui.esc;
   const root = document.getElementById('admin');
   const DEMO_PASS = 'demo';
+  // zalogowane konto panelu (starsze zapisy „true” traktujemy jak konto właścicielki)
+  const session = () => { const s = S.read('admin', null); return s === true ? JM.panelAccounts[0] : s; };
   let view = 'pulpit';
   let query = '';
 
@@ -80,7 +82,7 @@
     return `
       ${days.length ? days.map((d) => `<div class="panel-card day-group"><h3>${ui.fmtDate(d)}</h3>${bookingTable(up.filter((b) => b.date === d), true)}</div>`).join('') : '<div class="panel-card"><p class="muted">Brak zaplanowanych wizyt.</p></div>'}
       <div class="panel-card"><h2>Ostatnio odwołane</h2>
-        ${cancelled.length ? `<table class="table"><tbody>${cancelled.map((b) => `<tr><td>${ui.fmtShort(b.date)}, ${b.time}</td><td>${esc(b.treatmentName)}</td><td>${esc(clientOf(b).name)}</td><td class="small muted">odwołała: ${esc(b.cancelledBy || '—')}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">Brak.</p>'}
+        ${cancelled.length ? `<table class="table"><tbody>${cancelled.map((b) => `<tr><td>${ui.fmtShort(b.date)}, ${b.time}</td><td>${esc(b.treatmentName)}</td><td>${esc(clientOf(b).name)}</td><td class="small muted">odwołała: ${esc(b.cancelledBy || '—')}</td><td class="num">${b.cancellationFee ? `<span class="badge badge-warn">opłata ${S.formatPrice(b.cancellationFee)}</span>` : ''}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">Brak.</p>'}
       </div>`;
   }
   function vKlientki() {
@@ -152,9 +154,17 @@
         <label class="switch-row"><div><strong style="font-weight:500">Potwierdzenie rezerwacji</strong><p>Od razu po rezerwacji.</p></div><input type="checkbox" class="switch" checked></label>
         <div class="sms-tpl">${JM.salon.smsSender}: Potwierdzamy wizytę ${dd} o ${sample.time} (${sample.treatmentName}), ${JM.salon.street}. Zmiana lub odwołanie: justynamanka.pl/w/${sample.code}</div>
         <label class="switch-row"><div><strong style="font-weight:500">Przypomnienie</strong><p>${JM.booking.reminderHours} godziny przed wizytą.</p></div><input type="checkbox" class="switch" checked></label>
-        <div class="sms-tpl">${JM.salon.smsSender}: Przypominamy o jutrzejszej wizycie o ${sample.time}. Do zobaczenia! Odwołanie: justynamanka.pl/w/${sample.code}</div>
+        <div class="sms-tpl">${JM.salon.smsSender}: Przypominamy o jutrzejszej wizycie o ${sample.time}. Bezpłatne odwołanie do ${JM.booking.cancelHours} h przed wizytą: justynamanka.pl/w/${sample.code}</div>
         <label class="switch-row"><div><strong style="font-weight:500">Potwierdzenie odwołania</strong><p>Po odwołaniu wizyty przez klientkę lub gabinet.</p></div><input type="checkbox" class="switch" checked></label>
         <div class="sms-tpl">${JM.salon.smsSender}: Wizyta ${dd} o ${sample.time} została odwołana. Nowy termin zarezerwujesz na justynamanka.pl</div>
+      </div>
+      <div class="panel-card">
+        <h2>Zaplanowane przypomnienia</h2>
+        <p class="small muted">Wysyłane automatycznie ${JM.booking.reminderHours} godziny przed każdą wizytą, bez klikania. Klientki, które rezerwowały w angielskiej wersji strony, dostają SMS po angielsku (oznaczenie EN).</p>
+        ${upcoming().length ? `<table class="table"><thead><tr><th>Wysyłka</th><th>Wizyta</th><th>Klientka</th><th>Telefon</th><th>Status</th></tr></thead><tbody>
+          ${upcoming().map((b) => { const at = S.reminderAt(b); const c = clientOf(b); const sent = at <= new Date();
+            return `<tr><td>${S.pad(at.getDate())}.${S.pad(at.getMonth() + 1)}, ${S.pad(at.getHours())}:${S.pad(at.getMinutes())}</td><td>${ui.fmtShort(b.date)}, ${b.time} · ${esc(b.treatmentName)}</td><td>${esc(c.name)}${b.lang === 'en' ? ' <span class="badge">EN</span>' : ''}</td><td>${esc(c.phone)}</td><td>${sent ? '<span class="badge badge-ok">wysłane</span>' : '<span class="badge">zaplanowane</span>'}</td></tr>`; }).join('')}
+        </tbody></table>` : '<p class="muted">Brak zaplanowanych wizyt.</p>'}
       </div>
       <form class="panel-card" id="campaign-form" novalidate>
         <h2>Kampania SMS</h2>
@@ -197,6 +207,7 @@
             ${views.map(([id, label]) => `<li><button type="button" data-view="${id}" ${id === view ? 'aria-current="true"' : ''}>${label}</button></li>`).join('')}
           </ul></nav>
           <div class="admin-side-foot">
+            <p class="admin-who">${esc(session().name)}<br><span>${esc(session().role)}</span></p>
             <a href="index.html">Zobacz stronę</a>
             <button type="button" class="link-button" data-reset-demo>Przywróć dane przykładowe</button>
             <button type="button" class="link-button" data-admin-logout>Wyloguj się</button>
@@ -215,15 +226,15 @@
           <img src="assets/img/logo.png" alt="${JM.salon.brand}">
           <h1 style="font-size:1.75rem">Panel gabinetu</h1>
           ${err ? `<p class="form-msg" role="alert">${err}</p>` : ''}
-          <div class="field"><label for="a-email">E-mail</label><input id="a-email" type="email" value="${JM.salon.email}" autocomplete="username"></div>
-          <div class="field"><label for="a-pass">Hasło</label><input id="a-pass" type="password" autocomplete="current-password"><span class="field-hint">Wersja demonstracyjna: hasło „${DEMO_PASS}”.</span></div>
+          <div class="field"><label for="a-email">E-mail</label><input id="a-email" type="email" value="${JM.panelAccounts[0].email}" autocomplete="username"></div>
+          <div class="field"><label for="a-pass">Hasło</label><input id="a-pass" type="password" autocomplete="current-password"><span class="field-hint">Wersja demonstracyjna: hasło „${DEMO_PASS}”. Konta: ${JM.panelAccounts.map((a) => `${a.email} (${a.role.toLowerCase()})`).join(', ')}.</span></div>
           <button class="btn btn-primary btn-block" type="submit">Zaloguj się</button>
           <p class="small" style="margin-top:18px"><a href="index.html">Wróć na stronę</a></p>
         </form>
       </div>`;
   }
   function render() {
-    root.innerHTML = S.read('admin', false) ? shell() : loginView();
+    root.innerHTML = session() ? shell() : loginView();
     if (view === 'sms') updateCount();
   }
   function updateCount() {
@@ -236,7 +247,7 @@
     const el = e.target.closest('button'); if (!el) return;
     if (el.dataset.view) { view = el.dataset.view; render(); window.scrollTo(0, 0); return; }
     if (el.hasAttribute('data-admin-logout')) { S.remove('admin'); render(); return; }
-    if (el.hasAttribute('data-reset-demo')) { S.resetDemo(); S.write('admin', true); render(); ui.toast('Przywrócono dane przykładowe.'); return; }
+    if (el.hasAttribute('data-reset-demo')) { const who = session(); S.resetDemo(); S.write('admin', who); render(); ui.toast('Przywrócono dane przykładowe.'); return; }
     if (el.dataset.cancel) {
       S.cancelBooking(el.dataset.cancel, 'gabinet'); render(); ui.toast('Wizyta odwołana. Klientka dostanie SMS z informacją.'); return;
     }
@@ -261,8 +272,9 @@
   root.addEventListener('submit', (e) => {
     e.preventDefault(); const f = e.target;
     if (f.id === 'admin-login') {
-      if (f.querySelector('#a-pass').value !== DEMO_PASS) { root.innerHTML = loginView('Nieprawidłowe hasło.'); return; }
-      S.write('admin', true); render(); return;
+      const acc = JM.panelAccounts.find((a) => a.email === f.querySelector('#a-email').value.trim().toLowerCase());
+      if (!acc || f.querySelector('#a-pass').value !== DEMO_PASS) { root.innerHTML = loginView('Nieprawidłowy e-mail lub hasło.'); return; }
+      S.write('admin', acc); render(); return;
     }
     if (f.id === 'prices-form') {
       [...f.querySelectorAll('.price-input')].forEach((i) => { const v = Number(i.value); if (!isNaN(v) && v >= 0) S.setPrice(i.name, v); });

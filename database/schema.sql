@@ -40,12 +40,26 @@ CREATE TABLE admins (
   auth_user_id   uuid UNIQUE,              -- przy Supabase Auth: id z auth.users
   email          citext NOT NULL UNIQUE,
   full_name      text   NOT NULL,
-  role           text   NOT NULL DEFAULT 'owner' CHECK (role IN ('owner', 'staff')),
+  role           text   NOT NULL DEFAULT 'owner' CHECK (role IN ('owner', 'admin', 'staff')),
   password_hash  text,                     -- tylko gdy logowanie bez Supabase Auth (bcrypt/argon2)
   created_at     timestamptz NOT NULL DEFAULT now(),
   last_login_at  timestamptz
 );
-COMMENT ON TABLE admins IS 'Konta do panelu gabinetu. Zalecane logowanie dwuskładnikowe.';
+COMMENT ON TABLE admins IS 'Konta do panelu: owner = właścicielka gabinetu, admin = administratorka strony (obsługa techniczna), staff = pracownice. Zalecane logowanie dwuskładnikowe.';
+
+-- =====================================================================
+--  SETTINGS — zasady gabinetu (jeden wiersz)
+-- =====================================================================
+CREATE TABLE settings (
+  id                      smallint PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  free_cancellation_hours smallint NOT NULL DEFAULT 12 CHECK (free_cancellation_hours BETWEEN 0 AND 168),
+  late_cancel_fee_percent numeric(5,2) NOT NULL DEFAULT 50 CHECK (late_cancel_fee_percent BETWEEN 0 AND 100),
+  reminder_hours          smallint NOT NULL DEFAULT 24 CHECK (reminder_hours BETWEEN 1 AND 72),
+  sms_sender              text NOT NULL DEFAULT 'JM Beauty',
+  booking_link_base       text NOT NULL DEFAULT 'justynamanka.pl/w/'
+);
+INSERT INTO settings DEFAULT VALUES;
+COMMENT ON TABLE settings IS 'Bezpłatne odwołanie do X h przed wizytą, potem opłata Y% ceny; przypomnienie SMS Z h przed wizytą.';
 
 -- =====================================================================
 --  CLIENTS — klientki z kontem i goście (jedna osoba = jeden wiersz)
@@ -58,6 +72,7 @@ CREATE TABLE clients (
   email          citext NOT NULL CHECK (email ~ '^[^@\s]+@[^@\s]+\.[^@\s]{2,}$'),
   phone          text   NOT NULL CHECK (phone ~ '^\+?[0-9 ]{9,16}$'),
   birth_month    smallint CHECK (birth_month BETWEEN 1 AND 12),
+  language       text NOT NULL DEFAULT 'pl' CHECK (language IN ('pl', 'en')),  -- język SMS-ów i e-maili (wersja strony przy rezerwacji)
   has_account    boolean NOT NULL DEFAULT false,
   password_hash  text,                     -- tylko gdy logowanie bez Supabase Auth
   salon_notes    text,                     -- notatki gabinetu; NIE zapisywać tu danych o zdrowiu
@@ -254,6 +269,8 @@ CREATE TABLE bookings (
   created_at        timestamptz NOT NULL DEFAULT now(),
   cancelled_at      timestamptz,
   cancelled_by      text CHECK (cancelled_by IN ('client', 'salon')),
+  cancellation_fee  numeric(8,2) NOT NULL DEFAULT 0 CHECK (cancellation_fee >= 0),  -- opłata za późne odwołanie / nieobecność
+  fee_status        text NOT NULL DEFAULT 'none' CHECK (fee_status IN ('none', 'due', 'paid', 'waived')),
   CHECK (ends_at > starts_at),
   CHECK ((status = 'cancelled') = (cancelled_at IS NOT NULL)),
   CHECK ((promotion_id IS NULL) = (discount_percent = 0)),
@@ -266,6 +283,28 @@ CREATE INDEX bookings_starts_idx ON bookings (starts_at) WHERE status = 'confirm
 -- Zniżka powitalna: tylko raz na klientkę (odwołana wizyta jej nie zużywa)
 CREATE UNIQUE INDEX one_welcome_discount_per_client ON bookings (client_id)
   WHERE promotion_id = 'powitalna' AND status <> 'cancelled';
+
+-- Opłata za późne odwołanie (przez klientkę, później niż X h przed wizytą) i za nieobecność.
+-- Odwołanie przez gabinet jest zawsze bezpłatne. Gabinet może potem ustawić fee_status = 'waived'.
+CREATE FUNCTION apply_cancellation_fee() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+  s settings;
+BEGIN
+  IF NEW.status = OLD.status OR OLD.status <> 'confirmed' THEN
+    RETURN NEW;
+  END IF;
+  SELECT * INTO s FROM settings WHERE id = 1;
+  IF (NEW.status = 'cancelled' AND NEW.cancelled_by = 'client'
+        AND NEW.starts_at - coalesce(NEW.cancelled_at, now()) < make_interval(hours => s.free_cancellation_hours))
+     OR NEW.status = 'no_show' THEN
+    -- kolumna total jest liczona po triggerach, więc kwotę liczymy z ceny i zniżki
+    NEW.cancellation_fee := round(NEW.price * (1 - NEW.discount_percent / 100) * s.late_cancel_fee_percent / 100, 2);
+    NEW.fee_status := CASE WHEN NEW.cancellation_fee > 0 THEN 'due' ELSE 'none' END;
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER bookings_cancellation_fee BEFORE UPDATE OF status ON bookings
+  FOR EACH ROW EXECUTE FUNCTION apply_cancellation_fee();
 
 -- =====================================================================
 --  SMS_LOG — potwierdzenia, przypomnienia, odwołania i kampanie
@@ -373,12 +412,43 @@ SELECT c.id, c.first_name, c.phone
   JOIN consents cs ON cs.client_id = c.id AND cs.type = 'marketing_sms' AND cs.granted
  WHERE c.deleted_at IS NULL;
 
--- Wizyty, do których trzeba wysłać przypomnienie (uruchamiane np. co 15 minut)
+-- Wizyty, do których nadszedł czas przypomnienia (24 h przed wizytą), a SMS jeszcze nie powstał.
+-- Wizyty umówione później niż 24 h przed terminem dostają tylko SMS z potwierdzeniem.
 CREATE VIEW v_reminders_due AS
-SELECT b.id AS booking_id, b.client_id, c.phone, b.starts_at, b.code, t.name AS treatment
+SELECT b.id AS booking_id, b.client_id, c.phone, c.language, b.starts_at, b.code, t.name AS treatment
   FROM bookings b
   JOIN clients c    ON c.id = b.client_id
   JOIN treatments t ON t.id = b.treatment_id
+  CROSS JOIN settings s
  WHERE b.status = 'confirmed'
-   AND b.starts_at BETWEEN now() + interval '23 hours' AND now() + interval '25 hours'
-   AND NOT EXISTS (SELECT 1 FROM sms_log s WHERE s.booking_id = b.id AND s.type = 'reminder');
+   AND b.starts_at > now()
+   AND b.starts_at - make_interval(hours => s.reminder_hours) <= now()
+   AND b.created_at < b.starts_at - make_interval(hours => s.reminder_hours)
+   AND NOT EXISTS (SELECT 1 FROM sms_log l WHERE l.booking_id = b.id AND l.type = 'reminder');
+
+-- Automatyczne przypomnienia: wstawia SMS-y do kolejki (sms_log, status 'queued').
+-- Uruchamiane co 15 minut przez harmonogram, np. pg_cron w Supabase:
+--   SELECT cron.schedule('przypomnienia-sms', '*/15 * * * *', $$SELECT salon.queue_due_reminders()$$);
+-- Wysyłkę z kolejki do bramki SMS (np. SMSAPI) robi funkcja serwerowa aplikacji.
+CREATE FUNCTION queue_due_reminders() RETURNS integer LANGUAGE plpgsql AS $$
+DECLARE
+  s settings;
+  n integer;
+BEGIN
+  SELECT * INTO s FROM settings WHERE id = 1;
+  INSERT INTO sms_log (client_id, booking_id, type, phone, body)
+  SELECT r.client_id, r.booking_id, 'reminder', r.phone,
+         CASE WHEN r.language = 'en' THEN
+           s.sms_sender || ': A reminder about your visit on ' || to_char(r.starts_at AT TIME ZONE 'Europe/Warsaw', 'DD.MM') ||
+           ' at ' || to_char(r.starts_at AT TIME ZONE 'Europe/Warsaw', 'HH24:MI') || '. ' ||
+           'Free cancellation up to ' || s.free_cancellation_hours || ' h before: ' || s.booking_link_base || r.code
+         ELSE
+           s.sms_sender || ': Przypominamy o wizycie ' || to_char(r.starts_at AT TIME ZONE 'Europe/Warsaw', 'DD.MM') ||
+           ' o ' || to_char(r.starts_at AT TIME ZONE 'Europe/Warsaw', 'HH24:MI') || ' (' || r.treatment || '). ' ||
+           'Bezpłatne odwołanie do ' || s.free_cancellation_hours || ' h przed wizytą: ' || s.booking_link_base || r.code
+         END
+    FROM v_reminders_due r
+  ON CONFLICT (booking_id) WHERE type = 'reminder' DO NOTHING;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  RETURN n;
+END $$;

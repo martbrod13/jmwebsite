@@ -56,13 +56,13 @@ window.JM = window.JM || {};
   }
   function resetPrices() { remove('prices'); }
   function categoryName(id) {
-    if (id === 'konsultacja') return 'Konsultacja';
+    if (id === 'konsultacja') return JM.L('Konsultacja', 'Consultation');
     const c = JM.categories.find((x) => x.id === id); return c ? c.name : '';
   }
   function formatPrice(v, from) {
-    if (v === 0) return 'bezpłatnie';
-    const s = v.toLocaleString('pl-PL', { minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2 }) + ' zł';
-    return from ? 'od ' + s : s;
+    if (v === 0) return JM.L('bezpłatnie', 'free');
+    const s = v.toLocaleString(JM.L('pl-PL', 'en-GB'), { minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2 }) + JM.L(' zł', ' PLN');
+    return from ? JM.L('od ', 'from ') + s : s;
   }
   function formatDuration(min) {
     const h = Math.floor(min / 60), m = min % 60;
@@ -71,7 +71,11 @@ window.JM = window.JM || {};
   }
 
   /* ---------- Promocje ---------- */
-  function promos() { return read('promos', JM.defaultPromos); }
+  function promos() {
+    const list = read('promos', JM.defaultPromos);
+    // w wersji angielskiej podmieniamy nazwy i opisy znanych promocji
+    return JM.promoEn ? list.map((p) => Object.assign({}, p, JM.promoEn[p.id] || {})) : list;
+  }
   function savePromos(list) { write('promos', list); }
 
   /* ---------- Użytkowniczki ---------- */
@@ -84,7 +88,7 @@ window.JM = window.JM || {};
   async function register(data) {
     const list = users();
     const email = data.email.trim().toLowerCase();
-    if (list.some((u) => u.email === email)) throw new Error('Konto z tym adresem e-mail już istnieje. Zaloguj się albo zresetuj hasło.');
+    if (list.some((u) => u.email === email)) throw new Error(JM.L('Konto z tym adresem e-mail już istnieje. Zaloguj się albo zresetuj hasło.', 'An account with this email address already exists. Sign in or reset your password.'));
     const at = nowIso();
     const user = {
       id: uid('u'), createdAt: at,
@@ -109,7 +113,7 @@ window.JM = window.JM || {};
   }
   async function login(email, password) {
     const u = users().find((x) => x.email === email.trim().toLowerCase());
-    if (!u || u.password !== (await hash(password))) throw new Error('Nieprawidłowy e-mail lub hasło.');
+    if (!u || u.password !== (await hash(password))) throw new Error(JM.L('Nieprawidłowy e-mail lub hasło.', 'Incorrect email or password.'));
     write('session', { userId: u.id, at: nowIso() });
     return u;
   }
@@ -147,15 +151,18 @@ window.JM = window.JM || {};
     const b = Object.assign({ id: uid('w'), code: Math.random().toString(36).slice(2, 6).toUpperCase(), createdAt: nowIso(), status: 'confirmed' }, data);
     list.push(b); saveBookings(list); return b;
   }
+  const startOf = (b) => new Date(b.date + 'T' + b.time + ':00');
+  // Odwołanie później niż X godzin przed wizytą = opłata (procent ceny zabiegu)
+  function isLateCancel(b) { return (startOf(b) - Date.now()) / 36e5 < JM.booking.cancelHours; }
+  function lateFee(b) { return Math.round((b.total ?? b.price) * JM.booking.lateCancelFeePercent) / 100; }
   function cancelBooking(id, by) {
-    const list = bookings(); const b = list.find((x) => x.id === id); if (!b) return;
+    const list = bookings(); const b = list.find((x) => x.id === id); if (!b) return null;
     b.status = 'cancelled'; b.cancelledAt = nowIso(); b.cancelledBy = by || 'klientka';
-    saveBookings(list);
+    b.cancellationFee = by === 'klientka' && isLateCancel(b) ? lateFee(b) : 0;
+    saveBookings(list); return b;
   }
-  function canCancel(b) {
-    const start = new Date(b.date + 'T' + b.time + ':00');
-    return b.status !== 'cancelled' && (start - Date.now()) / 36e5 >= JM.booking.cancelHours;
-  }
+  function canCancel(b) { return b.status !== 'cancelled' && startOf(b) > Date.now(); }
+  function reminderAt(b) { return new Date(startOf(b).getTime() - JM.booking.reminderHours * 36e5); }
 
   /* ---------- Dostępność terminów ---------- */
   const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
@@ -198,7 +205,7 @@ window.JM = window.JM || {};
     if (!user || !t.price) return null;
     const options = [];
     if (visitCount(user.id) === 0) {
-      options.push({ id: 'first', label: 'Pierwsza wizyta z kontem', percent: JM.discounts.firstVisitPercent });
+      options.push({ id: 'first', label: JM.L('Pierwsza wizyta z kontem', 'First visit with an account'), percent: JM.discounts.firstVisitPercent });
     }
     promos().filter((p) => p.active).forEach((p) => {
       if (dateStr < p.from || dateStr > p.to) return;
@@ -279,7 +286,7 @@ window.JM = window.JM || {};
     allTreatments, treatment, setPrice, resetPrices, categoryName, formatPrice, formatDuration,
     promos, savePromos,
     users, currentUser, register, login, logout, updateUser, setConsent, deleteUser,
-    bookings, userBookings, visitCount, createBooking, cancelBooking, canCancel,
+    bookings, userBookings, visitCount, createBooking, cancelBooking, canCancel, isLateCancel, lateFee, reminderAt,
     dayHours, slotsFor, bestDiscount, priceSummary,
     cookieConsent, setCookieConsent, seedDemo, resetDemo, hash
   };

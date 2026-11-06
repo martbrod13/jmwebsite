@@ -36,14 +36,25 @@ Zasady działające w prototypie:
 - Promocje dla zarejestrowanych (święta, urodziny); zniżki się nie sumują, wybierana jest najkorzystniejsza.
 - Przy każdej obniżce pokazywana jest najniższa cena z 30 dni przed obniżką (Omnibus).
 - Zgody marketingowe są osobne, dobrowolne i domyślnie odznaczone; wymagana jest tylko akceptacja regulaminu i polityki prywatności.
-- Bezpłatne odwołanie wizyty do 24 h przed terminem.
+- Bezpłatne odwołanie wizyty do 12 h przed terminem; później lub przy nieobecności opłata 50% ceny zabiegu.
+- Automatyczny SMS z przypomnieniem 24 h przed wizytą (w prototypie widoczny w panelu jako harmonogram).
+- Strona ma wersję angielską (przełącznik PL / EN w nagłówku). Domyślnie i przy pierwszej wizycie strona jest po polsku; wybór języka zapamiętuje przeglądarka. Panel gabinetu jest zawsze po polsku, a rezerwacje zapisują polską nazwę zabiegu. Dokumenty prawne mają tłumaczenie z dopiskiem, że wiążąca jest wersja polska.
 
 ### Gdzie co zmieniać
 
 - `assets/js/config.js`: dane gabinetu, godziny pracy, dni wolne, promocje
 - `assets/js/treatments.js`: zabiegi, opisy, czas trwania, ceny
+- `assets/js/treatments.en.js`: angielskie nazwy i opisy zabiegów (te same identyfikatory co w `treatments.js`)
+- `assets/js/i18n.js`: przełączanie języka. Teksty w skryptach: `JM.L('po polsku', 'in English')`; w HTML: `<span data-lang="pl">…</span><span data-lang="en">…</span>`
 - `assets/css/style.css`: wygląd (kolory na górze pliku)
 - Ceny można też zmieniać w panelu gabinetu; zapisują się w tej przeglądarce.
+
+### Role i dostęp
+
+- **Martyna Brodowska: administratorka strony.** Odpowiada za kod, hosting, bazę danych, konfigurację SMS-ów i e-maili. Ma konto w panelu (`martbrod99@gmail.com`, w prototypie hasło `demo`).
+- **Justyna Mańka: właścicielka gabinetu.** Korzysta z panelu na co dzień (wizyty, klientki, ceny, promocje). Konto w prototypie: `kontakt@justynamanka.pl`, hasło `demo`.
+
+W sensie RODO administratorem danych klientek jest firma Justyny, a administratorka strony przetwarza je w jej imieniu. Przed startem potrzebna jest między nimi umowa powierzenia przetwarzania danych.
 
 ### Baza danych
 
@@ -60,7 +71,8 @@ Schemat bazy PostgreSQL (Supabase) na wersję produkcyjną jest w folderze `data
 - [ ] Potwierdzenie ukończonych szkoleń (nazwa i data z certyfikatów), kierunek studiów na UJ
 - [ ] Logo w wektorze (SVG) i oryginał zdjęcia z banera w pełnej rozdzielczości
 - [ ] Zdjęcia do galerii, każde z pisemną zgodą klientki na publikację wizerunku
-- [ ] Przegląd dokumentów prawnych przez prawnika
+- [ ] Przegląd dokumentów prawnych przez prawnika, w tym zapisu o opłacie 50% za późne odwołanie (ustawa o prawach konsumenta, klauzule niedozwolone)
+- [ ] Sprawdzenie angielskich tekstów przez właścicielkę
 
 ### Wersja produkcyjna (plan)
 

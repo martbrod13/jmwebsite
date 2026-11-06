@@ -98,6 +98,11 @@ svg { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 1
 .main-nav a[aria-current="page"], .nav-account[aria-current="page"] { border-bottom-color: var(--brass); }
 .nav-account { display: inline-flex; align-items: center; gap: 8px; padding-left: 28px; border-left: 1px solid var(--linen); }
 .nav-account svg { font-size: 1.15rem; }
+/* Przełącznik języka PL / EN */
+.lang-switch { display: inline-flex; align-items: center; gap: 2px; font-size: .75rem; letter-spacing: .16em; color: var(--linen); flex-shrink: 0; }
+.lang-switch button { background: none; border: 0; padding: 6px 4px; font: inherit; letter-spacing: inherit; color: var(--taupe); cursor: pointer; border-bottom: 1px solid transparent; }
+.lang-switch button:hover { color: var(--ink); }
+.lang-switch button[aria-pressed="true"] { color: var(--ink); border-bottom-color: var(--brass); cursor: default; }
 .menu-toggle { display: none; margin-left: auto; width: 48px; height: 48px; background: none; border: 0; cursor: pointer; position: relative; }
 .menu-toggle-bars, .menu-toggle-bars::before, .menu-toggle-bars::after { position: absolute; left: 12px; width: 24px; height: 1.5px; background: var(--ink); transition: transform .25s var(--ease), opacity .2s; }
 .menu-toggle-bars { top: 23px; }
@@ -122,11 +127,21 @@ body.menu-open { overflow: hidden; }
   .main-nav ul { gap: 18px; }
   .main-nav a, .nav-account { font-size: .875rem; }
   .nav-account { padding-left: 18px; gap: 6px; }
+  .lang-switch { font-size: .6875rem; letter-spacing: .12em; }
 }
 /* Menu w przycisku dopiero na tabletach i telefonach */
 @media (max-width: 860px) {
   .main-nav, .nav-account { display: none; }
-  .menu-toggle { display: block; }
+  .header-inner { gap: 12px; }
+  .lang-switch { margin-left: auto; }
+  .menu-toggle { display: block; margin-left: 0; margin-right: -12px; flex-shrink: 0; }
+}
+@media (max-width: 440px) {
+  .brand { gap: 10px; min-width: 0; }
+  .brand img { height: 36px; }
+  .brand-name { font-size: .75rem; letter-spacing: .12em; }
+  .brand-sub { font-size: .5625rem; letter-spacing: .16em; }
+  .lang-switch { font-size: .6875rem; letter-spacing: .1em; }
 }
 
 /* ---------- Sekcje ---------- */
@@ -731,3 +746,12 @@ strong { font-weight: 500; }
 .hero p:last-child { margin-bottom: 0; }
 .about .creds { margin-bottom: 0; }
 .main-nav a, .nav-account { white-space: nowrap; }
+
+.admin-who { margin: 0 0 6px; color: var(--gold); font-size: .875rem; line-height: 1.4; }
+.admin-who span { color: var(--on-ink-soft); font-size: .8125rem; }
+
+/* ---------- Wersje językowe ---------- */
+/* Treść oznaczona data-lang pokazuje się tylko w swoim języku. Domyślnie polski. */
+html:not([lang="en"]) [data-lang="en"],
+html[lang="en"] [data-lang="pl"] { display: none !important; }
+.lang-note { font-size: .9375rem; color: var(--taupe); border-left: 1px solid var(--gold-deep); padding-left: 16px; margin-bottom: 32px; }

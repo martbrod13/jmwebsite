@@ -26,6 +26,12 @@ JM.salon = {
 
 // Godziny pracy: [otwarcie, zamknięcie] w pełnych godzinach; null = nieczynne. 0 = niedziela.
 // TODO: potwierdzić godziny z właścicielką
+// Konta do panelu gabinetu (w prototypie hasło demo: „demo”)
+JM.panelAccounts = [
+  { email: 'kontakt@justynamanka.pl', name: 'Justyna Mańka', role: 'Właścicielka gabinetu' },
+  { email: 'martbrod99@gmail.com', name: 'Martyna Brodowska', role: 'Administratorka strony' }
+];
+
 JM.hours = {
   1: [9, 19],
   2: [9, 19],
@@ -51,8 +57,9 @@ JM.booking = {
   slotStep: 30,          // co ile minut zaczynają się terminy
   daysAhead: 60,         // jak daleko w przód można rezerwować
   minLeadHours: 3,       // najwcześniej X godzin od teraz
-  cancelHours: 24,       // bezpłatne odwołanie do X godzin przed wizytą
-  reminderHours: 24      // SMS przypominający X godzin przed wizytą
+  cancelHours: 12,       // bezpłatne odwołanie do X godzin przed wizytą
+  lateCancelFeePercent: 50, // opłata za późniejsze odwołanie lub nieobecność (% ceny zabiegu)
+  reminderHours: 24      // automatyczny SMS z przypomnieniem X godzin przed wizytą
 };
 
 JM.discounts = {
