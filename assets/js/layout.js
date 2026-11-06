@@ -76,7 +76,7 @@
         <a class="skip-link" href="#main">${L('Przejdź do treści', 'Skip to content')}</a>
         <div class="container header-inner">
           <a class="brand" href="index.html" aria-label="${salon.brand}, ${L('strona główna', 'home page')}">
-            <img src="assets/img/logo-mark.png" alt="" width="58" height="44">
+            <img src="assets/img/logo-mark.webp" alt="" width="58" height="44">
             <span class="brand-text"><span class="brand-name">${salon.brand}</span><span class="brand-sub">${salon.tagline}</span></span>
           </a>
           <nav class="main-nav" aria-label="${L('Menu główne', 'Main menu')}"><ul>${items}</ul></nav>
@@ -99,7 +99,7 @@
       <footer class="site-footer">
         <div class="container footer-grid">
           <div class="footer-brand">
-            <img src="assets/img/logo-gold.png" alt="${salon.brand} ${salon.tagline}" width="170" height="141">
+            <img src="assets/img/logo-gold.webp" alt="${salon.brand} ${salon.tagline}" width="170" height="141">
             <p>${L('Gabinet kosmetologii estetycznej w Krakowie.', 'Aesthetic cosmetology studio in Kraków.')}</p>
           </div>
           <div>
@@ -195,7 +195,6 @@
 
   function init() {
     const page = document.body.dataset.page || '';
-    S.seedDemo();
     if (page !== 'panel') {
       document.body.prepend(header(page));
       document.body.appendChild(footer());
@@ -229,8 +228,13 @@
     document.querySelectorAll('[data-fill]').forEach((el) => {
       const v = salon[el.dataset.fill]; if (v != null) el.textContent = v;
     });
+    if (S.offline) {
+      const main = document.getElementById('main') || document.body;
+      main.prepend(h(`<div class="offline-note" role="alert">${L('Nie udało się połączyć z serwerem, więc logowanie i rezerwacja chwilowo nie działają. Odśwież stronę albo zadzwoń: ', 'We could not connect to the server, so signing in and booking are not available right now. Refresh the page or call us: ')}<a href="tel:${salon.phoneHref}">${salon.phone}</a></div>`));
+    }
   }
 
   JM.ui = { h, esc, icons, toast, fmtDate, fmtShort, hoursText, cookieSettings };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+  // nagłówek i stopka pojawiają się po wczytaniu danych z serwera (zalogowana klientka, ceny)
+  JM.ready.then(init);
 })();

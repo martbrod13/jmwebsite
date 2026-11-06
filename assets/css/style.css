@@ -1,3 +1,8 @@
+/* Czcionki z własnego serwera (licencja SIL OFL, pliki w assets/fonts) — bez łączenia z Google */
+@font-face { font-family: "Bodoni Moda"; src: url("../fonts/bodoni-moda.woff") format("woff"); font-weight: 400 900; font-style: normal; font-display: swap; }
+@font-face { font-family: "Bodoni Moda"; src: url("../fonts/bodoni-moda-italic.woff") format("woff"); font-weight: 400 900; font-style: italic; font-display: swap; }
+@font-face { font-family: "Jost"; src: url("../fonts/jost.woff") format("woff"); font-weight: 100 900; font-style: normal; font-display: swap; }
+
 /* Justyna Mańka Beauty & Aesthetics — style strony
    Paleta: ciepła biel i piasek z granatem z gabinetowego uniformu. */
 
@@ -755,3 +760,20 @@ strong { font-weight: 500; }
 html:not([lang="en"]) [data-lang="en"],
 html[lang="en"] [data-lang="pl"] { display: none !important; }
 .lang-note { font-size: .9375rem; color: var(--taupe); border-left: 1px solid var(--gold-deep); padding-left: 16px; margin-bottom: 32px; }
+
+/* Brak połączenia z serwerem */
+.offline-note { max-width: 1120px; margin: 24px auto 0; padding: 14px 20px; background: var(--paper); border: 1px solid var(--gold-deep); color: var(--ink); font-size: .9375rem; }
+.cal-day.is-loading { opacity: .45; }
+
+/* Strona wizyty z linku w SMS-ie */
+.visit-page { max-width: 720px; padding-bottom: 96px; }
+.visit-card h2 { font-size: 1.75rem; }
+.visit-dl { display: grid; gap: 14px; margin: 24px 0; }
+.visit-dl div { display: grid; grid-template-columns: 200px 1fr; gap: 16px; border-bottom: 1px solid var(--hair-soft); padding-bottom: 12px; }
+.visit-dl dt { color: var(--taupe); font-size: .875rem; }
+.visit-dl dd { margin: 0; }
+@media (max-width: 560px) { .visit-dl div { grid-template-columns: 1fr; gap: 2px; } }
+
+/* Panel: ważne informacje */
+.panel-note { border-left: 2px solid var(--gold-deep); display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.panel-note p { margin: 0; flex: 1 1 380px; }

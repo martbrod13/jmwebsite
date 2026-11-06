@@ -1,4 +1,4 @@
-(function () {
+JM.ready.then(function () {
   const S = JM.store, ui = JM.ui, esc = ui.esc, L = JM.L;
   const loc = L('pl-PL', 'en-GB');
   const tName = (b) => { const x = S.treatment(b.treatmentId); return x ? x.name : b.treatmentName; };
@@ -13,6 +13,8 @@
   const back = params.get('powrot') === 'rezerwacja';
   let tab = location.hash === '#rejestracja' ? 'register' : 'login';
   let msg = '';
+  let myBookings = null; // wizyty zalogowanej klientki z serwera
+  const resetToken = params.get('reset');
 
   const months = ['', ...JM.monthNames];
   const field = (id, label, attrs, hint) => `
@@ -68,11 +70,11 @@
 
   function visitRow(b, upcoming) {
     const d = new Date(b.date + 'T12:00:00');
-    const status = b.status === 'cancelled' ? `<span class="badge">${L('odwołana', 'cancelled')}</span>${b.cancellationFee ? ` <span class="badge badge-warn">${L('opłata', 'fee')} ${S.formatPrice(b.cancellationFee)}</span>` : ''}` : b.status === 'done' || !upcoming ? `<span class="badge badge-ok">${L('odbyta', 'completed')}</span>` : '';
-    let action = '';
-    if (upcoming && b.status !== 'cancelled') {
-      action = S.canCancel(b) ? `<button class="btn btn-outline btn-small" type="button" data-cancel="${b.id}">${L('Odwołaj', 'Cancel')}</button>` : '';
-    }
+    const fee = b.fee ? ` <span class="badge badge-warn">${L('opłata', 'fee')} ${S.formatPrice(b.fee)}${b.feeStatus === 'paid' ? L(' (zapłacona)', ' (paid)') : b.feeStatus === 'waived' ? L(' (anulowana)', ' (waived)') : ''}</span>` : '';
+    const status = b.status === 'cancelled' ? `<span class="badge">${L('odwołana', 'cancelled')}</span>${fee}`
+      : b.status === 'no_show' ? `<span class="badge">${L('nieobecność', 'missed')}</span>${fee}`
+      : b.status === 'done' || !upcoming ? `<span class="badge badge-ok">${L('odbyta', 'completed')}</span>` : '';
+    const action = upcoming && b.canCancel ? `<button class="btn btn-outline btn-small" type="button" data-cancel="${b.id}">${L('Odwołaj', 'Cancel')}</button>` : '';
     return `
       <li class="visit-row">
         <div class="visit-date"><strong>${d.getDate()} ${JM.monthGen[d.getMonth()]}</strong><span>${L(JM.dayNames[d.getDay()].toLowerCase(), JM.dayNames[d.getDay()])}, ${b.time}</span></div>
@@ -82,11 +84,10 @@
   }
 
   function profileView(u) {
-    const all = S.userBookings(u.id);
-    const nowKey = S.isoDate(new Date()) + ' ' + S.pad(new Date().getHours()) + ':' + S.pad(new Date().getMinutes());
-    const upcoming = all.filter((b) => b.status !== 'cancelled' && b.status !== 'done' && b.date + ' ' + b.time >= nowKey);
+    const all = myBookings || [];
+    const upcoming = all.filter((b) => b.status === 'confirmed' && b.canCancel);
     const past = all.filter((b) => !upcoming.includes(b)).reverse();
-    const firstAvailable = S.visitCount(u.id) === 0;
+    const firstAvailable = !u.visits;
     const next = upcoming[0];
     const todayIso = S.isoDate(new Date());
     const offers = S.promos().filter((p) => p.active && p.membersOnly && p.to >= todayIso);
@@ -116,7 +117,7 @@
 
         <section class="profile-section" aria-labelledby="up-title">
           <h2 id="up-title">${L('Nadchodzące wizyty', 'Upcoming visits')}</h2>
-          ${upcoming.length ? `<ul class="visit-list">${upcoming.map((b) => visitRow(b, true)).join('')}</ul>` : `<div class="empty"><p>${L('Brak zaplanowanych wizyt.', 'No upcoming visits.')}</p><a class="btn btn-primary btn-small" href="rezerwacja.html">${L('Zarezerwuj wizytę', 'Book a visit')}</a></div>`}
+          ${myBookings === null ? `<p class="muted">${L('Wczytujemy wizyty…', 'Loading your visits…')}</p>` : upcoming.length ? `<ul class="visit-list">${upcoming.map((b) => visitRow(b, true)).join('')}</ul>` : `<div class="empty"><p>${L('Brak zaplanowanych wizyt.', 'No upcoming visits.')}</p><a class="btn btn-primary btn-small" href="rezerwacja.html">${L('Zarezerwuj wizytę', 'Book a visit')}</a></div>`}
           <p class="small muted" style="margin-top:14px">${L(`Wizytę odwołasz bezpłatnie do ${JM.booking.cancelHours} godzin przed terminem. Przy późniejszym odwołaniu albo nieobecności obowiązuje opłata ${JM.booking.lateCancelFeePercent}% ceny zabiegu. Przypomnienie SMS wysyłamy automatycznie ${JM.booking.reminderHours} godziny przed wizytą.`,
             `You can cancel free of charge up to ${JM.booking.cancelHours} hours before the visit. If you cancel later or do not show up, a fee of ${JM.booking.lateCancelFeePercent}% of the treatment price applies. We text you a reminder automatically ${JM.booking.reminderHours} hours before the visit.`)}</p>
         </section>
@@ -172,10 +173,32 @@
       </div>`;
   }
 
+  function resetView() {
+    return `
+      <div class="container page-head">
+        <p class="crumbs"><a href="index.html">${L('Strona główna', 'Home')}</a> / ${L('Nowe hasło', 'New password')}</p>
+        <h1>${L('Ustaw nowe hasło', 'Set a new password')}</h1>
+      </div>
+      <div class="container auth">
+        ${msg ? `<p class="form-msg" role="alert">${esc(msg)}</p>` : ''}
+        <form id="reset-form" novalidate>
+          ${field('n-pass', L('Nowe hasło', 'New password'), 'name="password" type="password" autocomplete="new-password" required minlength="8"', L('Co najmniej 8 znaków.', 'At least 8 characters.'))}
+          ${field('n-pass2', L('Powtórz hasło', 'Repeat password'), 'name="password2" type="password" autocomplete="new-password" required')}
+          <button class="btn btn-primary btn-block" type="submit">${L('Zapisz hasło i zaloguj się', 'Save password and sign in')}</button>
+        </form>
+      </div>`;
+  }
   function render() {
     const u = S.currentUser();
+    if (resetToken && !u) { root.innerHTML = resetView(); return; }
     root.innerHTML = u ? profileView(u) : authView();
+    if (u && myBookings === null) loadBookings();
   }
+  async function loadBookings() {
+    try { myBookings = await S.myBookings(); } catch (e) { myBookings = []; ui.toast(e.message); }
+    if (S.currentUser()) root.innerHTML = profileView(S.currentUser());
+  }
+  const setNavName = (text) => document.querySelectorAll('.nav-account span').forEach((s) => (s.textContent = text));
 
   function setError(form, name, text) {
     const el = form.elements[name]; const box = el.closest('.field') || el.closest('.check');
@@ -191,46 +214,65 @@
   const phoneRe = /^(\+?48)?[\s-]?(\d[\s-]?){9}$/;
   function afterAuth(text) {
     if (back) { location.href = 'rezerwacja.html?wznow=1'; return; }
-    msg = ''; history.replaceState(null, '', 'konto.html'); render(); window.scrollTo(0, 0); ui.toast(text);
-    document.querySelectorAll('.nav-account span').forEach((s) => (s.textContent = S.currentUser().firstName));
+    msg = ''; myBookings = null; history.replaceState(null, '', 'konto.html'); render(); window.scrollTo(0, 0); ui.toast(text);
+    setNavName(S.currentUser().firstName);
   }
 
-  root.addEventListener('click', (e) => {
+  root.addEventListener('click', async (e) => {
     const el = e.target.closest('button'); if (!el) return;
     if (el.dataset.tab) { tab = el.dataset.tab; msg = ''; history.replaceState(null, '', (back ? '?powrot=rezerwacja' : 'konto.html') + (tab === 'register' ? '#rejestracja' : '')); render(); return; }
-    if (el.hasAttribute('data-logout')) { S.logout(); render(); ui.toast(L('Wylogowano.', 'Signed out.')); document.querySelectorAll('.nav-account span').forEach((s) => (s.textContent = L('Zaloguj się', 'Sign in'))); return; }
+    if (el.hasAttribute('data-logout')) { await S.logout(); myBookings = null; render(); ui.toast(L('Wylogowano.', 'Signed out.')); setNavName(L('Zaloguj się', 'Sign in')); return; }
     if (el.hasAttribute('data-reset')) {
       const dlg = ui.h(`<dialog class="modal"><form method="dialog" class="modal-body"><h2>${L('Reset hasła', 'Reset password')}</h2><p>${L('Podaj adres e-mail konta. Wyślemy link do ustawienia nowego hasła.', 'Enter the email address of your account. We will send you a link to set a new password.')}</p>
-        <div class="field"><label for="rs-email">E-mail</label><input id="rs-email" type="email" required></div>
+        <div class="field"><label for="rs-email">E-mail</label><input id="rs-email" type="email" autocomplete="email" required value="${esc((root.querySelector('#l-email') || {}).value || '')}"></div>
         <div class="modal-actions"><button class="btn btn-primary" value="ok">${L('Wyślij link', 'Send link')}</button><button class="btn btn-outline" value="cancel" formnovalidate>${L('Anuluj', 'Cancel')}</button></div></form></dialog>`);
       document.body.appendChild(dlg); dlg.showModal();
-      dlg.addEventListener('close', () => { if (dlg.returnValue === 'ok') ui.toast(L('Jeśli konto istnieje, wysłaliśmy link na podany adres.', 'If the account exists, we have sent a link to that address.')); dlg.remove(); });
+      dlg.addEventListener('close', async () => {
+        const email = dlg.querySelector('#rs-email').value.trim(); dlg.remove();
+        if (dlg.returnValue !== 'ok' || !email) return;
+        try { await S.forgotPassword(email); ui.toast(L('Jeśli konto istnieje, wysłaliśmy link na podany adres. Sprawdź też folder spam.', 'If the account exists, we have sent a link to that address. Check your spam folder too.')); } catch (err) { ui.toast(err.message); }
+      });
       return;
     }
     if (el.dataset.cancel) {
-      const b = S.bookings().find((x) => x.id === el.dataset.cancel);
-      const late = S.isLateCancel(b);
-      const warn = late ? `<p class="form-msg" style="margin-top:12px">${L(`Do wizyty zostało mniej niż ${JM.booking.cancelHours} godzin. Zgodnie z regulaminem odwołanie oznacza opłatę ${JM.booking.lateCancelFeePercent}% ceny zabiegu:`, `Your visit is less than ${JM.booking.cancelHours} hours away. Under our terms, cancelling now means a fee of ${JM.booking.lateCancelFeePercent}% of the treatment price:`)} <strong>${S.formatPrice(S.lateFee(b))}</strong>.</p>` : `<p class="small muted">${L('Odwołanie jest bezpłatne.', 'Cancelling is free of charge.')}</p>`;
+      const b = (myBookings || []).find((x) => String(x.id) === el.dataset.cancel); if (!b) return;
+      const warn = b.lateCancel ? `<p class="form-msg" style="margin-top:12px">${L(`Do wizyty zostało mniej niż ${JM.booking.cancelHours} godzin. Zgodnie z regulaminem odwołanie oznacza opłatę ${JM.booking.lateCancelFeePercent}% ceny zabiegu:`, `Your visit is less than ${JM.booking.cancelHours} hours away. Under our terms, cancelling now means a fee of ${JM.booking.lateCancelFeePercent}% of the treatment price:`)} <strong>${S.formatPrice(b.lateFee)}</strong>.</p>` : `<p class="small muted">${L('Odwołanie jest bezpłatne.', 'Cancelling is free of charge.')}</p>`;
       const dlg = ui.h(`<dialog class="modal"><form method="dialog" class="modal-body"><h2>${L('Odwołać wizytę?', 'Cancel this visit?')}</h2><p>${esc(tName(b))}, ${ui.fmtDate(b.date)}, ${L('godz.', 'at')} ${b.time}. ${L('Termin wróci do kalendarza dla innych klientek.', 'The time will become available to other clients.')}</p>${warn}
         <div class="modal-actions"><button class="btn btn-primary" value="ok">${L('Odwołaj wizytę', 'Cancel visit')}</button><button class="btn btn-outline" value="cancel">${L('Zostaw wizytę', 'Keep visit')}</button></div></form></dialog>`);
       document.body.appendChild(dlg); dlg.showModal();
-      dlg.addEventListener('close', () => { if (dlg.returnValue === 'ok') { const c = S.cancelBooking(b.id, 'klientka'); render(); ui.toast(c && c.cancellationFee ? L(`Wizyta odwołana. Opłata za późne odwołanie: ${S.formatPrice(c.cancellationFee)}.`, `Visit cancelled. Late cancellation fee: ${S.formatPrice(c.cancellationFee)}.`) : L('Wizyta odwołana. Wysłaliśmy potwierdzenie SMS-em.', 'Visit cancelled. We have texted you a confirmation.')); } dlg.remove(); });
+      dlg.addEventListener('close', async () => {
+        dlg.remove(); if (dlg.returnValue !== 'ok') return;
+        try {
+          const c = await S.cancelMyBooking(b.id);
+          myBookings = myBookings.map((x) => (x.id === c.id ? c : x)); render();
+          ui.toast(c.fee ? L(`Wizyta odwołana. Opłata za późne odwołanie: ${S.formatPrice(c.fee)}.`, `Visit cancelled. Late cancellation fee: ${S.formatPrice(c.fee)}.`) : L('Wizyta odwołana. Wysłaliśmy potwierdzenie SMS-em.', 'Visit cancelled. We have texted you a confirmation.'));
+        } catch (err) { ui.toast(err.message); myBookings = null; render(); }
+      });
       return;
     }
     if (el.hasAttribute('data-delete')) {
       const dlg = ui.h(`<dialog class="modal"><form method="dialog" class="modal-body"><h2>${L('Usunąć konto?', 'Delete your account?')}</h2><p>${L('Tej operacji nie można cofnąć. Zaplanowane wizyty pozostaną w kalendarzu; jeśli chcesz je odwołać, zrób to przed usunięciem konta.', 'This cannot be undone. Upcoming visits stay in the calendar; if you want to cancel them, do it before deleting your account.')}</p>
         <div class="modal-actions"><button class="btn btn-danger" value="ok">${L('Usuń konto', 'Delete account')}</button><button class="btn btn-outline" value="cancel">${L('Anuluj', 'Cancel')}</button></div></form></dialog>`);
       document.body.appendChild(dlg); dlg.showModal();
-      dlg.addEventListener('close', () => { if (dlg.returnValue === 'ok') { S.deleteUser(S.currentUser().id); location.href = 'index.html'; } dlg.remove(); });
+      dlg.addEventListener('close', async () => {
+        dlg.remove(); if (dlg.returnValue !== 'ok') return;
+        try { await S.deleteUser(); location.href = 'index.html'; } catch (err) { ui.toast(err.message); }
+      });
     }
   });
 
-  root.addEventListener('change', (e) => {
+  root.addEventListener('change', async (e) => {
     const k = e.target.dataset.consent; if (!k) return;
-    S.setConsent(S.currentUser().id, k, e.target.checked);
-    ui.toast(e.target.checked ? L('Zgoda zapisana.', 'Consent saved.') : L('Zgoda wycofana. Nie będziemy wysyłać ofert tym kanałem.', 'Consent withdrawn. We will not send offers this way.'));
+    const value = e.target.checked; e.target.disabled = true;
+    try {
+      await S.setConsent(k, value);
+      ui.toast(value ? L('Zgoda zapisana.', 'Consent saved.') : L('Zgoda wycofana. Nie będziemy wysyłać ofert tym kanałem.', 'Consent withdrawn. We will not send offers this way.'));
+    } catch (err) { ui.toast(err.message); }
     render();
   });
+  const showServerError = (f, err) => {
+    if (err.field && f.elements[err.field]) { setError(f, err.field, esc(err.message)); f.elements[err.field].focus(); } else { msg = err.message; render(); }
+  };
 
   root.addEventListener('submit', async (e) => {
     e.preventDefault(); const f = e.target; clearErrors(f); msg = '';
@@ -241,6 +283,12 @@
       if (!f.elements.password.value) { setError(f, 'password', L('Wpisz hasło.', 'Enter your password.')); bad = true; }
       if (bad) return f.querySelector('[aria-invalid]').focus();
       try { await S.login(v('email'), f.elements.password.value); afterAuth(L('Zalogowano.', 'Signed in.')); }
+      catch (err) { msg = err.message; render(); }
+    }
+    if (f.id === 'reset-form') {
+      if (f.elements.password.value.length < 8) { setError(f, 'password', L('Hasło musi mieć co najmniej 8 znaków.', 'Your password must be at least 8 characters long.')); return; }
+      if (f.elements.password2.value !== f.elements.password.value) { setError(f, 'password2', L('Hasła się różnią.', 'The passwords do not match.')); return; }
+      try { await S.resetPassword(resetToken, f.elements.password.value); afterAuth(L('Hasło zmienione. Jesteś zalogowana.', 'Password changed. You are signed in.')); }
       catch (err) { msg = err.message; render(); }
     }
     if (f.id === 'register-form') {
@@ -260,18 +308,20 @@
         await S.register({
           firstName: v('firstName'), lastName: v('lastName'), email: v('email'), phone: v('phone'),
           password: f.elements.password.value, birthMonth: v('birthMonth'),
-          marketingSms: f.elements.marketingSms.checked, marketingEmail: f.elements.marketingEmail.checked
+          marketingSms: f.elements.marketingSms.checked, marketingEmail: f.elements.marketingEmail.checked, terms: f.elements.terms.checked
         });
         afterAuth(L('Konto założone. Zniżka 10% czeka na pierwszy zabieg.', 'Account created. Your 10% discount is waiting for your first treatment.'));
-      } catch (err) { msg = err.message; render(); }
+      } catch (err) { showServerError(f, err); }
     }
     if (f.id === 'data-form') {
       if (!v('firstName')) { setError(f, 'firstName', L('Wpisz imię.', 'Enter your first name.')); return; }
       if (!phoneRe.test(v('phone'))) { setError(f, 'phone', L('Wpisz numer telefonu, np. +48 600 000 000.', 'Enter a phone number, e.g. +48 600 000 000.')); return; }
-      S.updateUser(S.currentUser().id, { firstName: v('firstName'), lastName: v('lastName'), phone: v('phone'), birthMonth: v('birthMonth') });
-      render(); ui.toast(L('Zapisano zmiany.', 'Changes saved.'));
+      try {
+        await S.updateUser({ firstName: v('firstName'), lastName: v('lastName'), phone: v('phone'), birthMonth: v('birthMonth') });
+        render(); ui.toast(L('Zapisano zmiany.', 'Changes saved.')); setNavName(S.currentUser().firstName);
+      } catch (err) { showServerError(f, err); }
     }
   });
 
   render();
-})();
+});

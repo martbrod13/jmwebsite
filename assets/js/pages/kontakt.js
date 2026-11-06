@@ -1,4 +1,4 @@
-(function () {
+JM.ready.then(function () {
   const S = JM.store, ui = JM.ui, s = JM.salon, L = JM.L;
   const q = encodeURIComponent(s.mapQuery);
 
@@ -32,7 +32,7 @@
   renderMap();
   document.addEventListener('jm:cookies', renderMap);
 
-  document.getElementById('contact-form').addEventListener('submit', (e) => {
+  document.getElementById('contact-form').addEventListener('submit', async (e) => {
     e.preventDefault(); const f = e.target; let bad = null;
     f.querySelectorAll('.field-error').forEach((x) => x.remove());
     f.querySelectorAll('.has-error').forEach((x) => x.classList.remove('has-error'));
@@ -40,6 +40,10 @@
       const el = f.elements[n]; if (!el.value.trim()) { el.closest('.field').classList.add('has-error'); el.closest('.field').insertAdjacentHTML('beforeend', `<span class="field-error">${t}</span>`); bad = bad || el; }
     });
     if (bad) return bad.focus();
-    f.reset(); ui.toast(L('Wiadomość wysłana. Odpowiemy najszybciej, jak to możliwe.', 'Message sent. We will reply as soon as we can.'));
+    const btn = f.querySelector('[type=submit]'); btn.disabled = true;
+    try {
+      await S.sendContact({ name: f.elements.name.value, contact: f.elements.contact.value, message: f.elements.message.value });
+      f.reset(); ui.toast(L('Wiadomość wysłana. Odpowiemy najszybciej, jak to możliwe.', 'Message sent. We will reply as soon as we can.'));
+    } catch (err) { ui.toast(err.message); } finally { btn.disabled = false; }
   });
-})();
+});

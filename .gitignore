@@ -1,0 +1,5 @@
+# Lokalna baza danych i sekrety — nigdy do repozytorium
+data/
+.env
+node_modules/
+.DS_Store
