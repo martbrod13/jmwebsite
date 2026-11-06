@@ -45,6 +45,10 @@ Zasady działające w prototypie:
 - `assets/css/style.css`: wygląd (kolory na górze pliku)
 - Ceny można też zmieniać w panelu gabinetu; zapisują się w tej przeglądarce.
 
+### Baza danych
+
+Schemat bazy PostgreSQL (Supabase) na wersję produkcyjną jest w folderze `database/`. Opis tabel i instrukcja uruchomienia: `database/README.md`.
+
 ### Do uzupełnienia przed publikacją
 
 - [ ] Pisemna zgoda właścicielki na stronę i publikację jej danych, zdjęć i opisu
