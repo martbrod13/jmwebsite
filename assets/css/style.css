@@ -713,3 +713,8 @@ strong { font-weight: 500; }
 .acc-meta span:first-child { min-width: 0; }
 .menu-links { display: flex; gap: 20px; margin-left: auto; }
 .menu-meta { justify-content: space-between; }
+
+/* strona główna: krótka sekcja z nagłówkiem, bez listy */
+.section-intro .section-head { margin-bottom: 0; }
+.hero p:last-child { margin-bottom: 0; }
+.about .creds { margin-bottom: 0; }
