@@ -19,6 +19,7 @@ const api = require('./api');
 const M = require('./messaging');
 const B = require('./booking');
 const G = require('./gallery');
+const Events = require('./events');
 const Sec = require('./security');
 
 const ROOT = path.join(__dirname, '..');
@@ -122,6 +123,11 @@ const server = http.createServer((req, res) => {
   try { url = new URL(req.url, 'http://localhost'); } catch (e) { res.writeHead(400); return res.end(); }
   const p = url.pathname;
 
+  // powiadomienia na żywo dla zalogowanego panelu
+  if (p === '/api/admin/events') {
+    if (!Sec.readSession(req, 'admin')) { res.writeHead(401); return res.end(); }
+    return Events.subscribe(req, res);
+  }
   if (p.startsWith('/api/')) return api.handle(req, res, url);
   if (p === '/robots.txt') { res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end(robots()); }
   if (p === '/sitemap.xml') {

@@ -5,6 +5,12 @@ const M = require('./messaging');
 const Sec = require('./security');
 const seed = require('./seed');
 const G = require('./gallery');
+const Events = require('./events');
+// krótki opis wizyty do powiadomienia w panelu (bez e-maila i telefonu)
+function live(type, b, by) {
+  const c = B.contactOf(b);
+  Events.emit(type, { by, id: b.id, date: b.date, time: b.time, treatment: b.treatment_name, client: c ? (c.firstName + ' ' + (c.lastName ? c.lastName[0] + '.' : '')).trim() : '', source: b.source });
+}
 const C = B.C;
 
 /* ---------- Pomocnicze ---------- */
@@ -178,7 +184,7 @@ route('POST', '/api/bookings', (req, { body, ip }) => {
   }
   try {
     const b = B.createBooking({ treatmentId: body.treatmentId, date: body.date, time: body.time, notes: str(body.notes, 400), lang: langOf(req), client, guest });
-    notify(b, 'confirmation');
+    notify(b, 'confirmation'); live('booked', b, 'client');
     return { booking: Object.assign(B.publicBooking(b), { token: b.token }) };
   } catch (e) {
     if (e instanceof B.BookingError) throw new HttpError(409, e.code === 'taken' ? T(req, e.message, 'This time has just been taken. Please choose another one.') : e.message, 'slot');
@@ -194,7 +200,7 @@ route('POST', '/api/me/bookings/:id/cancel', (req, { params }) => {
   const c = requireClient(req);
   const b = B.getBooking(Number(params.id));
   if (!b || b.client_id !== c.id) throw new HttpError(404, T(req, 'Nie znaleziono wizyty.', 'Visit not found.'));
-  try { const nb = B.cancelBooking(b, 'client'); notify(nb, 'cancelled'); return { booking: B.publicBooking(nb) }; } catch (e) { if (e instanceof B.BookingError) throw new HttpError(409, T(req, e.message, 'This visit can no longer be cancelled.')); throw e; }
+  try { const nb = B.cancelBooking(b, 'client'); notify(nb, 'cancelled'); live('cancelled', nb, 'client'); return { booking: B.publicBooking(nb) }; } catch (e) { if (e instanceof B.BookingError) throw new HttpError(409, T(req, e.message, 'This visit can no longer be cancelled.')); throw e; }
 });
 
 route('GET', '/api/visit/:token', (req, { params }) => {
@@ -207,7 +213,7 @@ route('POST', '/api/visit/:token/cancel', (req, { params, ip }) => {
   if (!Sec.rateLimit('visit:' + ip, 20, 36e5)) throw new HttpError(429, 'Spróbuj później.');
   const b = B.getBookingByToken(params.token);
   if (!b) throw new HttpError(404, T(req, 'Nie znaleziono wizyty.', 'Visit not found.'));
-  try { const nb = B.cancelBooking(b, 'client'); notify(nb, 'cancelled'); return { booking: B.publicBooking(nb) }; } catch (e) { if (e instanceof B.BookingError) throw new HttpError(409, T(req, e.message, 'This visit can no longer be cancelled.')); throw e; }
+  try { const nb = B.cancelBooking(b, 'client'); notify(nb, 'cancelled'); live('cancelled', nb, 'client'); return { booking: B.publicBooking(nb) }; } catch (e) { if (e instanceof B.BookingError) throw new HttpError(409, T(req, e.message, 'This visit can no longer be cancelled.')); throw e; }
 });
 
 route('POST', '/api/register', (req, { body, ip, res }) => {
@@ -358,7 +364,7 @@ route('GET', '/api/admin/overview', (req) => {
 const adminAction = (fn) => (req, { params, body }) => {
   requireAdmin(req);
   const b = B.getBooking(Number(params.id)); if (!b) throw new HttpError(404, 'Nie znaleziono wizyty.');
-  try { return { booking: adminBooking(fn(b, body)) }; } catch (e) { if (e instanceof B.BookingError) throw new HttpError(409, e.message); throw e; }
+  try { const nb = fn(b, body); live('changed', nb, 'salon'); return { booking: adminBooking(nb) }; } catch (e) { if (e instanceof B.BookingError) throw new HttpError(409, e.message); throw e; }
 };
 // Kalendarz tygodnia: wizyty, blokady i godziny pracy w podanym zakresie dni
 route('GET', '/api/admin/calendar', (req, { query }) => {
@@ -393,6 +399,7 @@ route('POST', '/api/admin/bookings', (req, { body }) => {
   try {
     const b = B.createManualBooking({ treatmentId: body.treatmentId, date: body.date, time: body.time, duration: body.duration, price: body.price, notes: str(body.notes, 400), source, client, guest, force: body.force === true });
     if (body.notify !== false) notify(b, 'confirmation');
+    live('booked', b, 'salon');
     return { booking: adminBooking(b) };
   } catch (e) {
     if (e instanceof B.BookingError) throw new HttpError(409, e.message, e.code);
@@ -405,23 +412,25 @@ route('POST', '/api/admin/bookings/:id/move', (req, { params, body }) => {
   try {
     const nb = B.moveBooking(b, { date: body.date, time: body.time, by: 'salon', force: body.force === true });
     if (body.notify !== false) notify(nb, 'moved');
+    live('moved', nb, 'salon');
     return { booking: adminBooking(nb) };
   } catch (e) { if (e instanceof B.BookingError) throw new HttpError(409, e.message, e.code); throw e; }
 });
 route('POST', '/api/admin/blocks', (req, { body }) => {
   requireAdmin(req);
-  try { const clash = B.addBlock({ date: body.date, start: body.start, end: body.end, note: str(body.note, 120) }); return { ok: true, clash }; }
+  try { const clash = B.addBlock({ date: body.date, start: body.start, end: body.end, note: str(body.note, 120) }); Events.emit('blocks', { by: 'salon' }); return { ok: true, clash }; }
   catch (e) { if (e instanceof B.BookingError) throw new HttpError(400, e.message); throw e; }
 });
 route('DELETE', '/api/admin/blocks/:id', (req, { params }) => {
   requireAdmin(req);
   db.prepare('DELETE FROM blocks WHERE id = ?').run(Number(params.id));
+  Events.emit('blocks', { by: 'salon' });
   return { ok: true };
 });
 
 // Zmiana terminu przez klientkę (konto albo link z SMS-a)
 function clientMove(req, b, body) {
-  try { const nb = B.moveBooking(b, { date: body.date, time: body.time, by: 'client' }); notify(nb, 'moved'); return { booking: B.publicBooking(nb) }; }
+  try { const nb = B.moveBooking(b, { date: body.date, time: body.time, by: 'client' }); notify(nb, 'moved'); live('moved', nb, 'client'); return { booking: B.publicBooking(nb) }; }
   catch (e) {
     if (e instanceof B.BookingError) throw new HttpError(409, e.code === 'late' ? T(req, e.message, `You can change the time online up to ${C.booking.cancelHours} hours before the visit. Please call the studio.`) : T(req, e.message, 'This time is no longer available. Please choose another one.'), 'slot');
     throw e;

@@ -65,6 +65,7 @@ Zasady:
 - Bezpłatne odwołanie wizyty do 12 h przed terminem; później lub przy nieobecności opłata 50% ceny zabiegu.
 - Automatyczny SMS z przypomnieniem 24 h przed wizytą (serwer sprawdza co minutę, które przypomnienia wysłać).
 - Nieobecność oznaczona w panelu nalicza opłatę 50%; opłatę można oznaczyć jako zapłaconą albo anulować.
+- Panel odświeża się sam (kalendarz, pulpit, wizyty), gdy klientka zarezerwuje, przeniesie albo odwoła wizytę; pokazuje powiadomienie, licznik w tytule karty i opcjonalnie powiadomienie systemowe.
 - Wizyty umówione telefonicznie, przez Instagram albo w gabinecie wpisuje się w panelu (Kalendarz). Od razu znikają z rezerwacji online, tak samo jak zablokowane godziny (przerwa, wyjście). Dwie wizyty nie mogą na siebie nachodzić; wizytę poza godzinami pracy panel zapisze po potwierdzeniu.
 - Klientka może sama zmienić termin (w profilu albo przez link z SMS-a) najpóźniej 12 h przed wizytą, tylko na wolny termin. Dostaje SMS z nowym terminem, a przypomnienie wyśle się do nowej godziny.
 - Strona ma wersję angielską (przełącznik PL / EN w nagłówku). Domyślnie i przy pierwszej wizycie strona jest po polsku; wybór języka zapamiętuje przeglądarka. Panel gabinetu jest zawsze po polsku, a rezerwacje zapisują polską nazwę zabiegu. Dokumenty prawne mają tłumaczenie z dopiskiem, że wiążąca jest wersja polska.
