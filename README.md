@@ -36,7 +36,8 @@ Zasady działające w prototypie:
 - Promocje dla zarejestrowanych (święta, urodziny); zniżki się nie sumują, wybierana jest najkorzystniejsza.
 - Przy każdej obniżce pokazywana jest najniższa cena z 30 dni przed obniżką (Omnibus).
 - Zgody marketingowe są osobne, dobrowolne i domyślnie odznaczone; wymagana jest tylko akceptacja regulaminu i polityki prywatności.
-- Bezpłatne odwołanie wizyty do 24 h przed terminem.
+- Bezpłatne odwołanie wizyty do 12 h przed terminem; później lub przy nieobecności opłata 50% ceny zabiegu.
+- Automatyczny SMS z przypomnieniem 24 h przed wizytą (w prototypie widoczny w panelu jako harmonogram).
 
 ### Gdzie co zmieniać
 
@@ -47,7 +48,7 @@ Zasady działające w prototypie:
 
 ### Role i dostęp
 
-- **Martyna Brodowska: administratorka strony.** Odpowiada za kod, hosting, bazę danych, konfigurację SMS-ów i e-maili. Ma konto w panelu (w prototypie `admin@justynamanka.pl`, hasło `demo`).
+- **Martyna Brodowska: administratorka strony.** Odpowiada za kod, hosting, bazę danych, konfigurację SMS-ów i e-maili. Ma konto w panelu (`martbrod99@gmail.com`, w prototypie hasło `demo`).
 - **Justyna Mańka: właścicielka gabinetu.** Korzysta z panelu na co dzień (wizyty, klientki, ceny, promocje). Konto w prototypie: `kontakt@justynamanka.pl`, hasło `demo`.
 
 W sensie RODO administratorem danych klientek jest firma Justyny, a administratorka strony przetwarza je w jej imieniu. Przed startem potrzebna jest między nimi umowa powierzenia przetwarzania danych.

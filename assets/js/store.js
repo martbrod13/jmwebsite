@@ -147,15 +147,18 @@ window.JM = window.JM || {};
     const b = Object.assign({ id: uid('w'), code: Math.random().toString(36).slice(2, 6).toUpperCase(), createdAt: nowIso(), status: 'confirmed' }, data);
     list.push(b); saveBookings(list); return b;
   }
+  const startOf = (b) => new Date(b.date + 'T' + b.time + ':00');
+  // Odwołanie później niż X godzin przed wizytą = opłata (procent ceny zabiegu)
+  function isLateCancel(b) { return (startOf(b) - Date.now()) / 36e5 < JM.booking.cancelHours; }
+  function lateFee(b) { return Math.round((b.total ?? b.price) * JM.booking.lateCancelFeePercent) / 100; }
   function cancelBooking(id, by) {
-    const list = bookings(); const b = list.find((x) => x.id === id); if (!b) return;
+    const list = bookings(); const b = list.find((x) => x.id === id); if (!b) return null;
     b.status = 'cancelled'; b.cancelledAt = nowIso(); b.cancelledBy = by || 'klientka';
-    saveBookings(list);
+    b.cancellationFee = by === 'klientka' && isLateCancel(b) ? lateFee(b) : 0;
+    saveBookings(list); return b;
   }
-  function canCancel(b) {
-    const start = new Date(b.date + 'T' + b.time + ':00');
-    return b.status !== 'cancelled' && (start - Date.now()) / 36e5 >= JM.booking.cancelHours;
-  }
+  function canCancel(b) { return b.status !== 'cancelled' && startOf(b) > Date.now(); }
+  function reminderAt(b) { return new Date(startOf(b).getTime() - JM.booking.reminderHours * 36e5); }
 
   /* ---------- Dostępność terminów ---------- */
   const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
@@ -279,7 +282,7 @@ window.JM = window.JM || {};
     allTreatments, treatment, setPrice, resetPrices, categoryName, formatPrice, formatDuration,
     promos, savePromos,
     users, currentUser, register, login, logout, updateUser, setConsent, deleteUser,
-    bookings, userBookings, visitCount, createBooking, cancelBooking, canCancel,
+    bookings, userBookings, visitCount, createBooking, cancelBooking, canCancel, isLateCancel, lateFee, reminderAt,
     dayHours, slotsFor, bestDiscount, priceSummary,
     cookieConsent, setCookieConsent, seedDemo, resetDemo, hash
   };

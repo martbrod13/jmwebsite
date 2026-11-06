@@ -82,7 +82,7 @@
     return `
       ${days.length ? days.map((d) => `<div class="panel-card day-group"><h3>${ui.fmtDate(d)}</h3>${bookingTable(up.filter((b) => b.date === d), true)}</div>`).join('') : '<div class="panel-card"><p class="muted">Brak zaplanowanych wizyt.</p></div>'}
       <div class="panel-card"><h2>Ostatnio odwołane</h2>
-        ${cancelled.length ? `<table class="table"><tbody>${cancelled.map((b) => `<tr><td>${ui.fmtShort(b.date)}, ${b.time}</td><td>${esc(b.treatmentName)}</td><td>${esc(clientOf(b).name)}</td><td class="small muted">odwołała: ${esc(b.cancelledBy || '—')}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">Brak.</p>'}
+        ${cancelled.length ? `<table class="table"><tbody>${cancelled.map((b) => `<tr><td>${ui.fmtShort(b.date)}, ${b.time}</td><td>${esc(b.treatmentName)}</td><td>${esc(clientOf(b).name)}</td><td class="small muted">odwołała: ${esc(b.cancelledBy || '—')}</td><td class="num">${b.cancellationFee ? `<span class="badge badge-warn">opłata ${S.formatPrice(b.cancellationFee)}</span>` : ''}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">Brak.</p>'}
       </div>`;
   }
   function vKlientki() {
@@ -154,9 +154,17 @@
         <label class="switch-row"><div><strong style="font-weight:500">Potwierdzenie rezerwacji</strong><p>Od razu po rezerwacji.</p></div><input type="checkbox" class="switch" checked></label>
         <div class="sms-tpl">${JM.salon.smsSender}: Potwierdzamy wizytę ${dd} o ${sample.time} (${sample.treatmentName}), ${JM.salon.street}. Zmiana lub odwołanie: justynamanka.pl/w/${sample.code}</div>
         <label class="switch-row"><div><strong style="font-weight:500">Przypomnienie</strong><p>${JM.booking.reminderHours} godziny przed wizytą.</p></div><input type="checkbox" class="switch" checked></label>
-        <div class="sms-tpl">${JM.salon.smsSender}: Przypominamy o jutrzejszej wizycie o ${sample.time}. Do zobaczenia! Odwołanie: justynamanka.pl/w/${sample.code}</div>
+        <div class="sms-tpl">${JM.salon.smsSender}: Przypominamy o jutrzejszej wizycie o ${sample.time}. Bezpłatne odwołanie do ${JM.booking.cancelHours} h przed wizytą: justynamanka.pl/w/${sample.code}</div>
         <label class="switch-row"><div><strong style="font-weight:500">Potwierdzenie odwołania</strong><p>Po odwołaniu wizyty przez klientkę lub gabinet.</p></div><input type="checkbox" class="switch" checked></label>
         <div class="sms-tpl">${JM.salon.smsSender}: Wizyta ${dd} o ${sample.time} została odwołana. Nowy termin zarezerwujesz na justynamanka.pl</div>
+      </div>
+      <div class="panel-card">
+        <h2>Zaplanowane przypomnienia</h2>
+        <p class="small muted">Wysyłane automatycznie ${JM.booking.reminderHours} godziny przed każdą wizytą, bez klikania.</p>
+        ${upcoming().length ? `<table class="table"><thead><tr><th>Wysyłka</th><th>Wizyta</th><th>Klientka</th><th>Telefon</th><th>Status</th></tr></thead><tbody>
+          ${upcoming().map((b) => { const at = S.reminderAt(b); const c = clientOf(b); const sent = at <= new Date();
+            return `<tr><td>${S.pad(at.getDate())}.${S.pad(at.getMonth() + 1)}, ${S.pad(at.getHours())}:${S.pad(at.getMinutes())}</td><td>${ui.fmtShort(b.date)}, ${b.time} · ${esc(b.treatmentName)}</td><td>${esc(c.name)}</td><td>${esc(c.phone)}</td><td>${sent ? '<span class="badge badge-ok">wysłane</span>' : '<span class="badge">zaplanowane</span>'}</td></tr>`; }).join('')}
+        </tbody></table>` : '<p class="muted">Brak zaplanowanych wizyt.</p>'}
       </div>
       <form class="panel-card" id="campaign-form" novalidate>
         <h2>Kampania SMS</h2>

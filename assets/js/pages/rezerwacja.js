@@ -130,7 +130,7 @@
         <form id="confirm-form" novalidate>
           <div class="field"><label for="notes">Uwagi do wizyty <span class="opt">(opcjonalnie)</span></label>
             <textarea id="notes" name="notes" maxlength="400" placeholder="Np. pierwszy raz na tym zabiegu">${esc(state.notes)}</textarea></div>
-          <p class="small muted">Rezerwując, potwierdzasz zasady odwołania wizyty opisane w <a href="regulamin.html#rezerwacje">regulaminie</a>. Potwierdzenie i przypomnienie wyślemy SMS-em na numer ${esc(u.phone)}.</p>
+          <p class="small muted">Rezerwując, akceptujesz zasady odwołania z <a href="regulamin.html#odwolanie">regulaminu</a>: bezpłatnie do ${JM.booking.cancelHours} godzin przed wizytą, później opłata ${JM.booking.lateCancelFeePercent}% ceny zabiegu. Potwierdzenie wyślemy SMS-em na numer ${esc(u.phone)}, a przypomnienie ${JM.booking.reminderHours} godziny przed wizytą.</p>
           <div class="step-actions">
             <button class="btn btn-outline" type="button" data-go="2">Wstecz</button>
             <button class="btn btn-primary" type="submit">Potwierdź rezerwację</button>
@@ -175,7 +175,7 @@
           </div>
           <fieldset class="consent-box">
             <legend>Zgody</legend>
-            <label class="check"><input type="checkbox" name="terms" required><span>Akceptuję <a href="regulamin.html" target="_blank">Regulamin</a> i zasady rezerwacji oraz zapoznałam/em się z <a href="polityka-prywatnosci.html" target="_blank">Polityką prywatności</a>. <span class="req" aria-hidden="true">*</span><small>Wymagane, żeby zarezerwować wizytę.</small></span></label>
+            <label class="check"><input type="checkbox" name="terms" required><span>Akceptuję <a href="regulamin.html" target="_blank">Regulamin</a> i zasady rezerwacji, w tym opłatę ${JM.booking.lateCancelFeePercent}% ceny zabiegu za odwołanie później niż ${JM.booking.cancelHours} godzin przed wizytą lub nieobecność, oraz zapoznałam/em się z <a href="polityka-prywatnosci.html" target="_blank">Polityką prywatności</a>. <span class="req" aria-hidden="true">*</span><small>Wymagane, żeby zarezerwować wizytę.</small></span></label>
             <label class="check"><input type="checkbox" name="marketingSms" ${g.marketingSms ? 'checked' : ''}><span>Chcę dostawać SMS-y z ofertami i promocjami gabinetu.<small>Opcjonalne. Zgodę możesz wycofać w każdej chwili.</small></span></label>
             <label class="check"><input type="checkbox" name="marketingEmail" ${g.marketingEmail ? 'checked' : ''}><span>Chcę dostawać e-maile z ofertami i promocjami gabinetu.<small>Opcjonalne. Zgodę możesz wycofać w każdej chwili.</small></span></label>
           </fieldset>
@@ -193,7 +193,7 @@
     const d = new Date(b.date + 'T12:00:00');
     const date = S.pad(d.getDate()) + '.' + S.pad(d.getMonth() + 1);
     if (kind === 'confirm') return `${JM.salon.smsSender}: Potwierdzamy wizytę ${date} o ${b.time} (${b.treatmentName}), ${JM.salon.street}. Zmiana lub odwołanie: justynamanka.pl/w/${b.code}`;
-    return `${JM.salon.smsSender}: Przypominamy o jutrzejszej wizycie o ${b.time}. Do zobaczenia! Odwołanie: justynamanka.pl/w/${b.code}`;
+    return `${JM.salon.smsSender}: Przypominamy o jutrzejszej wizycie o ${b.time}. Bezpłatne odwołanie do ${JM.booking.cancelHours} h przed wizytą: justynamanka.pl/w/${b.code}`;
   }
   function stepDone() {
     const b = state.booking; const u = user();
@@ -206,14 +206,14 @@
         <div class="sms-preview" aria-label="Podgląd wiadomości SMS">
           <header><span>${JM.salon.smsSender}</span><span>teraz</span></header>
           <div class="sms-bubble">${esc(smsText(b, 'confirm'))}</div>
-          <header><span>${JM.salon.smsSender}</span><span>dzień przed wizytą</span></header>
+          <header><span>${JM.salon.smsSender}</span><span>automatycznie ${JM.booking.reminderHours} h przed wizytą</span></header>
           <div class="sms-bubble">${esc(smsText(b, 'reminder'))}</div>
         </div>
         <div class="btn-row">
           <button class="btn btn-outline" type="button" data-ics>Dodaj do kalendarza</button>
           ${u ? '<a class="btn btn-primary" href="konto.html">Moje wizyty</a>' : '<a class="btn btn-primary" href="konto.html#rejestracja">Załóż konto na kolejne wizyty</a>'}
         </div>
-        <p class="small muted" style="margin-top:28px">Kod rezerwacji: <strong>${b.code}</strong>. Bezpłatnie odwołasz wizytę do ${JM.booking.cancelHours} godzin przed terminem.</p>
+        <p class="small muted" style="margin-top:28px">Kod rezerwacji: <strong>${b.code}</strong>. Bezpłatnie odwołasz wizytę do ${JM.booking.cancelHours} godzin przed terminem, później obowiązuje opłata ${JM.booking.lateCancelFeePercent}% ceny zabiegu.</p>
       </div>`;
   }
 
@@ -236,7 +236,7 @@
         <div class="total"><span>Do zapłaty w gabinecie</span><span>${S.formatPrice(p.total, tr.from)}</span></div>
       </div>
       ${!u && tr.price > 0 && state.step < 4 ? `<div class="member-hint"><p>Z kontem ten zabieg kosztowałby ${S.formatPrice(Math.round(tr.price * (100 - JM.discounts.firstVisitPercent)) / 100, tr.from)}.</p><a href="konto.html?powrot=rezerwacja#rejestracja" data-save-draft>Załóż konto</a> albo <button type="button" class="link-button" data-who="login">zaloguj się</button></div>` : ''}
-      <p class="summary-foot">Płatność w gabinecie po wizycie. Bezpłatne odwołanie do ${JM.booking.cancelHours} godzin przed terminem.</p>`;
+      <p class="summary-foot">Płatność w gabinecie po wizycie. Bezpłatne odwołanie do ${JM.booking.cancelHours} godzin przed terminem, później opłata ${JM.booking.lateCancelFeePercent}% ceny zabiegu.</p>`;
   }
 
   function render(focus) {

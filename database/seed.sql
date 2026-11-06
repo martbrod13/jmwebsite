@@ -247,7 +247,7 @@ INSERT INTO promotions (id, kind, name, description, percent, members_only, appl
 
 -- Konta do panelu (hasła ustawiamy przy podłączaniu logowania)
 INSERT INTO admins (email, full_name, role) VALUES ('kontakt@justynamanka.pl', 'Justyna Mańka', 'owner');
-INSERT INTO admins (email, full_name, role) VALUES ('admin@justynamanka.pl', 'Martyna Brodowska', 'admin');
+INSERT INTO admins (email, full_name, role) VALUES ('martbrod99@gmail.com', 'Martyna Brodowska', 'admin');
 
 -- PRZYKŁAD: klientki testowe (adresy @example.com). Usuń przed startem strony.
 INSERT INTO clients (id, first_name, last_name, email, phone, birth_month, has_account, password_hash) VALUES ('a0000000-0000-4000-8000-000000000001', 'Anna', 'Kowalczyk', 'anna.kowalczyk@example.com', '+48 601 224 318', 3, true, 'test-tylko-przyklad');

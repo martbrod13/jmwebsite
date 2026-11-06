@@ -34,3 +34,20 @@ SELECT anonymize_client('a0000000-0000-4000-8000-000000000002');
 SELECT first_name, last_name, email, phone, has_account, deleted_at IS NOT NULL AS usuniete FROM clients WHERE id='a0000000-0000-4000-8000-000000000002';
 SELECT count(*) AS wizyty_zostaly FROM bookings WHERE client_id='a0000000-0000-4000-8000-000000000002';
 SELECT count(*) AS w_bazie_klientek FROM v_clients_overview WHERE id='a0000000-0000-4000-8000-000000000002';
+
+\set ON_ERROR_STOP 1
+\echo '--- TEST: późne odwołanie przez klientkę = opłata 50%'
+INSERT INTO bookings (id, client_id, treatment_id, starts_at, ends_at, booked_via, price, created_at)
+VALUES ('b0000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000001', 'kwas-glikolowy', now() + interval '5 hours', now() + interval '5 hours 45 minutes', 'account', 270, now() - interval '3 days');
+UPDATE bookings SET status = 'cancelled', cancelled_at = now(), cancelled_by = 'client' WHERE id = 'b0000000-0000-4000-8000-000000000001';
+SELECT cancellation_fee, fee_status FROM bookings WHERE id = 'b0000000-0000-4000-8000-000000000001';
+\echo '--- TEST: wcześniejsze odwołanie = bez opłaty'
+INSERT INTO bookings (id, client_id, treatment_id, starts_at, ends_at, booked_via, price, created_at)
+VALUES ('b0000000-0000-4000-8000-000000000002', 'a0000000-0000-4000-8000-000000000001', 'kwas-glikolowy', now() + interval '3 days', now() + interval '3 days 45 minutes', 'account', 270, now());
+UPDATE bookings SET status = 'cancelled', cancelled_at = now(), cancelled_by = 'client' WHERE id = 'b0000000-0000-4000-8000-000000000002';
+SELECT cancellation_fee, fee_status FROM bookings WHERE id = 'b0000000-0000-4000-8000-000000000002';
+\echo '--- TEST: automatyczne przypomnienie 24 h przed wizytą (drugie uruchomienie nic nie dubluje)'
+INSERT INTO bookings (id, client_id, treatment_id, starts_at, ends_at, booked_via, price, created_at)
+VALUES ('b0000000-0000-4000-8000-000000000003', 'a0000000-0000-4000-8000-000000000003', 'kwas-mlekowy', date_trunc('hour', now()) + interval '23 hours', date_trunc('hour', now()) + interval '23 hours 45 minutes', 'account', 270, now() - interval '5 days');
+SELECT queue_due_reminders() AS dodane_teraz, queue_due_reminders() AS dodane_ponownie;
+SELECT type, status, body FROM sms_log WHERE booking_id = 'b0000000-0000-4000-8000-000000000003';

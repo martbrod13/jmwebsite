@@ -57,6 +57,7 @@ erDiagram
 | `working_hours`, `days_off` | Godziny pracy w tygodniu, święta i urlopy |
 | `bookings` | Wizyty: termin, status, cena w chwili rezerwacji, zniżka, kwota do zapłaty (liczona automatycznie) |
 | `sms_log` | Potwierdzenia, przypomnienia, odwołania i kampanie SMS |
+| `settings` | Zasady gabinetu: bezpłatne odwołanie do 12 h, opłata 50% za późne odwołanie lub nieobecność, przypomnienie SMS 24 h przed wizytą |
 | `admins` | Konta do panelu: `owner` (Justyna, właścicielka), `admin` (Martyna, administratorka strony), `staff` (ewentualne pracownice) |
 
 ## Zasady pilnowane przez samą bazę
@@ -65,6 +66,7 @@ erDiagram
 - **Zniżka powitalna tylko raz** na klientkę (`one_welcome_discount_per_client`).
 - **Konto musi mieć logowanie:** `has_account = true` wymaga Supabase Auth albo hasła.
 - **Historia zgód tylko do dopisywania:** każda zmiana w `consents` trafia do `consent_log`.
+- **Opłata za późne odwołanie:** gdy klientka odwoła wizytę później niż 12 h przed terminem albo nie przyjdzie (`no_show`), baza sama wpisuje 50% ceny po zniżce do `cancellation_fee` (status `due`). Odwołanie przez gabinet jest bezpłatne, a opłatę można anulować (`waived`).
 - **Jedno przypomnienie SMS** na wizytę.
 
 ## Funkcje i widoki
@@ -77,7 +79,17 @@ erDiagram
 | `v_upcoming_bookings` | Nadchodzące wizyty do panelu |
 | `v_clients_overview` | Baza klientek z liczbą wizyt, ostatnią wizytą i zgodami |
 | `v_sms_campaign_recipients` | Odbiorczynie kampanii SMS, tylko z aktualną zgodą |
-| `v_reminders_due` | Wizyty, do których trzeba teraz wysłać przypomnienie |
+| `queue_due_reminders()` | Wstawia do kolejki SMS-y z przypomnieniem 24 h przed wizytą. Uruchamiana automatycznie co 15 minut (pg_cron w Supabase), nie dubluje wiadomości |
+| `v_reminders_due` | Wizyty, którym właśnie należy się przypomnienie |
+
+## Automatyczne przypomnienia SMS
+
+1. W Supabase włącz rozszerzenie **pg_cron** i uruchom:
+   ```sql
+   SELECT cron.schedule('przypomnienia-sms', '*/15 * * * *', $$SELECT salon.queue_due_reminders()$$);
+   ```
+2. Co 15 minut baza dopisuje do `sms_log` przypomnienia dla wizyt, do których zostały 24 godziny (status `queued`).
+3. Funkcja serwerowa aplikacji (np. trasa API w Next.js wywoływana co kilka minut) wysyła wiadomości ze statusem `queued` przez bramkę SMS i zmienia ich status na `sent` albo `failed`.
 
 ## Przed użyciem z prawdziwymi danymi
 

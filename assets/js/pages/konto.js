@@ -60,12 +60,10 @@
 
   function visitRow(b, upcoming) {
     const d = new Date(b.date + 'T12:00:00');
-    const status = b.status === 'cancelled' ? '<span class="badge">odwołana</span>' : b.status === 'done' || !upcoming ? '<span class="badge badge-ok">odbyta</span>' : '';
+    const status = b.status === 'cancelled' ? `<span class="badge">odwołana</span>${b.cancellationFee ? ` <span class="badge badge-warn">opłata ${S.formatPrice(b.cancellationFee)}</span>` : ''}` : b.status === 'done' || !upcoming ? '<span class="badge badge-ok">odbyta</span>' : '';
     let action = '';
     if (upcoming && b.status !== 'cancelled') {
-      action = S.canCancel(b)
-        ? `<button class="btn btn-outline btn-small" type="button" data-cancel="${b.id}">Odwołaj</button>`
-        : `<span class="small muted">Odwołanie tylko telefonicznie: <a href="tel:${JM.salon.phoneHref}">${JM.salon.phone}</a></span>`;
+      action = S.canCancel(b) ? `<button class="btn btn-outline btn-small" type="button" data-cancel="${b.id}">Odwołaj</button>` : '';
     }
     return `
       <li class="visit-row">
@@ -111,7 +109,7 @@
         <section class="profile-section" aria-labelledby="up-title">
           <h2 id="up-title">Nadchodzące wizyty</h2>
           ${upcoming.length ? `<ul class="visit-list">${upcoming.map((b) => visitRow(b, true)).join('')}</ul>` : '<div class="empty"><p>Brak zaplanowanych wizyt.</p><a class="btn btn-primary btn-small" href="rezerwacja.html">Zarezerwuj wizytę</a></div>'}
-          <p class="small muted" style="margin-top:14px">Wizytę odwołasz bezpłatnie do ${JM.booking.cancelHours} godzin przed terminem.</p>
+          <p class="small muted" style="margin-top:14px">Wizytę odwołasz bezpłatnie do ${JM.booking.cancelHours} godzin przed terminem. Przy późniejszym odwołaniu albo nieobecności obowiązuje opłata ${JM.booking.lateCancelFeePercent}% ceny zabiegu. Przypomnienie SMS wysyłamy automatycznie ${JM.booking.reminderHours} godziny przed wizytą.</p>
         </section>
 
         <section class="profile-section" aria-labelledby="hist-title">
@@ -202,10 +200,12 @@
     }
     if (el.dataset.cancel) {
       const b = S.bookings().find((x) => x.id === el.dataset.cancel);
-      const dlg = ui.h(`<dialog class="modal"><form method="dialog" class="modal-body"><h2>Odwołać wizytę?</h2><p>${esc(b.treatmentName)}, ${ui.fmtDate(b.date)}, godz. ${b.time}. Termin wróci do kalendarza dla innych klientek.</p>
+      const late = S.isLateCancel(b);
+      const warn = late ? `<p class="form-msg" style="margin-top:12px">Do wizyty zostało mniej niż ${JM.booking.cancelHours} godzin. Zgodnie z regulaminem odwołanie oznacza opłatę ${JM.booking.lateCancelFeePercent}% ceny zabiegu: <strong>${S.formatPrice(S.lateFee(b))}</strong>.</p>` : '<p class="small muted">Odwołanie jest bezpłatne.</p>';
+      const dlg = ui.h(`<dialog class="modal"><form method="dialog" class="modal-body"><h2>Odwołać wizytę?</h2><p>${esc(b.treatmentName)}, ${ui.fmtDate(b.date)}, godz. ${b.time}. Termin wróci do kalendarza dla innych klientek.</p>${warn}
         <div class="modal-actions"><button class="btn btn-primary" value="ok">Odwołaj wizytę</button><button class="btn btn-outline" value="cancel">Zostaw wizytę</button></div></form></dialog>`);
       document.body.appendChild(dlg); dlg.showModal();
-      dlg.addEventListener('close', () => { if (dlg.returnValue === 'ok') { S.cancelBooking(b.id, 'klientka'); render(); ui.toast('Wizyta odwołana. Wysłaliśmy potwierdzenie SMS-em.'); } dlg.remove(); });
+      dlg.addEventListener('close', () => { if (dlg.returnValue === 'ok') { const c = S.cancelBooking(b.id, 'klientka'); render(); ui.toast(c && c.cancellationFee ? `Wizyta odwołana. Opłata za późne odwołanie: ${S.formatPrice(c.cancellationFee)}.` : 'Wizyta odwołana. Wysłaliśmy potwierdzenie SMS-em.'); } dlg.remove(); });
       return;
     }
     if (el.hasAttribute('data-delete')) {
