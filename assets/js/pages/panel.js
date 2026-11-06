@@ -12,7 +12,7 @@ JM.ready.then(function () {
   let data = {};
 
   const views = [
-    ['pulpit', 'Pulpit'], ['wizyty', 'Wizyty'], ['klientki', 'Klientki'], ['zabiegi', 'Zabiegi i ceny'],
+    ['pulpit', 'Pulpit'], ['kalendarz', 'Kalendarz'], ['wizyty', 'Wizyty'], ['klientki', 'Klientki'], ['zabiegi', 'Zabiegi i ceny'],
     ['promocje', 'Promocje'], ['wiadomosci', 'SMS-y i e-maile'], ['godziny', 'Godziny pracy'], ['konto', 'Moje konto']
   ];
   const money = (v) => S.formatPrice(v);
@@ -32,7 +32,7 @@ JM.ready.then(function () {
         <td>${ui.fmtShort(b.date)}, ${b.time}</td>
         <td>${esc(b.treatmentName)}${b.notes ? `<br><span class="small muted">${esc(b.notes)}</span>` : ''}${b.lang === 'en' ? ' <span class="badge">EN</span>' : ''}</td>
         <td>${esc(b.client.name)}${b.demo ? ' <span class="badge badge-off">przykład</span>' : ''}</td><td><a href="tel:${esc(b.client.phone)}">${esc(b.client.phone)}</a></td>
-        <td><span class="badge">${b.client.type}</span></td>
+        <td><span class="badge">${b.client.type}</span>${b.source && b.source !== 'online' ? `<br><span class="small muted">${SOURCES[b.source] || b.source}</span>` : ''}</td>
         <td class="num">${money(b.total)}${b.discount ? `<br><span class="small muted">−${b.discount.percent}% ${esc(b.discount.label)}</span>` : ''}</td>
         ${actions ? `<td class="num">${actions(b)}</td>` : ''}</tr>`).join('')}
     </tbody></table>`;
@@ -140,7 +140,7 @@ JM.ready.then(function () {
     return { gsm, parts: Math.max(1, Math.ceil(text.length / per)) };
   }
   const msgStatus = (m) => ({ test: '<span class="badge">test</span>', sent: '<span class="badge badge-ok">wysłana</span>', queued: '<span class="badge">w kolejce</span>', failed: `<span class="badge badge-warn" title="${esc(m.error || '')}">błąd</span>` }[m.status]);
-  const kindName = { confirmation: 'potwierdzenie', reminder: 'przypomnienie', cancellation: 'odwołanie', welcome: 'powitanie', reset: 'reset hasła', contact: 'formularz', campaign: 'kampania' };
+  const kindName = { moved: 'zmiana terminu', reminder_prev: 'przypomnienie (stary termin)', confirmation: 'potwierdzenie', reminder: 'przypomnienie', cancellation: 'odwołanie', welcome: 'powitanie', reset: 'reset hasła', contact: 'formularz', campaign: 'kampania' };
   function vWiadomosci() {
     const testMode = mode.sms === 'test' || mode.email === 'test';
     const smsC = data.clients.filter((c) => c.sms && !c.demo).length, mailC = data.clients.filter((c) => c.mail && !c.demo).length;
@@ -211,11 +211,238 @@ JM.ready.then(function () {
       </form>`;
   }
 
+  /* ---------- Kalendarz tygodnia ---------- */
+  const PPM = 1.1; // pikseli na minutę
+  const SOURCES = { online: 'strona', telefon: 'telefon', instagram: 'Instagram', 'osobiście': 'osobiście', inne: 'inne' };
+  const mondayOf = (d) => { const x = new Date(d); x.setHours(12, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
+  let calWeek = mondayOf(new Date());
+  const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+  const toMin = S.toMin, toTime = S.toTime;
+  const shortDay = ['Nd', 'Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'Sb'];
+
+  function weekLabel() {
+    const a = calWeek, b = addDays(calWeek, 6);
+    const m = ['stycznia', 'lutego', 'marca', 'kwietnia', 'maja', 'czerwca', 'lipca', 'sierpnia', 'września', 'października', 'listopada', 'grudnia'];
+    return a.getMonth() === b.getMonth() ? `${a.getDate()}–${b.getDate()} ${m[b.getMonth()]} ${b.getFullYear()}` : `${a.getDate()} ${m[a.getMonth()]} – ${b.getDate()} ${m[b.getMonth()]} ${b.getFullYear()}`;
+  }
+  function vKalendarz() {
+    const cal = data.calendar;
+    // zakres godzin: godziny pracy, poszerzone o wizyty i blokady poza nimi
+    let lo = cal.range[0], hi = cal.range[1];
+    cal.bookings.forEach((b) => { lo = Math.min(lo, toMin(b.time)); hi = Math.max(hi, toMin(b.end)); });
+    cal.blocks.forEach((x) => { lo = Math.min(lo, toMin(x.start)); hi = Math.max(hi, toMin(x.end)); });
+    lo = Math.floor(lo / 60) * 60; hi = Math.ceil(hi / 60) * 60;
+    const H = (hi - lo) * PPM;
+    const y = (min) => (min - lo) * PPM;
+    const today = S.isoDate(new Date());
+    const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+    const hours = []; for (let m = lo; m <= hi; m += 60) hours.push(m);
+    const col = (day) => {
+      const d = new Date(day.date + 'T12:00:00');
+      const shade = (a, b, label) => (b > a ? `<div class="wk-closed" style="top:${y(a)}px;height:${(b - a) * PPM}px">${label ? `<span>${esc(label)}</span>` : ''}</div>` : '');
+      const closed = day.hours ? shade(lo, day.hours[0]) + shade(day.hours[1], hi) : shade(lo, hi, day.closed);
+      const evs = cal.bookings.filter((b) => b.date === day.date).map((b) => {
+        const s = toMin(b.time), e = toMin(b.end); const short = (e - s) < 40;
+        return `<button type="button" class="wk-ev${b.status === 'done' ? ' is-done' : ''}${b.status === 'no_show' ? ' is-noshow' : ''}${b.demo ? ' is-demo' : ''}${short ? ' is-short' : ''}" data-booking="${b.id}" style="top:${y(s)}px;height:${Math.max((e - s) * PPM - 2, 18)}px" title="${esc(b.time + '–' + b.end + ' ' + b.treatmentName + ', ' + b.client.name)}">
+          <span class="wk-ev-time">${b.time}–${b.end}${b.source && b.source !== 'online' ? ` · ${SOURCES[b.source]}` : ''}</span>
+          <span class="wk-ev-name">${esc(b.client.name)}</span>
+          ${short ? '' : `<span class="wk-ev-t">${esc(b.treatmentName)}</span>`}</button>`;
+      }).join('');
+      const blocks = cal.blocks.filter((x) => x.date === day.date).map((x) => {
+        const s = toMin(x.start), e = toMin(x.end);
+        return `<button type="button" class="wk-block" data-block="${x.id}" style="top:${y(s)}px;height:${Math.max((e - s) * PPM - 2, 16)}px"><span>${x.start}–${x.end} ${esc(x.note || 'Blokada')}</span></button>`;
+      }).join('');
+      const now = day.date === today && nowMin > lo && nowMin < hi ? `<div class="wk-now" style="top:${y(nowMin)}px" aria-hidden="true"></div>` : '';
+      return `<div class="wk-day${day.date === today ? ' is-today' : ''}" data-date="${day.date}" style="height:${H}px" role="group" aria-label="${ui.fmtDate(day.date)}">${closed}${blocks}${evs}${now}</div>`;
+    };
+    const count = cal.bookings.filter((b) => b.status === 'confirmed').length;
+    return `
+      <div class="wk-toolbar">
+        <div class="wk-nav">
+          <button type="button" class="icon-btn" data-week="-1" aria-label="Poprzedni tydzień">${ui.icons.arrowL}</button>
+          <h2>${weekLabel()}</h2>
+          <button type="button" class="icon-btn" data-week="1" aria-label="Następny tydzień">${ui.icons.arrowR}</button>
+          <button type="button" class="btn btn-outline btn-small" data-week="0">Dziś</button>
+        </div>
+        <div class="btn-row"><button type="button" class="btn btn-primary btn-small" data-new-booking>Nowa wizyta</button><button type="button" class="btn btn-outline btn-small" data-new-block>Zablokuj czas</button></div>
+      </div>
+      <p class="small muted wk-hint">${count} ${count === 1 ? 'wizyta' : count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 10 || count % 100 >= 20) ? 'wizyty' : 'wizyt'} w tym tygodniu. Kliknij wolne miejsce w kalendarzu, żeby dodać wizytę o tej godzinie. Wizyty z telefonu i blokady od razu znikają z rezerwacji online.</p>
+      <div class="wk-scroll"><div class="wk">
+        <div class="wk-head"><span></span>${cal.days.map((d) => { const x = new Date(d.date + 'T12:00:00'); return `<span class="${d.date === today ? 'is-today' : ''}">${shortDay[x.getDay()]} <b>${x.getDate()}.${S.pad(x.getMonth() + 1)}</b></span>`; }).join('')}</div>
+        <div class="wk-body">
+          <div class="wk-times" style="height:${H}px">${hours.map((m) => `<span style="top:${y(m)}px">${toTime(m)}</span>`).join('')}</div>
+          ${cal.days.map(col).join('')}
+        </div>
+      </div></div>`;
+  }
+
+  /* ---------- Okna: nowa wizyta, szczegóły, blokada ---------- */
+  let cache = { prices: null, clients: null };
+  async function ensureLists(force) {
+    if (!cache.prices || force) cache.prices = (await api('GET', '/api/admin/prices')).prices;
+    if (!cache.clients || force) cache.clients = (await api('GET', '/api/admin/clients')).clients;
+  }
+  function openDialog(html, onSubmit, onReady) {
+    const dlg = ui.h(`<dialog class="modal modal-wide">${html}</dialog>`);
+    document.body.appendChild(dlg); dlg.showModal();
+    const close = () => { dlg.close(); dlg.remove(); };
+    dlg.addEventListener('click', (e) => { if (e.target.closest('[data-close]') || e.target === dlg) close(); });
+    dlg.addEventListener('cancel', () => dlg.remove());
+    const form = dlg.querySelector('form');
+    if (form && onSubmit) form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = form.querySelector('[type=submit]'); btn.disabled = true;
+      const err = form.querySelector('.form-msg'); if (err) err.remove();
+      try { await onSubmit(form, close); } catch (ex) { form.insertAdjacentHTML('afterbegin', `<p class="form-msg" role="alert">${esc(ex.message)}</p>`); form.scrollTop = 0; } finally { btn.disabled = false; }
+    });
+    if (onReady) onReady(dlg);
+    return dlg;
+  }
+  // wysyła żądanie; jeśli serwer prosi o potwierdzenie (poza godzinami, przeszłość), pyta i ponawia
+  async function withConfirm(fn) {
+    try { return await fn(false); } catch (ex) {
+      if (ex.field === 'confirm' && window.confirm(ex.message)) return fn(true);
+      if (ex.field === 'confirm') throw new Error('Nie zapisano. Wybierz inny termin.');
+      throw ex;
+    }
+  }
+
+  async function newBookingDialog(date, time) {
+    await ensureLists();
+    const cats = [{ id: 'konsultacja', name: 'Konsultacja' }].concat(JM.categories.map((c) => ({ id: c.id, name: c.namePl || c.name })));
+    const opts = cats.map((c) => `<optgroup label="${esc(c.name)}">${cache.prices.filter((t) => t.category === c.id).map((t) => `<option value="${t.id}" data-duration="${t.duration}" data-price="${t.price}">${esc(t.name)}</option>`).join('')}</optgroup>`).join('');
+    const first = cache.prices[0];
+    openDialog(`
+      <form class="modal-body" novalidate>
+        <h2>Nowa wizyta</h2>
+        <fieldset class="nb-who">
+          <legend>Klientka</legend>
+          <div class="field"><label for="nb-q">Znajdź w bazie</label><input id="nb-q" type="search" placeholder="Nazwisko, telefon albo e-mail" autocomplete="off"></div>
+          <ul class="nb-results" id="nb-results"></ul>
+          <div class="nb-picked" id="nb-picked" hidden></div>
+          <div class="form-grid" id="nb-new">
+            <div class="field"><label for="nb-first">Imię</label><input id="nb-first" name="firstName" autocomplete="off"></div>
+            <div class="field"><label for="nb-last">Nazwisko <span class="opt">(opcjonalnie)</span></label><input id="nb-last" name="lastName" autocomplete="off"></div>
+            <div class="field"><label for="nb-phone">Telefon</label><input id="nb-phone" name="phone" type="tel" placeholder="+48 600 000 000" autocomplete="off"></div>
+            <div class="field"><label for="nb-email">E-mail <span class="opt">(opcjonalnie)</span></label><input id="nb-email" name="email" type="email" autocomplete="off"></div>
+          </div>
+        </fieldset>
+        <div class="form-grid">
+          <div class="field span-2"><label for="nb-t">Zabieg</label><select id="nb-t" name="treatmentId">${opts}</select></div>
+          <div class="field"><label for="nb-date">Dzień</label><input id="nb-date" name="date" type="date" required value="${date || S.isoDate(new Date())}"></div>
+          <div class="field"><label for="nb-time">Godzina</label><input id="nb-time" name="time" type="time" step="300" required value="${time || '10:00'}"></div>
+          <div class="field"><label for="nb-dur">Czas (minuty)</label><input id="nb-dur" name="duration" type="number" min="10" max="600" step="5" value="${first.duration}"></div>
+          <div class="field"><label for="nb-price">Cena (zł)</label><input id="nb-price" name="price" type="number" min="0" step="10" value="${first.price}"></div>
+          <div class="field"><label for="nb-src">Skąd wizyta</label><select id="nb-src" name="source"><option value="telefon">Telefon</option><option value="instagram">Instagram</option><option value="osobiście">Osobiście w gabinecie</option><option value="inne">Inne</option></select></div>
+          <div class="field span-2"><label for="nb-notes">Uwagi <span class="opt">(opcjonalnie)</span></label><textarea id="nb-notes" name="notes" maxlength="400"></textarea></div>
+        </div>
+        <label class="check"><input type="checkbox" name="notify" checked><span>Wyślij klientce SMS z potwierdzeniem i linkiem do wizyty<small>Przypomnienie ${JM.booking.reminderHours} h przed wizytą wyśle się tak jak przy rezerwacji online.</small></span></label>
+        <div class="modal-actions"><button class="btn btn-primary" type="submit">Zapisz wizytę</button><button class="btn btn-outline" type="button" data-close>Anuluj</button></div>
+      </form>`,
+    async (f, close) => {
+      const v = (n) => (f.elements[n] ? f.elements[n].value.trim() : '');
+      const picked = f.dataset.clientId;
+      const payload = (force) => ({ treatmentId: v('treatmentId'), date: v('date'), time: v('time'), duration: Number(v('duration')), price: v('price'), source: v('source'), notes: v('notes'), notify: f.elements.notify.checked, force,
+        clientId: picked && f.dataset.clientType === 'konto' ? Number(picked) : undefined,
+        guest: picked && f.dataset.clientType === 'konto' ? undefined : { firstName: v('firstName'), lastName: v('lastName'), phone: v('phone'), email: v('email') } });
+      await withConfirm((force) => api('POST', '/api/admin/bookings', payload(force)));
+      close(); cache.clients = null; ui.toast(f.elements.notify.checked ? 'Wizyta zapisana. Klientka dostała SMS.' : 'Wizyta zapisana.'); rerender();
+    },
+    (dlg) => {
+      const f = dlg.querySelector('form'), q = dlg.querySelector('#nb-q'), list = dlg.querySelector('#nb-results'), picked = dlg.querySelector('#nb-picked'), fresh = dlg.querySelector('#nb-new');
+      const sel = dlg.querySelector('#nb-t');
+      sel.addEventListener('change', () => { const o = sel.selectedOptions[0]; f.elements.duration.value = o.dataset.duration; f.elements.price.value = o.dataset.price; });
+      q.addEventListener('input', () => {
+        const s = q.value.trim().toLowerCase(); const digits = s.replace(/\D/g, '');
+        const hits = s.length < 2 ? [] : cache.clients.filter((c) => (c.name + ' ' + c.email).toLowerCase().includes(s) || (digits.length >= 3 && String(c.phone).replace(/\D/g, '').includes(digits))).slice(0, 6);
+        list.innerHTML = hits.map((c, i) => `<li><button type="button" data-pick="${i}">${esc(c.name)} <span class="small muted">${esc(c.phone)}${c.email ? ' · ' + esc(c.email) : ''} · ${c.type}</span></button></li>`).join('')
+          + (s.length >= 2 && !hits.length ? '<li class="small muted">Nie ma jej w bazie: wpisz dane poniżej.</li>' : '');
+        list.onclick = (e) => {
+          const b = e.target.closest('[data-pick]'); if (!b) return; const c = hits[Number(b.dataset.pick)];
+          f.dataset.clientId = c.id || ''; f.dataset.clientType = c.type;
+          f.elements.firstName.value = c.firstName || ''; f.elements.lastName.value = c.lastName || ''; f.elements.phone.value = c.phone || ''; f.elements.email.value = c.email || '';
+          picked.hidden = false; picked.innerHTML = `<strong style="font-weight:500">${esc(c.name)}</strong> <span class="small muted">${esc(c.phone)} · ${c.type === 'konto' ? 'ma konto' : 'gość'}</span> <button type="button" class="link-button small" data-unpick>zmień</button>`;
+          fresh.hidden = c.type === 'konto'; list.innerHTML = ''; q.value = '';
+        };
+      });
+      picked.addEventListener('click', (e) => { if (!e.target.closest('[data-unpick]')) return; delete f.dataset.clientId; delete f.dataset.clientType; picked.hidden = true; fresh.hidden = false; f.reset(); q.focus(); });
+      q.focus();
+    });
+  }
+
+  function bookingDialog(b) {
+    const past = new Date(b.date + 'T' + b.time + ':00') < new Date();
+    openDialog(`
+      <form class="modal-body" novalidate>
+        <h2>${esc(b.treatmentName)}</h2>
+        <dl class="visit-dl">
+          <div><dt>Termin</dt><dd>${ui.fmtDate(b.date)}, ${b.time}–${b.end}</dd></div>
+          <div><dt>Klientka</dt><dd>${esc(b.client.name)}${b.demo ? ' <span class="badge badge-off">przykład</span>' : ''}<br><a href="tel:${esc(b.client.phone)}">${esc(b.client.phone)}</a>${b.client.email ? ` · <a href="mailto:${esc(b.client.email)}">${esc(b.client.email)}</a>` : ''}</dd></div>
+          <div><dt>Do zapłaty</dt><dd>${money(b.total)}${b.discount ? ` <span class="small muted">(−${b.discount.percent}% ${esc(b.discount.label)})</span>` : ''}</dd></div>
+          <div><dt>Skąd</dt><dd>${SOURCES[b.source] || 'strona'} · ${b.client.type}${b.lang === 'en' ? ' · EN' : ''} · kod ${esc(b.code)}</dd></div>
+          ${b.notes ? `<div><dt>Uwagi</dt><dd>${esc(b.notes)}</dd></div>` : ''}
+          ${b.status !== 'confirmed' || b.fee ? `<div><dt>Status</dt><dd>${statusBadge(b)} ${feeBadge(b)}</dd></div>` : ''}
+        </dl>
+        ${b.status === 'confirmed' ? `
+          <details class="move-box"${past ? '' : ''}><summary>Przenieś na inny termin</summary>
+            <div class="form-grid" style="margin-top:14px">
+              <div class="field"><label for="mv-date">Nowy dzień</label><input id="mv-date" name="date" type="date" value="${b.date}"></div>
+              <div class="field"><label for="mv-time">Nowa godzina</label><input id="mv-time" name="time" type="time" step="300" value="${b.time}"></div>
+            </div>
+            <label class="check"><input type="checkbox" name="notify" checked><span>Wyślij klientce SMS o nowym terminie</span></label>
+            <button class="btn btn-primary btn-small" type="submit">Przenieś wizytę</button>
+          </details>` : ''}
+        <div class="modal-actions">
+          ${b.status === 'confirmed' && !past ? '<button class="btn btn-outline" type="button" data-dlg-cancel>Odwołaj wizytę</button>' : ''}
+          ${past && ['confirmed', 'done'].includes(b.status) ? '<button class="btn btn-outline" type="button" data-dlg-noshow>Nieobecność</button>' : ''}
+          <button class="btn btn-outline" type="button" data-close>Zamknij</button>
+        </div>
+      </form>`,
+    async (f, close) => {
+      const v = (n) => f.elements[n].value;
+      await withConfirm((force) => api('POST', `/api/admin/bookings/${b.id}/move`, { date: v('date'), time: v('time'), notify: f.elements.notify.checked, force }));
+      close(); ui.toast(f.elements.notify.checked ? 'Wizyta przeniesiona. Klientka dostała SMS.' : 'Wizyta przeniesiona.'); rerender();
+    },
+    (dlg) => {
+      dlg.addEventListener('click', async (e) => {
+        if (e.target.closest('[data-dlg-cancel]')) {
+          if (!confirmDialog('Odwołać wizytę?', 'Klientka dostanie SMS i e-mail z informacją. Opłata nie jest naliczana, bo odwołuje gabinet.')) return;
+          dlg.remove(); act(() => api('POST', `/api/admin/bookings/${b.id}/cancel`, {}), 'Wizyta odwołana. Klientka dostała wiadomość.');
+        }
+        if (e.target.closest('[data-dlg-noshow]')) {
+          if (!confirmDialog('Oznaczyć nieobecność?', `System naliczy opłatę ${JM.booking.lateCancelFeePercent}% ceny zabiegu zgodnie z regulaminem. Możesz ją później anulować w zakładce Wizyty.`)) return;
+          dlg.remove(); act(() => api('POST', `/api/admin/bookings/${b.id}/no-show`, {}), 'Oznaczono nieobecność.');
+        }
+      });
+    });
+  }
+
+  function blockDialog(date, time) {
+    const end = time ? toTime(Math.min(toMin(time) + 60, 23 * 60 + 55)) : '14:00';
+    openDialog(`
+      <form class="modal-body" novalidate>
+        <h2>Zablokuj czas</h2>
+        <p class="small muted">Na przykład przerwa, wyjście albo szkolenie. Zablokowanego czasu nie da się zarezerwować online. Na cały dzień wolny użyj zakładki Godziny pracy.</p>
+        <div class="form-grid">
+          <div class="field"><label for="bl-date">Dzień</label><input id="bl-date" name="date" type="date" value="${date || S.isoDate(new Date())}"></div>
+          <div class="field"><label for="bl-note">Opis <span class="opt">(opcjonalnie)</span></label><input id="bl-note" name="note" maxlength="120" placeholder="Np. przerwa"></div>
+          <div class="field"><label for="bl-start">Od</label><input id="bl-start" name="start" type="time" step="300" value="${time || '13:00'}"></div>
+          <div class="field"><label for="bl-end">Do</label><input id="bl-end" name="end" type="time" step="300" value="${end}"></div>
+        </div>
+        <div class="modal-actions"><button class="btn btn-primary" type="submit">Zablokuj</button><button class="btn btn-outline" type="button" data-close>Anuluj</button></div>
+      </form>`,
+    async (f, close) => {
+      const r = await api('POST', '/api/admin/blocks', { date: f.elements.date.value, start: f.elements.start.value, end: f.elements.end.value, note: f.elements.note.value });
+      close(); ui.toast(r.clash ? `Czas zablokowany. Uwaga: w tym czasie jest już ${r.clash} umówiona wizyta.` : 'Czas zablokowany.'); rerender();
+    });
+  }
+
   /* ---------- Dane dla widoków ---------- */
   async function loadView() {
     const today = new Date(); const past = new Date(); past.setDate(past.getDate() - 30);
     const loaders = {
       pulpit: async () => ({ overview: await api('GET', '/api/admin/overview') }),
+      kalendarz: async () => ({ calendar: await api('GET', `/api/admin/calendar?from=${S.isoDate(calWeek)}&to=${S.isoDate(addDays(calWeek, 6))}`) }),
       wizyty: async () => (await api('GET', `/api/admin/bookings?from=${S.isoDate(past)}`)),
       klientki: async () => (await api('GET', '/api/admin/clients')),
       zabiegi: async () => (await api('GET', '/api/admin/prices')),
@@ -257,13 +484,18 @@ JM.ready.then(function () {
     if (!admin) { root.innerHTML = loginView(); return; }
     try {
       await loadView();
-      const fn = { pulpit: vPulpit, wizyty: vWizyty, klientki: vKlientki, zabiegi: vZabiegi, promocje: vPromocje, wiadomosci: vWiadomosci, godziny: vGodziny, konto: vKonto }[view];
+      const fn = { pulpit: vPulpit, kalendarz: vKalendarz, wizyty: vWizyty, klientki: vKlientki, zabiegi: vZabiegi, promocje: vPromocje, wiadomosci: vWiadomosci, godziny: vGodziny, konto: vKonto }[view];
       root.innerHTML = shell(fn());
     } catch (err) {
       if (err.status === 401) { admin = null; root.innerHTML = loginView('Sesja wygasła. Zaloguj się ponownie.'); return; }
       root.innerHTML = shell(`<div class="panel-card"><p class="form-msg" role="alert">${esc(err.message)}</p></div>`);
     }
     if (view === 'wiadomosci') updateCount();
+    if (view === 'kalendarz') {
+      // na telefonie przewijamy kalendarz do dzisiejszego dnia
+      const sc = root.querySelector('.wk-scroll'), t = root.querySelector('.wk-day.is-today');
+      if (sc && t && sc.scrollWidth > sc.clientWidth) sc.scrollLeft = t.offsetLeft - 56;
+    }
     if (scroll) window.scrollTo(0, 0);
   }
   function rerender() { const y = window.scrollY; return render().then(() => window.scrollTo(0, y)); }
@@ -318,6 +550,22 @@ JM.ready.then(function () {
       return act(() => api('DELETE', '/api/admin/promos/' + el.dataset.delPromo, {}), 'Promocja usunięta.');
     }
     if (el.dataset.channel) { campaignChannel = el.dataset.channel; rerender(); }
+    if (el.dataset.week !== undefined) { const n = Number(el.dataset.week); calWeek = n ? addDays(calWeek, 7 * n) : mondayOf(new Date()); rerender(); return; }
+    if (el.hasAttribute('data-new-booking')) { newBookingDialog(); return; }
+    if (el.hasAttribute('data-new-block')) { blockDialog(); return; }
+    if (el.dataset.booking) { const b = data.calendar.bookings.find((x) => String(x.id) === el.dataset.booking); if (b) bookingDialog(b); return; }
+    if (el.dataset.block) {
+      const x = data.calendar.blocks.find((z) => String(z.id) === el.dataset.block);
+      if (x && confirmDialog('Usunąć blokadę?', `${ui.fmtDate(x.date)}, ${x.start}–${x.end}${x.note ? ' (' + x.note + ')' : ''}. Ten czas znów będzie dostępny do rezerwacji online.`)) act(() => api('DELETE', '/api/admin/blocks/' + x.id, {}), 'Blokada usunięta.');
+    }
+  });
+  // klik w wolne miejsce kalendarza = nowa wizyta o tej godzinie (zaokrąglonej do 15 minut)
+  root.addEventListener('click', (e) => {
+    const day = e.target.closest('.wk-day'); if (!day || e.target.closest('button')) return;
+    const cal = data.calendar; if (!cal) return;
+    const lo = Math.floor(Math.min(cal.range[0], ...cal.bookings.map((b) => toMin(b.time)), ...cal.blocks.map((x) => toMin(x.start))) / 60) * 60;
+    const min = lo + Math.floor((e.clientY - day.getBoundingClientRect().top) / PPM / 15) * 15;
+    newBookingDialog(day.dataset.date, toTime(Math.max(0, Math.min(min, 23 * 60 + 45))));
   });
   // proste potwierdzenie (window.confirm jest czytelne i dostępne także z klawiatury)
   function confirmDialog(title, text) { return window.confirm(title + '\n\n' + text); }

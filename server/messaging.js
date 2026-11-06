@@ -31,6 +31,9 @@ const sms = {
   cancelledByClient: (b, name, lang) => L(lang,
     `${sender()}: Wizyta ${dm(b.date)} o ${b.time} została odwołana.${b.fee ? ` Zgodnie z regulaminem opłata za późne odwołanie wynosi ${money(b.fee, lang)}.` : ''} Do zobaczenia!`,
     `${sender()}: Your visit on ${dm(b.date)} at ${b.time} has been cancelled.${b.fee ? ` Under our terms the late cancellation fee is ${money(b.fee, lang)}.` : ''} See you soon!`),
+  moved: (b, name, lang) => L(lang,
+    `${sender()}: Wizyta przeniesiona na ${dm(b.date)} o ${b.time} (${name}), ${S.street}. Szczegóły: ${visitLink(b)}`,
+    `${sender()}: Your visit has been moved to ${dm(b.date)} at ${b.time} (${name}), ${S.street}. Details: ${visitLink(b)}`),
   cancelledBySalon: (b, name, lang) => L(lang,
     `${sender()}: Przepraszamy, musimy odwołać wizytę ${dm(b.date)} o ${b.time}. Zadzwonimy, żeby ustalić nowy termin, albo wybierz go na ${link('/rezerwacja.html')}`,
     `${sender()}: We are sorry, we have to cancel your visit on ${dm(b.date)} at ${b.time}. We will call you to arrange a new time, or choose one at ${link('/rezerwacja.html')}`)
@@ -77,6 +80,16 @@ const email = {
         `Bezpłatnie odwołasz wizytę do ${C.booking.cancelHours} godzin przed terminem. Później albo przy nieobecności obowiązuje opłata ${C.booking.lateCancelFeePercent}% ceny zabiegu. Przypomnienie wyślemy SMS-em ${C.booking.reminderHours} godziny przed wizytą.`,
         `You can cancel free of charge up to ${C.booking.cancelHours} hours before the visit. After that, or if you do not come, a fee of ${C.booking.lateCancelFeePercent}% of the treatment price applies. We will text you a reminder ${C.booking.reminderHours} hours before the visit.`)}</p>`);
     return { subject, html };
+  },
+  moved(b, name, lang) {
+    const subject = L(lang, `Nowy termin wizyty: ${dm(b.date)}, ${b.time}`, `New time for your visit: ${dm(b.date)} at ${b.time}`);
+    return { subject, html: emailLayout(lang, L(lang, 'Wizyta przeniesiona', 'Your visit has been moved'), `
+      <table role="presentation" cellpadding="0" cellspacing="0" style="font-size:15px;margin-bottom:8px">
+        ${row(L(lang, 'Zabieg', 'Treatment'), esc(name))}
+        ${row(L(lang, 'Nowy termin', 'New time'), esc(fmtLongDate(b.date, lang)) + ', ' + esc(b.time))}
+        ${row(L(lang, 'Adres', 'Address'), esc(S.street + ', ' + S.city))}
+      </table>
+      ${button(visitLink(b), L(lang, 'Zobacz wizytę', 'View your visit'))}`) };
   },
   cancelled(b, name, lang, by) {
     const subject = L(lang, `Wizyta ${dm(b.date)} odwołana`, `Visit on ${dm(b.date)} cancelled`);

@@ -74,7 +74,7 @@ JM.ready.then(function () {
     const status = b.status === 'cancelled' ? `<span class="badge">${L('odwołana', 'cancelled')}</span>${fee}`
       : b.status === 'no_show' ? `<span class="badge">${L('nieobecność', 'missed')}</span>${fee}`
       : b.status === 'done' || !upcoming ? `<span class="badge badge-ok">${L('odbyta', 'completed')}</span>` : '';
-    const action = upcoming && b.canCancel ? `<button class="btn btn-outline btn-small" type="button" data-cancel="${b.id}">${L('Odwołaj', 'Cancel')}</button>` : '';
+    const action = upcoming && b.canCancel ? `<div class="btn-row visit-actions">${b.canMove ? `<button class="btn btn-outline btn-small" type="button" data-move="${b.id}">${L('Zmień termin', 'Change time')}</button>` : ''}<button class="btn btn-outline btn-small" type="button" data-cancel="${b.id}">${L('Odwołaj', 'Cancel')}</button></div>` : '';
     return `
       <li class="visit-row">
         <div class="visit-date"><strong>${d.getDate()} ${JM.monthGen[d.getMonth()]}</strong><span>${L(JM.dayNames[d.getDay()].toLowerCase(), JM.dayNames[d.getDay()])}, ${b.time}</span></div>
@@ -231,6 +231,15 @@ JM.ready.then(function () {
         const email = dlg.querySelector('#rs-email').value.trim(); dlg.remove();
         if (dlg.returnValue !== 'ok' || !email) return;
         try { await S.forgotPassword(email); ui.toast(L('Jeśli konto istnieje, wysłaliśmy link na podany adres. Sprawdź też folder spam.', 'If the account exists, we have sent a link to that address. Check your spam folder too.')); } catch (err) { ui.toast(err.message); }
+      });
+      return;
+    }
+    if (el.dataset.move) {
+      const b = (myBookings || []).find((x) => String(x.id) === el.dataset.move); if (!b) return;
+      JM.moveDialog(b, async (date, time) => {
+        const nb = await S.moveMyBooking(b.id, date, time);
+        myBookings = myBookings.map((x) => (x.id === nb.id ? nb : x)).sort((a, z) => (a.date + a.time).localeCompare(z.date + z.time)); render();
+        return nb;
       });
       return;
     }

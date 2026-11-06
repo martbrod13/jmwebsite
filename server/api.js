@@ -58,6 +58,9 @@ function notify(b, kind) {
   if (kind === 'confirmation') {
     M.queueSms('confirmation', contact.phone, M.sms.confirmation(b, name, lang), b.id);
     M.queueEmail('confirmation', contact.email, M.email.confirmation(b, name, lang), b.id);
+  } else if (kind === 'moved') {
+    M.queueSms('moved', contact.phone, M.sms.moved(b, name, lang), b.id);
+    M.queueEmail('moved', contact.email, M.email.moved(b, name, lang), b.id);
   } else if (kind === 'cancelled') {
     M.queueSms('cancellation', contact.phone, (b.cancelled_by === 'salon' ? M.sms.cancelledBySalon : M.sms.cancelledByClient)(b, name, lang), b.id);
     M.queueEmail('cancellation', contact.email, M.email.cancelled(b, name, lang, b.cancelled_by), b.id);
@@ -104,16 +107,16 @@ function allClients() {
   const map = new Map();
   db.prepare(`SELECT c.*, (SELECT value FROM consents WHERE client_id = c.id AND kind = 'marketing_sms') AS sms,
       (SELECT value FROM consents WHERE client_id = c.id AND kind = 'marketing_email') AS mail FROM clients c`).all().forEach((c) => {
-    map.set(c.email.toLowerCase(), { id: c.id, name: c.first_name + ' ' + c.last_name, phone: c.phone, email: c.email, type: 'konto',
+    map.set(c.email.toLowerCase(), { id: c.id, firstName: c.first_name, lastName: c.last_name, name: c.first_name + ' ' + c.last_name, phone: c.phone, email: c.email, type: 'konto',
       createdAt: c.created_at, sms: !!c.sms, mail: !!c.mail, visits: 0, last: '', firstVisitUsed: false, language: c.language, demo: !!c.demo });
   });
   const byId = new Map([...map.values()].map((c) => [c.id, c]));
   db.prepare('SELECT * FROM bookings ORDER BY created_at').all().forEach((b) => {
     let c = b.client_id ? byId.get(b.client_id) : null;
-    if (!c && b.guest_email) {
-      const key = b.guest_email.toLowerCase();
+    if (!c && (b.guest_email || b.guest_phone)) {
+      const key = (b.guest_email || 'tel:' + b.guest_phone.replace(/\D/g, '')).toLowerCase();
       c = map.get(key);
-      if (!c) { c = { name: b.guest_first + ' ' + b.guest_last, phone: b.guest_phone, email: b.guest_email, type: 'gość', createdAt: b.created_at, visits: 0, last: '', language: b.lang, demo: !!b.demo }; map.set(key, c); }
+      if (!c) { c = { firstName: b.guest_first, lastName: b.guest_last || '', name: (b.guest_first + ' ' + (b.guest_last || '')).trim(), phone: b.guest_phone, email: b.guest_email || '', type: 'gość', createdAt: b.created_at, visits: 0, last: '', language: b.lang, demo: !!b.demo }; map.set(key, c); }
       if (c.type === 'gość') { c.sms = !!b.guest_marketing_sms; c.mail = !!b.guest_marketing_email; c.phone = b.guest_phone; }
     }
     if (c && b.status !== 'cancelled') { c.visits++; if (b.date > c.last) c.last = b.date; if (b.client_id) c.firstVisitUsed = true; }
@@ -356,6 +359,86 @@ const adminAction = (fn) => (req, { params, body }) => {
   const b = B.getBooking(Number(params.id)); if (!b) throw new HttpError(404, 'Nie znaleziono wizyty.');
   try { return { booking: adminBooking(fn(b, body)) }; } catch (e) { if (e instanceof B.BookingError) throw new HttpError(409, e.message); throw e; }
 };
+// Kalendarz tygodnia: wizyty, blokady i godziny pracy w podanym zakresie dni
+route('GET', '/api/admin/calendar', (req, { query }) => {
+  requireAdmin(req); B.completePast();
+  const from = query.get('from'), to = query.get('to');
+  if (!B.DATE_RE.test(from || '') || !B.DATE_RE.test(to || '') || to < from) throw new HttpError(400, 'Nieprawidłowy zakres dat.');
+  const days = [];
+  for (let d = new Date(from + 'T12:00:00'); B.isoDate(d) <= to && days.length < 42; d.setDate(d.getDate() + 1)) {
+    const ds = B.isoDate(d); const h = B.dayHours(ds);
+    const off = db.prepare('SELECT note FROM days_off WHERE date = ?').get(ds);
+    days.push({ date: ds, hours: h ? [h[0] * 60, h[1] * 60] : null, closed: !h ? (C.closedDates.includes(ds) ? 'święto' : off ? (off.note || 'dzień wolny') : 'nieczynne') : null });
+  }
+  const bookings = db.prepare("SELECT * FROM bookings WHERE date BETWEEN ? AND ? AND status <> 'cancelled' ORDER BY date, start_min").all(from, to).map(adminBooking);
+  return { days, bookings, blocks: B.blocksBetween(from, to), range: [Math.min(...Object.values(C.hours).filter(Boolean).map((h) => h[0])) * 60, Math.max(...Object.values(C.hours).filter(Boolean).map((h) => h[1])) * 60] };
+});
+
+// Wizyta dodana w panelu (telefon, Instagram, osobiście)
+route('POST', '/api/admin/bookings', (req, { body }) => {
+  requireAdmin(req);
+  let client = null, guest = null;
+  if (body.clientId) {
+    client = clientById(Number(body.clientId));
+    if (!client) throw new HttpError(400, 'Nie znaleziono konta klientki.');
+  } else {
+    const g = body.guest || {};
+    if (!str(g.firstName, 60)) throw new HttpError(400, 'Wpisz imię klientki.', 'firstName');
+    if (!(RE.phone.test(str(g.phone, 20)) && str(g.phone, 20).replace(/\D/g, '').length >= 9)) throw new HttpError(400, 'Wpisz numer telefonu klientki.', 'phone');
+    if (str(g.email, 120) && !RE.email.test(str(g.email, 120))) throw new HttpError(400, 'Sprawdź adres e-mail albo zostaw pole puste.', 'email');
+    guest = { firstName: str(g.firstName, 60), lastName: str(g.lastName, 60), phone: str(g.phone, 20), email: str(g.email, 120).toLowerCase() };
+  }
+  const source = ['telefon', 'instagram', 'osobiście', 'inne'].includes(body.source) ? body.source : 'telefon';
+  try {
+    const b = B.createManualBooking({ treatmentId: body.treatmentId, date: body.date, time: body.time, duration: body.duration, price: body.price, notes: str(body.notes, 400), source, client, guest, force: body.force === true });
+    if (body.notify !== false) notify(b, 'confirmation');
+    return { booking: adminBooking(b) };
+  } catch (e) {
+    if (e instanceof B.BookingError) throw new HttpError(409, e.message, e.code);
+    throw e;
+  }
+});
+route('POST', '/api/admin/bookings/:id/move', (req, { params, body }) => {
+  requireAdmin(req);
+  const b = B.getBooking(Number(params.id)); if (!b) throw new HttpError(404, 'Nie znaleziono wizyty.');
+  try {
+    const nb = B.moveBooking(b, { date: body.date, time: body.time, by: 'salon', force: body.force === true });
+    if (body.notify !== false) notify(nb, 'moved');
+    return { booking: adminBooking(nb) };
+  } catch (e) { if (e instanceof B.BookingError) throw new HttpError(409, e.message, e.code); throw e; }
+});
+route('POST', '/api/admin/blocks', (req, { body }) => {
+  requireAdmin(req);
+  try { const clash = B.addBlock({ date: body.date, start: body.start, end: body.end, note: str(body.note, 120) }); return { ok: true, clash }; }
+  catch (e) { if (e instanceof B.BookingError) throw new HttpError(400, e.message); throw e; }
+});
+route('DELETE', '/api/admin/blocks/:id', (req, { params }) => {
+  requireAdmin(req);
+  db.prepare('DELETE FROM blocks WHERE id = ?').run(Number(params.id));
+  return { ok: true };
+});
+
+// Zmiana terminu przez klientkę (konto albo link z SMS-a)
+function clientMove(req, b, body) {
+  try { const nb = B.moveBooking(b, { date: body.date, time: body.time, by: 'client' }); notify(nb, 'moved'); return { booking: B.publicBooking(nb) }; }
+  catch (e) {
+    if (e instanceof B.BookingError) throw new HttpError(409, e.code === 'late' ? T(req, e.message, `You can change the time online up to ${C.booking.cancelHours} hours before the visit. Please call the studio.`) : T(req, e.message, 'This time is no longer available. Please choose another one.'), 'slot');
+    throw e;
+  }
+}
+route('POST', '/api/me/bookings/:id/move', (req, { params, body }) => {
+  const c = requireClient(req);
+  const b = B.getBooking(Number(params.id));
+  if (!b || b.client_id !== c.id) throw new HttpError(404, T(req, 'Nie znaleziono wizyty.', 'Visit not found.'));
+  return clientMove(req, b, body);
+});
+route('POST', '/api/visit/:token/move', (req, { params, body, ip }) => {
+  if (!Sec.rateLimit('visit:' + ip, 20, 36e5)) throw new HttpError(429, 'Spróbuj później.');
+  const b = B.getBookingByToken(params.token);
+  if (!b) throw new HttpError(404, T(req, 'Nie znaleziono wizyty.', 'Visit not found.'));
+  return clientMove(req, b, body);
+});
+
 route('POST', '/api/admin/bookings/:id/cancel', adminAction((b) => { const nb = B.cancelBooking(b, 'salon'); notify(nb, 'cancelled'); return nb; }));
 route('POST', '/api/admin/bookings/:id/no-show', adminAction((b) => B.markNoShow(b)));
 route('POST', '/api/admin/bookings/:id/fee', adminAction((b, body) => B.setFeeStatus(b, body.status)));

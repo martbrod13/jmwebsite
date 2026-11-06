@@ -153,3 +153,60 @@ test('reset hasła: ta sama odpowiedź dla istniejącego i nieistniejącego kont
   const b = await client()('POST', '/api/password/forgot', { email: 'nie-ma@example.com' });
   assert.deepStrictEqual(a.body, b.body);
 });
+
+async function adminClient() {
+  const c = client();
+  await c('POST', '/api/admin/login', { email: 'martbrod99@gmail.com', password: 'demo' });
+  return c;
+}
+
+test('wizyta dodana w panelu zajmuje termin w rezerwacji online', async () => {
+  const a = await adminClient();
+  const s = await freeSlot('konsultacja', 10);
+  const r = await a('POST', '/api/admin/bookings', { treatmentId: 'mezo-twarz', date: s.date, time: s.time, source: 'telefon', guest: { firstName: 'Basia', phone: '+48 601 000 111' }, notify: false });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.strictEqual(r.body.booking.source, 'telefon');
+  const avail = await client()('GET', `/api/availability?treatment=konsultacja&from=${s.date}&to=${s.date}`);
+  assert.ok(!avail.body.days[s.date].includes(s.time));
+  // kolizja z inną wizytą jest zawsze blokowana
+  const c = await a('POST', '/api/admin/bookings', { treatmentId: 'konsultacja', date: s.date, time: s.time, guest: { firstName: 'Ola', phone: '+48 601 000 112' }, notify: false, force: true });
+  assert.strictEqual(c.status, 409); assert.strictEqual(c.body.field, 'conflict');
+});
+
+test('wizyta poza godzinami pracy wymaga potwierdzenia', async () => {
+  const a = await adminClient();
+  const s = await freeSlot('konsultacja', 0);
+  const r = await a('POST', '/api/admin/bookings', { treatmentId: 'konsultacja', date: s.date, time: '21:00', guest: { firstName: 'Ewa', phone: '+48 601 000 113' }, notify: false });
+  assert.strictEqual(r.status, 409); assert.strictEqual(r.body.field, 'confirm');
+  const ok = await a('POST', '/api/admin/bookings', { treatmentId: 'konsultacja', date: s.date, time: '21:00', guest: { firstName: 'Ewa', phone: '+48 601 000 113' }, notify: false, force: true });
+  assert.strictEqual(ok.status, 200);
+});
+
+test('blokada czasu usuwa terminy z rezerwacji online', async () => {
+  const a = await adminClient();
+  const s = await freeSlot('konsultacja', 20);
+  const end = S2(s.time, 60);
+  const r = await a('POST', '/api/admin/blocks', { date: s.date, start: s.time, end, note: 'przerwa' });
+  assert.strictEqual(r.status, 200);
+  const avail = await client()('GET', `/api/availability?treatment=konsultacja&from=${s.date}&to=${s.date}`);
+  assert.ok(!avail.body.days[s.date].includes(s.time));
+});
+function S2(time, add) { const [h, m] = time.split(':').map(Number); const t = h * 60 + m + add; return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); }
+
+test('klientka zmienia termin przez link z SMS-a tylko na wolny termin', async () => {
+  const s = await freeSlot('kwas-glikolowy', 0);
+  const g = client();
+  const b = await g('POST', '/api/bookings', { treatmentId: 'kwas-glikolowy', date: s.date, time: s.time, guest: guest('move@example.com') });
+  const target = await freeSlot('kwas-glikolowy', 5);
+  const moved = await g('POST', `/api/visit/${b.body.booking.token}/move`, target);
+  assert.strictEqual(moved.status, 200, JSON.stringify(moved.body));
+  assert.strictEqual(moved.body.booking.date + moved.body.booking.time, target.date + target.time);
+  // stary termin znów wolny, nowy zajęty
+  const other = await client()('POST', '/api/bookings', { treatmentId: 'kwas-glikolowy', date: target.date, time: target.time, guest: guest('x2@example.com') });
+  assert.strictEqual(other.status, 409);
+  const again = await client()('POST', '/api/bookings', { treatmentId: 'kwas-glikolowy', date: s.date, time: s.time, guest: guest('x3@example.com') });
+  assert.strictEqual(again.status, 200);
+  // nie da się przenieść na zajęty termin
+  const bad = await g('POST', `/api/visit/${b.body.booking.token}/move`, s);
+  assert.strictEqual(bad.status, 409);
+});

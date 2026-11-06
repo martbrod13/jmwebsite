@@ -163,6 +163,27 @@ CREATE TABLE IF NOT EXISTS contact_messages (
 );
 `);
 
+// Blokady czasu (przerwa, wyjście, szkolenie) — wyłączone z rezerwacji online
+db.exec(`
+CREATE TABLE IF NOT EXISTS blocks (
+  id         INTEGER PRIMARY KEY,
+  date       TEXT NOT NULL,
+  start_min  INTEGER NOT NULL,
+  end_min    INTEGER NOT NULL,
+  note       TEXT,
+  created_at TEXT NOT NULL,
+  CHECK (end_min > start_min)
+);
+CREATE INDEX IF NOT EXISTS blocks_date ON blocks (date);
+`);
+
+// Migracje: nowe kolumny dodajemy do istniejącej bazy bez utraty danych
+function addColumn(table, column, definition) {
+  if (!db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+// skąd wizyta: online (strona), telefon, instagram, osobiście, inne
+addColumn('bookings', 'source', "TEXT NOT NULL DEFAULT 'online'");
+
 const nowIso = () => new Date().toISOString();
 
 function tx(fn) {
