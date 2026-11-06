@@ -40,7 +40,7 @@ Prawdziwa wysyłka włącza się w pliku `.env` (wzór: `.env.example`): SMS prz
 - Przy pierwszym uruchomieniu tworzą się konta panelu, promocje i kilka przykładowych klientek i wizyt. W panelu na Pulpicie jest przycisk **Usuń dane przykładowe**.
 - Żeby zacząć od zera: zatrzymaj serwer i usuń folder `data`.
 - Zdjęcia z galerii zapisują się w `data/uploads/gallery`.
-- Kopia zapasowa: skopiuj cały folder `data` przy zatrzymanym serwerze.
+- Kopia zapasowa: patrz niżej, „Kopie zapasowe”.
 
 ### Co jest w środku
 
@@ -115,8 +115,10 @@ Lokalnie i na małym serwerze (VPS) wystarczy SQLite z codzienną kopią pliku. 
 
 ### Publikacja (po zgodzie właścicielki)
 
-1. Domena (np. justynamanka.pl) i serwer z Node.js 22+, np. mały VPS w UE. Darmowy plan Vercel nie pozwala na użytek komercyjny i nie trzyma pliku bazy.
-2. Plik `.env` na serwerze: `PUBLIC_URL`, `ADMIN_INITIAL_PASSWORD`, klucze SMSAPI i Resend.
-3. Uruchomienie: `npm start` (tryb produkcyjny: bez automatycznego odświeżania, z HSTS i pamięcią podręczną zdjęć), za serwerem HTTPS (np. Caddy albo nginx).
-4. Usunięcie `noindex` z podstron i `Disallow: /` z `robots.txt`, mapa strony, wizytówka Google.
-5. Codzienna kopia zapasowa bazy poza serwerem.
+Pełna instrukcja krok po kroku, z listą rzeczy do zrobienia przed startem: **[docs/WDROZENIE.md](docs/WDROZENIE.md)**. Pliki konfiguracyjne serwera są w folderze `deploy/`.
+
+W skrócie: domena i mały serwer VPS w UE, plik `.env` z kluczami SMSAPI i Resend, uruchomienie jako usługa (`deploy/jm.service`) za Caddy z automatycznym HTTPS (`deploy/Caddyfile`). Na serwerze baza startuje bez danych przykładowych. Widoczność w Google włącza jedna linijka w `.env` (`SITE_INDEXING=1`): wtedy strona sama zmienia `robots.txt`, zdejmuje `noindex`, udostępnia mapę strony i dodaje podgląd przy udostępnianiu linku.
+
+### Kopie zapasowe
+
+Serwer robi kopię bazy codziennie po 3:00 (14 ostatnich) i kopię zdjęć w `data/backups`. Ręcznie: `npm run backup` albo panel → Moje konto → Zrób kopię teraz / Pobierz kopię bazy.

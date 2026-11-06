@@ -1,0 +1,26 @@
+# Usługa systemd: strona startuje razem z serwerem i wstaje sama po awarii.
+# Instalacja: sudo cp deploy/jm.service /etc/systemd/system/jm.service && sudo systemctl enable --now jm
+[Unit]
+Description=Justyna Mańka Beauty & Aesthetics — strona i rezerwacje
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=jm
+Group=jm
+WorkingDirectory=/srv/jmwebsite
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning server/index.js --production
+Restart=always
+RestartSec=3
+
+# Zabezpieczenia: aplikacja może zapisywać tylko w folderze data
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/srv/jmwebsite/data
+
+[Install]
+WantedBy=multi-user.target

@@ -74,7 +74,7 @@ function run() {
   if (meta.get('seeded')) return null;
   const pass = seedAdmins();
   seedPromos();
-  seedDemo();
+  if (!env.production) seedDemo(); // na serwerze produkcyjnym baza startuje bez danych przykładowych
   meta.set('seeded', nowIso());
   return pass;
 }

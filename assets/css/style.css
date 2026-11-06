@@ -892,3 +892,10 @@ html[lang="en"] [data-lang="pl"] { display: none !important; }
 .g-admin li.is-hidden img { opacity: .45; }
 .g-admin-body p { margin: 0 0 6px; }
 .g-admin-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+
+/* Wybór plików z polskim przyciskiem (napis przeglądarki zależy od jej języka) */
+.file-pick { position: relative; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 10px 12px; border: 1px dashed var(--linen); background: var(--paper); }
+.file-pick input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+.file-pick label { cursor: pointer; }
+.file-pick:focus-within label { outline: 2px solid var(--gold-deep); outline-offset: 2px; }
+.label-text { display: block; font-weight: 500; font-size: .875rem; margin-bottom: 8px; }

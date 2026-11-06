@@ -1,0 +1,17 @@
+# Caddy: certyfikat HTTPS zakłada i odnawia się sam.
+# Instalacja: sudo cp deploy/Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy
+# Zamień justynamanka.pl na właściwą domenę.
+
+www.justynamanka.pl {
+	redir https://justynamanka.pl{uri} permanent
+}
+
+justynamanka.pl {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:3000
+	log {
+		output file /var/log/caddy/jm.log {
+			roll_keep 7
+		}
+	}
+}

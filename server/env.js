@@ -17,6 +17,10 @@ if (fs.existsSync(file)) {
 
 module.exports = {
   port: Number(process.env.PORT) || 3000,
+  // na serwerze strona działa za Caddy/nginx, więc słucha tylko lokalnie
+  host: process.env.HOST || (process.env.NODE_ENV === 'production' || process.argv.includes('--production') ? '127.0.0.1' : undefined),
+  // SITE_INDEXING=1 po starcie strony: Google może ją indeksować (robots.txt, mapa strony, bez noindex)
+  indexing: /^(1|true|tak)$/i.test(process.env.SITE_INDEXING || ''),
   production: process.env.NODE_ENV === 'production' || process.argv.includes('--production'),
   publicUrl: (process.env.PUBLIC_URL || '').replace(/\/$/, ''),
   smsDriver: process.env.SMS_DRIVER || 'outbox',

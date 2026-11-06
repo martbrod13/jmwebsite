@@ -14,6 +14,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const seed = require('./seed');
+const Backup = require('./backup');
 const api = require('./api');
 const M = require('./messaging');
 const B = require('./booking');
@@ -28,7 +29,7 @@ const TYPES = {
   '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.txt': 'text/plain; charset=utf-8', '.woff2': 'font/woff2', '.woff': 'font/woff'
 };
 // Serwujemy tylko pliki strony — nigdy bazy, kodu serwera ani .env
-const PUBLIC = /^\/(?:[a-z0-9-]+\.html|robots\.txt|assets\/(?:css|js|js\/pages|img|fonts)\/[A-Za-z0-9._-]+)$/;
+const PUBLIC = /^\/(?:[a-z0-9-]+\.html|assets\/(?:css|js|js\/pages|img|fonts)\/[A-Za-z0-9._-]+)$/;
 
 const SECURITY_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
@@ -52,6 +53,41 @@ if (env.production) SECURITY_HEADERS['Strict-Transport-Security'] = 'max-age=315
 
 // odświeżanie strony po zmianach; po restarcie serwera (inny BOOT) strona też się odświeży
 const BOOT = Date.now().toString(36);
+// Strony, które Google może indeksować po starcie (SITE_INDEXING=1); konto, panel i wizyta zawsze ukryte
+const INDEXABLE = ['index', 'zabiegi', 'cennik', 'rezerwacja', 'galeria', 'kontakt', 'regulamin', 'polityka-prywatnosci', 'polityka-cookies'];
+function seoTags(html, page) {
+  if (env.indexing && INDEXABLE.includes(page)) html = html.replace('<meta name="robots" content="noindex, nofollow">', '<meta name="robots" content="index, follow">');
+  if (!env.publicUrl || !INDEXABLE.includes(page)) return html;
+  const url = env.publicUrl + (page === 'index' ? '/' : '/' + page + '.html');
+  const title = (html.match(/<title>([^<]*)<\/title>/) || [])[1] || '';
+  const desc = (html.match(/<meta name="description" content="([^"]*)"/) || [])[1] || '';
+  const tags = [
+    `<link rel="canonical" href="${url}">`,
+    '<meta property="og:type" content="website">',
+    '<meta property="og:locale" content="pl_PL">',
+    `<meta property="og:site_name" content="${B.C.salon.brand}">`,
+    `<meta property="og:title" content="${title}">`,
+    desc ? `<meta property="og:description" content="${desc}">` : '',
+    `<meta property="og:url" content="${url}">`,
+    `<meta property="og:image" content="${env.publicUrl}/assets/img/og.jpg">`,
+    '<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">',
+    '<meta name="twitter:card" content="summary_large_image">'
+  ].filter(Boolean).join('\n  ');
+  return html.replace('</head>', '  ' + tags + '\n</head>');
+}
+function robots() {
+  if (!env.indexing) return 'User-agent: *\nDisallow: /\n';
+  return ['User-agent: *', 'Allow: /', 'Disallow: /panel.html', 'Disallow: /konto.html', 'Disallow: /wizyta.html', 'Disallow: /api/', 'Disallow: /w/',
+    env.publicUrl ? `Sitemap: ${env.publicUrl}/sitemap.xml` : ''].filter(Boolean).join('\n') + '\n';
+}
+function sitemap() {
+  const urls = INDEXABLE.map((p) => {
+    const mod = fs.statSync(path.join(ROOT, p + '.html')).mtime.toISOString().slice(0, 10);
+    return `  <url><loc>${env.publicUrl}${p === 'index' ? '/' : '/' + p + '.html'}</loc><lastmod>${mod}</lastmod></url>`;
+  });
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`;
+}
+
 const RELOAD = `<script>(function(){try{var b,es=new EventSource('/__reload');es.onmessage=function(e){if(e.data==='reload'||(b&&b!==e.data))location.reload();if(e.data!=='reload')b=e.data;};}catch(e){}})();</script>`;
 const reloadClients = new Set();
 
@@ -69,7 +105,7 @@ function serveStatic(req, res, pathname) {
   const ext = path.extname(file).toLowerCase();
   const type = TYPES[ext] || 'application/octet-stream';
   if (ext === '.html') {
-    let html = fs.readFileSync(file, 'utf8');
+    let html = seoTags(fs.readFileSync(file, 'utf8'), path.basename(file, '.html'));
     if (DEV) html = html.replace('</body>', RELOAD + '</body>');
     res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-cache' });
     return res.end(html);
@@ -87,6 +123,11 @@ const server = http.createServer((req, res) => {
   const p = url.pathname;
 
   if (p.startsWith('/api/')) return api.handle(req, res, url);
+  if (p === '/robots.txt') { res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end(robots()); }
+  if (p === '/sitemap.xml') {
+    if (!env.indexing || !env.publicUrl) return notFound(res);
+    res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8' }); return res.end(sitemap());
+  }
   if (DEV && p === '/__reload') {
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
     res.write('retry: 1000\n\n'); res.write('data: ' + BOOT + '\n\n'); reloadClients.add(res); req.on('close', () => reloadClients.delete(res)); return;
@@ -121,7 +162,7 @@ const initialPassword = seed.run();
 
 // Harmonogram: co minutę przypomnienia 24 h przed wizytą, wysyłka kolejki, zamykanie odbytych wizyt
 function tick() {
-  try { api.queueReminders(); M.processQueue(); } catch (e) { console.error('Harmonogram:', e.message); }
+  try { api.queueReminders(); M.processQueue(); Backup.dailyBackup(); } catch (e) { console.error('Harmonogram:', e.message); }
 }
 setInterval(tick, 60 * 1000).unref();
 
@@ -130,7 +171,7 @@ function listen(port) {
     if (err.code === 'EADDRINUSE' && DEV) return listen(port + 1);
     throw err;
   });
-  server.listen(port, () => {
+  server.listen(port, env.host, () => {
     const url = `http://localhost:${port}`;
     M.setBaseUrl(url);
     const mode = M.mode();
@@ -139,10 +180,12 @@ function listen(port) {
     console.log('');
     console.log(`  - Strona:          ${url}`);
     console.log(`  - Panel gabinetu:  ${url}/panel.html`);
-    if (initialPassword) console.log(`    Konta panelu: ${B.C.panelAccounts.map((a) => a.email).join(', ')}, hasło: ${initialPassword}`);
+    // na serwerze hasła nie wypisujemy (trafiłoby do logów systemu)
+    if (initialPassword) console.log(`    Konta panelu: ${B.C.panelAccounts.map((a) => a.email).join(', ')}, hasło: ${env.production ? 'z ADMIN_INITIAL_PASSWORD w .env' : initialPassword}`);
     console.log(`  - SMS-y: ${mode.sms === 'test' ? 'tryb testowy (nic nie jest wysyłane, podgląd w panelu i tutaj)' : 'SMSAPI'}`);
     console.log(`  - E-maile: ${mode.email === 'test' ? 'tryb testowy (podgląd w panelu i tutaj)' : 'Resend'}`);
-    console.log(`  - Baza danych: ${path.relative(ROOT, path.join(env.dataDir, 'jm.db'))}`);
+    console.log(`  - Baza danych: ${path.relative(ROOT, path.join(env.dataDir, 'jm.db'))} (kopia zapasowa codziennie po 3:00)`);
+    console.log(`  - Google: ${env.indexing ? 'strona widoczna (SITE_INDEXING=1)' : 'strona ukryta przed wyszukiwarkami'}`);
     console.log('');
     if (DEV) console.log('  Zmiany w plikach odświeżają stronę automatycznie. Zatrzymanie: Ctrl + C');
     console.log('');

@@ -232,3 +232,19 @@ test('galeria: zgoda wymagana, ukryte zdjęcie niedostępne publicznie, usuwanie
   assert.strictEqual((await a('GET', g.src)).status, 404);
   assert.ok(!(await client()('GET', '/api/gallery')).body.photos.some((x) => x.id === g.id));
 });
+
+test('przed startem strona jest ukryta przed Google, działa sprawdzanie stanu i kopie zapasowe', async () => {
+  const c = client();
+  assert.strictEqual((await c('GET', '/api/health')).body.ok, true);
+  assert.match((await c('GET', '/robots.txt')).text, /Disallow: \//);
+  assert.strictEqual((await c('GET', '/sitemap.xml')).status, 404);
+  assert.match((await c('GET', '/index.html')).text, /noindex, nofollow/);
+  assert.strictEqual((await c('POST', '/api/admin/backup', {})).status, 401);
+  assert.strictEqual((await c('GET', '/api/admin/backup/download')).status, 401);
+  const a = await adminClient();
+  const b = await a('POST', '/api/admin/backup', {});
+  assert.strictEqual(b.status, 200); assert.ok(b.body.count >= 1 && b.body.last);
+  const d = await a('GET', '/api/admin/backup/download');
+  assert.strictEqual(d.status, 200); assert.match(d.headers.get('content-disposition'), /jm-baza-/);
+  assert.ok(d.text.startsWith('SQLite format 3'));
+});

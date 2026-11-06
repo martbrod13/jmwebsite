@@ -208,7 +208,13 @@ JM.ready.then(function () {
         <div class="field"><label for="pw-cur">Obecne hasło</label><input id="pw-cur" name="current" type="password" autocomplete="current-password" required></div>
         <div class="field"><label for="pw-new">Nowe hasło</label><input id="pw-new" name="next" type="password" autocomplete="new-password" minlength="12" required></div>
         <button class="btn btn-primary" type="submit">Zmień hasło</button>
-      </form>`;
+      </form>
+      <div class="panel-card" style="max-width:560px">
+        <h2>Kopie zapasowe</h2>
+        <p class="small muted">Serwer robi kopię bazy automatycznie raz dziennie (po 3:00) i trzyma ${14} ostatnich w folderze <code>${esc(data.backup.dir)}</code>, razem ze zdjęciami z galerii. Raz na jakiś czas pobierz kopię i zapisz ją poza serwerem, np. na dysku w chmurze. Plik zawiera dane osobowe klientek: nie wysyłaj go mailem.</p>
+        <p>Ostatnia kopia: <strong style="font-weight:500">${data.backup.last ? dt(data.backup.last) : 'jeszcze nie było'}</strong>${data.backup.count ? ` · kopii na serwerze: ${data.backup.count}` : ''}</p>
+        <div class="btn-row"><button type="button" class="btn btn-outline btn-small" data-backup-now>Zrób kopię teraz</button><a class="btn btn-outline btn-small" href="/api/admin/backup/download">Pobierz kopię bazy</a></div>
+      </div>`;
   }
 
   /* ---------- Kalendarz tygodnia ---------- */
@@ -447,7 +453,9 @@ JM.ready.then(function () {
         <h2>Dodaj zdjęcia</h2>
         <p class="small muted">Zdjęcia zmniejszą się automatycznie, a dane z aparatu (np. lokalizacja GPS) zostaną usunięte, zanim trafią na serwer. Najlepiej wgrywać zdjęcia „przed i po” jako jedno zdjęcie (kolaż).</p>
         <div class="form-grid">
-          <div class="field span-2"><label for="g-files">Zdjęcia (JPG, PNG albo WebP)</label><input id="g-files" name="files" type="file" accept="image/jpeg,image/png,image/webp" multiple required></div>
+          <div class="field span-2"><span class="label-text" id="g-files-label">Zdjęcia (JPG, PNG albo WebP)</span>
+            <div class="file-pick"><input id="g-files" name="files" type="file" accept="image/jpeg,image/png,image/webp" multiple required aria-labelledby="g-files-label g-files-btn">
+              <label for="g-files" class="btn btn-outline btn-small" id="g-files-btn">Wybierz zdjęcia</label><span class="small muted" id="g-files-name">Nie wybrano zdjęć</span></div></div>
           <div class="field"><label for="g-cat">Kategoria</label><select id="g-cat" name="category">${catOptions()}</select></div>
           <div class="field"><label for="g-note">Notatka o zgodzie <span class="opt">(widzi tylko panel)</span></label><input id="g-note" name="consentNote" maxlength="200" placeholder="Np. Anna K., zgoda podpisana 12.11.2026"></div>
           <div class="field"><label for="g-alt">Opis zdjęcia</label><input id="g-alt" name="altPl" maxlength="160" required placeholder="Np. Brwi pudrowe, efekt po wygojeniu"></div>
@@ -549,7 +557,7 @@ JM.ready.then(function () {
         mode = m.mode; return { reminders: r.reminders, messages: m.messages, clients: c.clients };
       },
       godziny: async () => (await api('GET', '/api/admin/days-off')),
-      konto: async () => ({})
+      konto: async () => ({ backup: await api('GET', '/api/admin/backup') })
     };
     data = await loaders[view]();
     void today;
@@ -647,6 +655,7 @@ JM.ready.then(function () {
       return act(() => api('DELETE', '/api/admin/promos/' + el.dataset.delPromo, {}), 'Promocja usunięta.');
     }
     if (el.dataset.channel) { campaignChannel = el.dataset.channel; rerender(); }
+    if (el.hasAttribute('data-backup-now')) return act(() => api('POST', '/api/admin/backup', {}), 'Kopia zapasowa gotowa.');
     if (el.dataset.gMove) return act(() => api('POST', `/api/admin/gallery/${el.dataset.gMove}/move`, { dir: Number(el.dataset.dir) }));
     if (el.dataset.gToggle) { const g = data.photos.find((x) => String(x.id) === el.dataset.gToggle); return act(() => api('PATCH', '/api/admin/gallery/' + g.id, { published: !g.published }), g.published ? 'Zdjęcie ukryte na stronie.' : 'Zdjęcie widoczne na stronie.'); }
     if (el.dataset.gEdit) { galleryEdit(data.photos.find((x) => String(x.id) === el.dataset.gEdit)); return; }
@@ -681,6 +690,11 @@ JM.ready.then(function () {
       const q = document.getElementById('q'); q.focus(); q.setSelectionRange(pos, pos);
     }
     if (e.target.id === 'c-text') updateCount();
+  });
+  root.addEventListener('change', (e) => {
+    if (e.target.id !== 'g-files') return;
+    const n = e.target.files.length, out = document.getElementById('g-files-name');
+    out.textContent = !n ? 'Nie wybrano zdjęć' : n === 1 ? e.target.files[0].name : `${n} ${n < 5 ? 'zdjęcia' : 'zdjęć'}: ${[...e.target.files].slice(0, 3).map((f) => f.name).join(', ')}${n > 3 ? '…' : ''}`;
   });
   root.addEventListener('change', (e) => {
     const id = e.target.dataset.promo; if (!id) return;

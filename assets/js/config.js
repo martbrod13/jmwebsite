@@ -21,7 +21,9 @@ JM.salon = {
   // TODO: wkleić bezpośredni link do profilu na Facebooku
   facebook: { label: 'Justyna Mańka Beauty & Aesthetics', url: 'https://www.facebook.com/search/top?q=Justyna%20Ma%C5%84ka%20Beauty%20%26%20Aesthetics' },
   mapQuery: 'Tadeusza Kościuszki 52A, Kraków',
-  smsSender: 'JM Beauty'
+  smsSender: 'JM Beauty',
+  // dopisek „Wersja demonstracyjna strony” w stopce — przed startem ustaw false
+  demoNotice: true
 };
 
 // Godziny pracy: [otwarcie, zamknięcie] w pełnych godzinach; null = nieczynne. 0 = niedziela.
