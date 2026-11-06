@@ -731,3 +731,6 @@ strong { font-weight: 500; }
 .hero p:last-child { margin-bottom: 0; }
 .about .creds { margin-bottom: 0; }
 .main-nav a, .nav-account { white-space: nowrap; }
+
+.admin-who { margin: 0 0 6px; color: var(--gold); font-size: .875rem; line-height: 1.4; }
+.admin-who span { color: var(--on-ink-soft); font-size: .8125rem; }

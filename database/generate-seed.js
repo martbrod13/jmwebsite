@@ -76,8 +76,9 @@ JM.defaultPromos.forEach((p) => {
 line();
 
 // ---------- Konto gabinetu ----------
-line('-- Konto właścicielki do panelu (hasło ustawiamy przy podłączaniu logowania)');
-line(`INSERT INTO admins (email, full_name, role) VALUES (${q(JM.salon.email)}, ${q(JM.salon.owner)}, 'owner');`);
+line('-- Konta do panelu (hasła ustawiamy przy podłączaniu logowania)');
+const roleOf = (label) => (/właścic/i.test(label) ? 'owner' : 'admin');
+JM.panelAccounts.forEach((a) => line(`INSERT INTO admins (email, full_name, role) VALUES (${q(a.email)}, ${q(a.name)}, '${roleOf(a.role)}');`));
 line();
 
 // ---------- PRZYKŁAD: klientki, zgody, wizyty ----------

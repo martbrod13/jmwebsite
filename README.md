@@ -45,6 +45,13 @@ Zasady działające w prototypie:
 - `assets/css/style.css`: wygląd (kolory na górze pliku)
 - Ceny można też zmieniać w panelu gabinetu; zapisują się w tej przeglądarce.
 
+### Role i dostęp
+
+- **Martyna Brodowska: administratorka strony.** Odpowiada za kod, hosting, bazę danych, konfigurację SMS-ów i e-maili. Ma konto w panelu (w prototypie `admin@justynamanka.pl`, hasło `demo`).
+- **Justyna Mańka: właścicielka gabinetu.** Korzysta z panelu na co dzień (wizyty, klientki, ceny, promocje). Konto w prototypie: `kontakt@justynamanka.pl`, hasło `demo`.
+
+W sensie RODO administratorem danych klientek jest firma Justyny, a administratorka strony przetwarza je w jej imieniu. Przed startem potrzebna jest między nimi umowa powierzenia przetwarzania danych.
+
 ### Baza danych
 
 Schemat bazy PostgreSQL (Supabase) na wersję produkcyjną jest w folderze `database/`. Opis tabel i instrukcja uruchomienia: `database/README.md`.

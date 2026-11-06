@@ -6,6 +6,8 @@
   const S = JM.store, ui = JM.ui, esc = ui.esc;
   const root = document.getElementById('admin');
   const DEMO_PASS = 'demo';
+  // zalogowane konto panelu (starsze zapisy „true” traktujemy jak konto właścicielki)
+  const session = () => { const s = S.read('admin', null); return s === true ? JM.panelAccounts[0] : s; };
   let view = 'pulpit';
   let query = '';
 
@@ -197,6 +199,7 @@
             ${views.map(([id, label]) => `<li><button type="button" data-view="${id}" ${id === view ? 'aria-current="true"' : ''}>${label}</button></li>`).join('')}
           </ul></nav>
           <div class="admin-side-foot">
+            <p class="admin-who">${esc(session().name)}<br><span>${esc(session().role)}</span></p>
             <a href="index.html">Zobacz stronę</a>
             <button type="button" class="link-button" data-reset-demo>Przywróć dane przykładowe</button>
             <button type="button" class="link-button" data-admin-logout>Wyloguj się</button>
@@ -215,15 +218,15 @@
           <img src="assets/img/logo.png" alt="${JM.salon.brand}">
           <h1 style="font-size:1.75rem">Panel gabinetu</h1>
           ${err ? `<p class="form-msg" role="alert">${err}</p>` : ''}
-          <div class="field"><label for="a-email">E-mail</label><input id="a-email" type="email" value="${JM.salon.email}" autocomplete="username"></div>
-          <div class="field"><label for="a-pass">Hasło</label><input id="a-pass" type="password" autocomplete="current-password"><span class="field-hint">Wersja demonstracyjna: hasło „${DEMO_PASS}”.</span></div>
+          <div class="field"><label for="a-email">E-mail</label><input id="a-email" type="email" value="${JM.panelAccounts[0].email}" autocomplete="username"></div>
+          <div class="field"><label for="a-pass">Hasło</label><input id="a-pass" type="password" autocomplete="current-password"><span class="field-hint">Wersja demonstracyjna: hasło „${DEMO_PASS}”. Konta: ${JM.panelAccounts.map((a) => `${a.email} (${a.role.toLowerCase()})`).join(', ')}.</span></div>
           <button class="btn btn-primary btn-block" type="submit">Zaloguj się</button>
           <p class="small" style="margin-top:18px"><a href="index.html">Wróć na stronę</a></p>
         </form>
       </div>`;
   }
   function render() {
-    root.innerHTML = S.read('admin', false) ? shell() : loginView();
+    root.innerHTML = session() ? shell() : loginView();
     if (view === 'sms') updateCount();
   }
   function updateCount() {
@@ -236,7 +239,7 @@
     const el = e.target.closest('button'); if (!el) return;
     if (el.dataset.view) { view = el.dataset.view; render(); window.scrollTo(0, 0); return; }
     if (el.hasAttribute('data-admin-logout')) { S.remove('admin'); render(); return; }
-    if (el.hasAttribute('data-reset-demo')) { S.resetDemo(); S.write('admin', true); render(); ui.toast('Przywrócono dane przykładowe.'); return; }
+    if (el.hasAttribute('data-reset-demo')) { const who = session(); S.resetDemo(); S.write('admin', who); render(); ui.toast('Przywrócono dane przykładowe.'); return; }
     if (el.dataset.cancel) {
       S.cancelBooking(el.dataset.cancel, 'gabinet'); render(); ui.toast('Wizyta odwołana. Klientka dostanie SMS z informacją.'); return;
     }
@@ -261,8 +264,9 @@
   root.addEventListener('submit', (e) => {
     e.preventDefault(); const f = e.target;
     if (f.id === 'admin-login') {
-      if (f.querySelector('#a-pass').value !== DEMO_PASS) { root.innerHTML = loginView('Nieprawidłowe hasło.'); return; }
-      S.write('admin', true); render(); return;
+      const acc = JM.panelAccounts.find((a) => a.email === f.querySelector('#a-email').value.trim().toLowerCase());
+      if (!acc || f.querySelector('#a-pass').value !== DEMO_PASS) { root.innerHTML = loginView('Nieprawidłowy e-mail lub hasło.'); return; }
+      S.write('admin', acc); render(); return;
     }
     if (f.id === 'prices-form') {
       [...f.querySelectorAll('.price-input')].forEach((i) => { const v = Number(i.value); if (!isNaN(v) && v >= 0) S.setPrice(i.name, v); });

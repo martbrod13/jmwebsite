@@ -40,12 +40,12 @@ CREATE TABLE admins (
   auth_user_id   uuid UNIQUE,              -- przy Supabase Auth: id z auth.users
   email          citext NOT NULL UNIQUE,
   full_name      text   NOT NULL,
-  role           text   NOT NULL DEFAULT 'owner' CHECK (role IN ('owner', 'staff')),
+  role           text   NOT NULL DEFAULT 'owner' CHECK (role IN ('owner', 'admin', 'staff')),
   password_hash  text,                     -- tylko gdy logowanie bez Supabase Auth (bcrypt/argon2)
   created_at     timestamptz NOT NULL DEFAULT now(),
   last_login_at  timestamptz
 );
-COMMENT ON TABLE admins IS 'Konta do panelu gabinetu. Zalecane logowanie dwuskładnikowe.';
+COMMENT ON TABLE admins IS 'Konta do panelu: owner = właścicielka gabinetu, admin = administratorka strony (obsługa techniczna), staff = pracownice. Zalecane logowanie dwuskładnikowe.';
 
 -- =====================================================================
 --  CLIENTS — klientki z kontem i goście (jedna osoba = jeden wiersz)

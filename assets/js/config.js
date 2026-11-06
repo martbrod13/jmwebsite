@@ -26,6 +26,13 @@ JM.salon = {
 
 // Godziny pracy: [otwarcie, zamknięcie] w pełnych godzinach; null = nieczynne. 0 = niedziela.
 // TODO: potwierdzić godziny z właścicielką
+// Konta do panelu gabinetu (w prototypie hasło demo: „demo”)
+// TODO: wpisać właściwy e-mail administratorki strony
+JM.panelAccounts = [
+  { email: 'kontakt@justynamanka.pl', name: 'Justyna Mańka', role: 'Właścicielka gabinetu' },
+  { email: 'admin@justynamanka.pl', name: 'Martyna Brodowska', role: 'Administratorka strony' }
+];
+
 JM.hours = {
   1: [9, 19],
   2: [9, 19],

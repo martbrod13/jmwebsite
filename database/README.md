@@ -57,7 +57,7 @@ erDiagram
 | `working_hours`, `days_off` | Godziny pracy w tygodniu, święta i urlopy |
 | `bookings` | Wizyty: termin, status, cena w chwili rezerwacji, zniżka, kwota do zapłaty (liczona automatycznie) |
 | `sms_log` | Potwierdzenia, przypomnienia, odwołania i kampanie SMS |
-| `admins` | Konto Justyny do panelu |
+| `admins` | Konta do panelu: `owner` (Justyna, właścicielka), `admin` (Martyna, administratorka strony), `staff` (ewentualne pracownice) |
 
 ## Zasady pilnowane przez samą bazę
 
