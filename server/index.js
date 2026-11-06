@@ -22,6 +22,8 @@ const G = require('./gallery');
 const Events = require('./events');
 const ICal = require('./ical');
 const W = require('./waitlist');
+const R = require('./records');
+const A = require('./aftercare');
 const Sec = require('./security');
 
 const ROOT = path.join(__dirname, '..');
@@ -80,7 +82,7 @@ function seoTags(html, page) {
 }
 function robots() {
   if (!env.indexing) return 'User-agent: *\nDisallow: /\n';
-  return ['User-agent: *', 'Allow: /', 'Disallow: /panel.html', 'Disallow: /konto.html', 'Disallow: /wizyta.html', 'Disallow: /api/', 'Disallow: /w/', 'Disallow: /l/', 'Disallow: /lista-oczekujacych.html',
+  return ['User-agent: *', 'Allow: /', 'Disallow: /panel.html', 'Disallow: /konto.html', 'Disallow: /wizyta.html', 'Disallow: /api/', 'Disallow: /w/', 'Disallow: /l/', 'Disallow: /z/', 'Disallow: /lista-oczekujacych.html', 'Disallow: /ankieta.html',
     env.publicUrl ? `Sitemap: ${env.publicUrl}/sitemap.xml` : ''].filter(Boolean).join('\n') + '\n';
 }
 function sitemap() {
@@ -153,8 +155,19 @@ const server = http.createServer((req, res) => {
   // link z SMS-a listy oczekujących: /l/<klucz> → strona zapisu
   const wl = p.match(/^\/l\/([A-Za-z0-9_-]{16,64})$/);
   if (wl) { res.writeHead(302, { Location: '/lista-oczekujacych.html#' + wl[1] }); return res.end(); }
+  // link z SMS-a o kolejnym zabiegu: /z/<zabieg> → rezerwacja z wybranym zabiegiem
+  const tz = p.match(/^\/z\/([a-z0-9-]{2,60})$/);
+  if (tz && B.treatment(tz[1])) { res.writeHead(302, { Location: '/rezerwacja.html?zabieg=' + tz[1] }); return res.end(); }
   if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); return res.end(); }
   // zdjęcia z galerii (z folderu data); ukryte zdjęcia widzi tylko zalogowany panel
+  // zdjęcia z kart zabiegowych: wyłącznie dla zalogowanego panelu, bez zapisywania w pamięci przeglądarki
+  const kp = p.match(/^\/uploads\/karta\/([^/]+)$/);
+  if (kp) {
+    const file = Sec.readSession(req, 'admin') ? R.fileFor(kp[1]) : null;
+    if (!file) return notFound(res);
+    res.writeHead(200, { 'Content-Type': file.endsWith('.webp') ? 'image/webp' : 'image/jpeg', 'Cache-Control': 'private, no-store' });
+    return fs.createReadStream(file).pipe(res);
+  }
   const up = p.match(/^\/uploads\/gallery\/([^/]+)$/);
   if (up) {
     const file = G.fileFor(up[1], !!Sec.readSession(req, 'admin'));
@@ -180,7 +193,7 @@ const initialPassword = seed.run();
 
 // Harmonogram: co minutę przypomnienia 24 h przed wizytą, wysyłka kolejki, zamykanie odbytych wizyt
 function tick() {
-  try { api.queueReminders(); W.scan(); M.processQueue(); Backup.dailyBackup(); } catch (e) { console.error('Harmonogram:', e.message); }
+  try { api.queueReminders(); W.scan(); A.scan(); M.processQueue(); Backup.dailyBackup(); } catch (e) { console.error('Harmonogram:', e.message); }
 }
 setInterval(tick, 60 * 1000).unref();
 

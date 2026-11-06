@@ -75,10 +75,14 @@ JM.ready.then(function () {
       : b.status === 'no_show' ? `<span class="badge">${L('nieobecność', 'missed')}</span>${fee}`
       : b.status === 'done' || !upcoming ? `<span class="badge badge-ok">${L('odbyta', 'completed')}</span>` : '';
     const action = upcoming && b.canCancel ? `<div class="btn-row visit-actions">${b.canMove ? `<button class="btn btn-outline btn-small" type="button" data-move="${b.id}">${L('Zmień termin', 'Change time')}</button>` : ''}<button class="btn btn-outline btn-small" type="button" data-cancel="${b.id}">${L('Odwołaj', 'Cancel')}</button></div>` : '';
+    // ankieta przed zabiegiem (nieobowiązkowa) i SMS po wizycie
+    const q = b.questionnaire || {};
+    const extra = upcoming && b.status === 'confirmed' ? `<p class="small visit-extra">${q.editable || q.filled ? `<a href="ankieta.html?wizyta=${b.id}">${q.filled ? L('Ankieta przed zabiegiem: wysłana', 'Pre-treatment questionnaire: sent') : L('Ankieta przed zabiegiem (nieobowiązkowa)', 'Pre-treatment questionnaire (optional)')}</a>` : ''}
+      <span class="muted">${L('SMS po wizycie', 'Text after the visit')}: ${b.afterSms ? L('włączony', 'on') : L('wyłączony', 'off')}</span> <button type="button" class="link-button small" data-after-sms="${b.id}" data-on="${b.afterSms ? 'off' : 'on'}">${b.afterSms ? L('wyłącz', 'turn off') : L('włącz', 'turn on')}</button></p>` : '';
     return `
       <li class="visit-row">
         <div class="visit-date"><strong>${d.getDate()} ${JM.monthGen[d.getMonth()]}</strong><span>${L(JM.dayNames[d.getDay()].toLowerCase(), JM.dayNames[d.getDay()])}, ${b.time}</span></div>
-        <div>${esc(tName(b))}<div class="muted">${S.formatPrice(b.toPay ?? b.total)}${b.discount ? ` (${L('zniżka', 'discount')} ${b.discount.percent}%)` : ''}${b.voucher ? ` (${L('bon', 'voucher')} −${S.formatPrice(b.voucher.amount)})` : ''} ${status}</div></div>
+        <div>${esc(tName(b))}<div class="muted">${S.formatPrice(b.toPay ?? b.total)}${b.discount ? ` (${L('zniżka', 'discount')} ${b.discount.percent}%)` : ''}${b.voucher ? ` (${L('bon', 'voucher')} −${S.formatPrice(b.voucher.amount)})` : ''} ${status}</div>${extra}</div>
         <div>${action}</div>
       </li>`;
   }
@@ -232,6 +236,14 @@ JM.ready.then(function () {
         if (dlg.returnValue !== 'ok' || !email) return;
         try { await S.forgotPassword(email); ui.toast(L('Jeśli konto istnieje, wysłaliśmy link na podany adres. Sprawdź też folder spam.', 'If the account exists, we have sent a link to that address. Check your spam folder too.')); } catch (err) { ui.toast(err.message); }
       });
+      return;
+    }
+    if (el.dataset.afterSms) {
+      try {
+        const d = await S.api('POST', `/api/me/bookings/${el.dataset.afterSms}/after-sms`, { on: el.dataset.on === 'on' });
+        myBookings = myBookings.map((x) => (x.id === d.booking.id ? d.booking : x)); render();
+        ui.toast(d.booking.afterSms ? L('Włączono SMS po wizycie.', 'Texts after the visit turned on.') : L('Wyłączono SMS po wizycie.', 'Texts after the visit turned off.'));
+      } catch (err) { ui.toast(err.message); }
       return;
     }
     if (el.dataset.move) {

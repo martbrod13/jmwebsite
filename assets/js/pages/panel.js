@@ -121,9 +121,9 @@ JM.ready.then(function () {
           <a class="btn btn-outline btn-small" href="/api/admin/clients.csv" download>Eksportuj CSV</a>
         </div>
         <table class="table"><thead><tr><th>Klientka</th><th>Telefon</th><th>E-mail</th><th>Typ</th><th class="num">Wizyty</th><th>Ostatnia wizyta</th><th>Oferty SMS</th><th>Oferty e-mail</th></tr></thead><tbody>
-          ${list.map((c) => `<tr><td>${esc(c.name)}${c.demo ? ' <span class="badge badge-off">przykład</span>' : ''}</td><td>${esc(c.phone)}</td><td>${esc(c.email)}</td><td><span class="badge">${c.type}</span></td><td class="num">${c.visits}</td><td>${c.last ? ui.fmtShort(c.last) + '.' + c.last.slice(0, 4) : '—'}</td><td>${yesNo(c.sms)}</td><td>${yesNo(c.mail)}</td></tr>`).join('')}
+          ${list.map((c) => `<tr><td><button type="button" class="link-button" data-card="${esc(c.key)}">${esc(c.name)}</button>${c.demo ? ' <span class="badge badge-off">przykład</span>' : ''}</td><td>${esc(c.phone)}</td><td>${esc(c.email)}</td><td><span class="badge">${c.type}</span></td><td class="num">${c.visits}</td><td>${c.last ? ui.fmtShort(c.last) + '.' + c.last.slice(0, 4) : '—'}</td><td>${yesNo(c.sms)}</td><td>${yesNo(c.mail)}</td></tr>`).join('')}
         </tbody></table>
-        <p class="small muted" style="margin-top:16px">Kampanie SMS i e-mail trafiają wyłącznie do klientek ze zgodą na dany kanał. Plik CSV zawiera dane osobowe: przechowuj go bezpiecznie i usuń, gdy nie jest potrzebny.</p>
+        <p class="small muted" style="margin-top:16px">Kliknij nazwisko, żeby otworzyć kartę klientki: historię wizyt, ankiety, notatki i zdjęcia przed/po. Kampanie SMS i e-mail trafiają wyłącznie do klientek ze zgodą na dany kanał. Plik CSV zawiera dane osobowe: przechowuj go bezpiecznie i usuń, gdy nie jest potrzebny.</p>
       </div>`;
   }
   function vZabiegi() {
@@ -171,7 +171,7 @@ JM.ready.then(function () {
     return { gsm, parts: Math.max(1, Math.ceil(text.length / per)) };
   }
   const msgStatus = (m) => ({ test: '<span class="badge">test</span>', sent: '<span class="badge badge-ok">wysłana</span>', queued: '<span class="badge">w kolejce</span>', failed: `<span class="badge badge-warn" title="${esc(m.error || '')}">błąd</span>` }[m.status]);
-  const kindName = { moved: 'zmiana terminu', reminder_prev: 'przypomnienie (stary termin)', confirmation: 'potwierdzenie', reminder: 'przypomnienie', cancellation: 'odwołanie', welcome: 'powitanie', reset: 'reset hasła', contact: 'formularz', campaign: 'kampania' };
+  const kindName = { moved: 'zmiana terminu', reminder_prev: 'przypomnienie (stary termin)', confirmation: 'potwierdzenie', reminder: 'przypomnienie', cancellation: 'odwołanie', welcome: 'powitanie', reset: 'reset hasła', contact: 'formularz', campaign: 'kampania', waitlist: 'lista oczekujących', review: 'prośba o opinię', followup: 'kolejny zabieg' };
   function vWiadomosci() {
     const testMode = mode.sms === 'test' || mode.email === 'test';
     const smsC = data.clients.filter((c) => c.sms && !c.demo).length, mailC = data.clients.filter((c) => c.mail && !c.demo).length;
@@ -194,6 +194,7 @@ JM.ready.then(function () {
             <td>${b.demo ? '<span class="badge badge-off">bez wysyłki</span>' : { scheduled: '<span class="badge">zaplanowane</span>', skipped: '<span class="badge badge-off">rezerwacja &lt; 24 h</span>', test: '<span class="badge">wysłane (test)</span>', sent: '<span class="badge badge-ok">wysłane</span>', queued: '<span class="badge">w kolejce</span>', failed: '<span class="badge badge-warn">błąd</span>' }[b.reminderStatus]}</td></tr>`).join('')}
         </tbody></table>` : '<p class="muted">Brak zaplanowanych wizyt.</p>'}
       </div>
+      ${aftercareCard()}
       <form class="panel-card" id="campaign-form" novalidate>
         <h2>Kampania</h2>
         <div class="chip-nav" role="group" aria-label="Kanał" style="margin-bottom:16px">
@@ -398,12 +399,13 @@ JM.ready.then(function () {
           <div class="field span-2"><label for="nb-notes">Uwagi <span class="opt">(opcjonalnie)</span></label><textarea id="nb-notes" name="notes" maxlength="400"></textarea></div>
         </div>
         <label class="check"><input type="checkbox" name="notify" checked><span>Wyślij klientce SMS z potwierdzeniem i linkiem do wizyty<small>Przypomnienie ${JM.booking.reminderHours} h przed wizytą wyśle się tak jak przy rezerwacji online.</small></span></label>
+        <label class="check"><input type="checkbox" name="afterSms"><span>Klientka zgadza się na SMS po wizycie<small>Prośba o opinię i przypomnienie o korekcie lub kolejnym zabiegu (zakładka SMS-y i e-maile).</small></span></label>
         <div class="modal-actions"><button class="btn btn-primary" type="submit">Zapisz wizytę</button><button class="btn btn-outline" type="button" data-close>Anuluj</button></div>
       </form>`,
     async (f, close) => {
       const v = (n) => (f.elements[n] ? f.elements[n].value.trim() : '');
       const picked = f.dataset.clientId;
-      const payload = (force) => ({ treatmentId: v('treatmentId'), date: v('date'), time: v('time'), duration: Number(v('duration')), price: v('price'), source: v('source'), notes: v('notes'), voucherCode: v('voucherCode'), notify: f.elements.notify.checked, force,
+      const payload = (force) => ({ treatmentId: v('treatmentId'), date: v('date'), time: v('time'), duration: Number(v('duration')), price: v('price'), source: v('source'), notes: v('notes'), voucherCode: v('voucherCode'), notify: f.elements.notify.checked, afterSms: f.elements.afterSms.checked, force,
         clientId: picked && f.dataset.clientType === 'konto' ? Number(picked) : undefined,
         guest: picked && f.dataset.clientType === 'konto' ? undefined : { firstName: v('firstName'), lastName: v('lastName'), phone: v('phone'), email: v('email') } });
       await withConfirm((force) => api('POST', '/api/admin/bookings', payload(force)));
@@ -442,8 +444,11 @@ JM.ready.then(function () {
           <div><dt>Do zapłaty</dt><dd>${money(b.toPay)}${b.discount ? ` <span class="small muted">(−${b.discount.percent}% ${esc(b.discount.label)})</span>` : ''}${b.voucher ? `<br><span class="small muted">bon ${esc(b.voucher.code)}: −${money(b.voucher.amount)} (cena ${money(b.total)})</span>` : ''}</dd></div>
           <div><dt>Skąd</dt><dd>${SOURCES[b.source] || 'strona'} · ${b.client.type}${b.lang === 'en' ? ' · EN' : ''} · kod ${esc(b.code)}</dd></div>
           ${b.notes ? `<div><dt>Uwagi</dt><dd>${esc(b.notes)}</dd></div>` : ''}
+          ${b.record ? `<div><dt>Karta</dt><dd>${b.record.questionnaire ? `Ankieta: ${qLabel(b.record.questionnaire)}` : 'Bez ankiety'}${b.record.hasNote ? ', jest notatka' : ''}${b.record.photos ? `, zdjęcia: ${b.record.photos}` : ''}
+            ${b.clientKey ? `<br><button type="button" class="link-button small" data-dlg-card>Otwórz kartę klientki</button>` : ''}</dd></div>` : ''}
           ${b.status !== 'confirmed' || b.fee ? `<div><dt>Status</dt><dd>${statusBadge(b)} ${feeBadge(b)}</dd></div>` : ''}
         </dl>
+        ${b.record && b.record.questionnaire ? `<details class="move-box" data-q-load="${b.id}"><summary>Pokaż ankietę</summary><div class="q-slot"><p class="small muted">Wczytuję…</p></div></details>` : ''}
         ${b.status === 'confirmed' ? `
           <details class="move-box"${past ? '' : ''}><summary>Przenieś na inny termin</summary>
             <div class="form-grid" style="margin-top:14px">
@@ -465,7 +470,13 @@ JM.ready.then(function () {
       close(); ui.toast(f.elements.notify.checked ? 'Wizyta przeniesiona. Klientka dostała SMS.' : 'Wizyta przeniesiona.'); rerender();
     },
     (dlg) => {
+      dlg.addEventListener('toggle', async (e) => {
+        const d = e.target.closest && e.target.closest('[data-q-load]'); if (!d || !d.open || d.dataset.loaded) return;
+        try { const r = await api('GET', `/api/admin/bookings/${d.dataset.qLoad}/questionnaire`); d.querySelector('.q-slot').innerHTML = qHtml(r.questionnaire); d.dataset.loaded = '1'; }
+        catch (err) { d.querySelector('.q-slot').innerHTML = `<p class="form-msg">${esc(err.message)}</p>`; }
+      }, true);
       dlg.addEventListener('click', async (e) => {
+        if (e.target.closest('[data-dlg-card]')) { dlg.remove(); cardKey = b.clientKey; view = 'karta'; render(true); return; }
         if (e.target.closest('[data-dlg-cancel]')) {
           if (!confirmDialog('Odwołać wizytę?', 'Klientka dostanie SMS i e-mail z informacją. Opłata nie jest naliczana, bo odwołuje gabinet.')) return;
           dlg.remove(); act(() => api('POST', `/api/admin/bookings/${b.id}/cancel`, {}), 'Wizyta odwołana. Klientka dostała wiadomość.');
@@ -594,6 +605,128 @@ JM.ready.then(function () {
       await api('PATCH', '/api/admin/gallery/' + g.id, { altPl: f.elements.altPl.value, altEn: f.elements.altEn.value, category: f.elements.category.value });
       close(); ui.toast('Zapisano.'); rerender();
     });
+  }
+
+  /* ---------- Karta klientki ---------- */
+  let cardKey = null;
+  const PHOTO_KIND = { before: 'przed', after: 'po', other: 'inne' };
+  const STATUS_NAME = { confirmed: 'zaplanowana', done: 'odbyta', no_show: 'nieobecność', cancelled: 'odwołana' };
+  // ankieta w czytelnej postaci: odpowiedzi „tak” na górze i wyróżnione
+  function qHtml(q) {
+    if (!q) return '<p class="small muted">Klientka nie wypełniła ankiety. Jest nieobowiązkowa.</p>';
+    const rows = q.rows.slice().sort((a, b) => (a.answer === b.answer ? 0 : a.answer === 'yes' ? -1 : 1));
+    return `<dl class="q-view">
+      ${rows.map((r) => `<div class="${r.answer === 'yes' ? 'is-yes' : ''}"><dt>${esc(r.question)}</dt><dd>${r.answer === 'yes' ? '<strong>Tak</strong>' : 'Nie'}${r.detail ? `: ${esc(r.detail)}` : ''}</dd></div>`).join('')}
+      ${q.other ? `<div class="is-yes"><dt>Coś jeszcze</dt><dd>${esc(q.other)}</dd></div>` : ''}
+    </dl>
+    <p class="small muted">${q.skipped ? `Bez odpowiedzi: ${q.skipped} ${plural(q.skipped, 'pytanie', 'pytania', 'pytań')}. ` : ''}Wysłana ${dt(q.updatedAt)}${q.lang === 'en' ? ' (po angielsku)' : ''}, ze zgodą na przetwarzanie danych o zdrowiu.</p>`;
+  }
+  const qLabel = (q) => (q ? (q.flags ? `${q.flags} ${plural(q.flags, 'odpowiedź', 'odpowiedzi', 'odpowiedzi')} „tak”` : 'same odpowiedzi „nie”') : '');
+
+  function vKarta() {
+    const { client: c, visits } = data.card;
+    const active = visits.filter((v) => v.status !== 'cancelled'), cancelled = visits.filter((v) => v.status === 'cancelled');
+    const hasData = visits.some((v) => v.photos.length || v.questionnaire);
+    return `
+      <p style="margin:-8px 0 20px"><button type="button" class="link-button" data-view="klientki">Wróć do listy klientek</button></p>
+      <div class="panel-card card-head">
+        <div><h2 style="margin:0 0 6px">${esc(c.name)}${c.demo ? ' <span class="badge badge-off">przykład</span>' : ''}</h2>
+          <p class="small muted" style="margin:0">${c.type === 'konto' ? 'Ma konto na stronie' : 'Rezerwuje jako gość'}${c.language === 'en' ? ', wersja angielska' : ''}</p></div>
+        <dl class="card-facts">
+          <div><dt>Telefon</dt><dd><a href="tel:${esc(c.phone)}">${esc(c.phone)}</a></dd></div>
+          ${c.email ? `<div><dt>E-mail</dt><dd><a href="mailto:${esc(c.email)}">${esc(c.email)}</a></dd></div>` : ''}
+          <div><dt>Wizyty</dt><dd>${c.visits}${c.last ? `, ostatnia ${ui.fmtShort(c.last)}.${c.last.slice(0, 4)}` : ''}</dd></div>
+          <div><dt>Oferty</dt><dd>SMS: ${c.sms ? 'tak' : 'nie'}, e-mail: ${c.mail ? 'tak' : 'nie'}</dd></div>
+        </dl>
+      </div>
+      ${active.map((v) => `
+        <section class="panel-card rec" id="rec-${v.id}">
+          <header class="rec-head">
+            <div><h2>${esc(v.treatmentName)}</h2><p class="small muted">${ui.fmtDate(v.date)}, ${v.time}–${v.end} · ${money(v.total)}</p></div>
+            <span class="badge ${v.status === 'done' ? 'badge-ok' : v.status === 'no_show' ? 'badge-warn' : ''}">${STATUS_NAME[v.status]}</span>
+          </header>
+          ${v.notes ? `<p class="small"><span class="muted">Uwagi klientki przy rezerwacji:</span> ${esc(v.notes)}</p>` : ''}
+          <div class="rec-grid">
+            <div>
+              <h3>Ankieta przed zabiegiem${v.questionnaire ? ` <span class="badge ${v.questionnaire.flags ? 'badge-warn' : ''}">${qLabel(v.questionnaire)}</span>` : ''}</h3>
+              ${qHtml(v.questionnaire)}
+            </div>
+            <form class="rec-note" data-note-form="${v.id}" novalidate>
+              <h3><label for="note-${v.id}">Notatka z zabiegu</label></h3>
+              <textarea id="note-${v.id}" name="text" maxlength="4000" rows="4" placeholder="Np. użyte preparaty i pigmenty, igła, parametry, reakcja skóry, zalecenia">${esc(v.note ? v.note.text : '')}</textarea>
+              <div class="rec-note-foot"><button class="btn btn-outline btn-small" type="submit">Zapisz notatkę</button>
+                <span class="small muted">${v.note ? `Zapisano ${dt(v.note.updatedAt)}` : ''}</span></div>
+            </form>
+          </div>
+          <h3>Zdjęcia przed i po <span class="small muted" style="font-weight:400">(widzi je tylko gabinet)</span></h3>
+          ${v.photos.length ? `<ul class="rec-photos">${v.photos.map((p) => `<li>
+            <a href="${p.src}" target="_blank" rel="noopener" title="Otwórz w pełnym rozmiarze"><img src="${p.thumb}" alt="Zdjęcie ${PHOTO_KIND[p.kind]} zabiegiem, ${ui.fmtShort(v.date)}" loading="lazy"></a>
+            <div><span class="badge">${PHOTO_KIND[p.kind]}</span><button type="button" class="link-button small" data-photo-del="${p.id}">Usuń</button></div></li>`).join('')}</ul>` : ''}
+          <form class="rec-upload" data-photo-form="${v.id}" novalidate>
+            <label class="file-pick"><input type="file" name="files" accept="image/*" multiple><span>Wybierz zdjęcia</span></label>
+            <label class="sr-only" for="pk-${v.id}">Rodzaj zdjęcia</label>
+            <select id="pk-${v.id}" name="kind"><option value="before">przed zabiegiem</option><option value="after"${v.status === 'done' ? ' selected' : ''}>po zabiegu</option><option value="other">inne</option></select>
+            <button class="btn btn-outline btn-small" type="submit">Dodaj</button>
+            <span class="small muted" data-progress>Zdjęcia rób za zgodą klientki.</span>
+          </form>
+        </section>`).join('')}
+      ${cancelled.length ? `<div class="panel-card"><h2>Odwołane wizyty</h2><ul class="plain-list">${cancelled.map((v) => `<li>${ui.fmtShort(v.date)}.${v.date.slice(0, 4)}, ${v.time}: ${esc(v.treatmentName)}</li>`).join('')}</ul></div>` : ''}
+      ${hasData ? `<div class="panel-card">
+        <h2>Usunięcie danych na prośbę klientki</h2>
+        <p class="small muted">Usuwa wszystkie zdjęcia i ankiety tej klientki (także z kopii zapasowych przy następnej kopii). Notatki z zabiegów zostają, bo dokumentują wykonaną usługę.</p>
+        <button class="btn btn-outline btn-small" type="button" data-card-purge>Usuń zdjęcia i ankiety</button>
+      </div>` : ''}`;
+  }
+  async function uploadRecordPhotos(f) {
+    const files = [...f.elements.files.files];
+    if (!files.length) { ui.toast('Wybierz zdjęcia.'); return; }
+    const prog = f.querySelector('[data-progress]'); const btn = f.querySelector('[type=submit]'); btn.disabled = true;
+    let ok = 0;
+    try {
+      for (const [i, file] of files.entries()) {
+        prog.textContent = `Przygotowuję zdjęcie ${i + 1} z ${files.length}…`;
+        const big = await shrink(file, 1800, 0.84), small = await shrink(file, 480, 0.8);
+        await api('POST', `/api/admin/bookings/${f.dataset.photoForm}/photos`, { image: big.b64, thumb: small.b64, width: big.w, height: big.h, kind: f.elements.kind.value });
+        ok++;
+      }
+      ui.toast(ok === 1 ? 'Dodano zdjęcie.' : `Dodano ${ok} zdjęcia.`);
+      await rerender();
+    } catch (err) {
+      prog.textContent = ''; btn.disabled = false;
+      ui.toast((ok ? `Dodano ${ok}, potem błąd: ` : '') + (err.message || 'Nie udało się odczytać zdjęcia. Spróbuj zapisać je jako JPG.'));
+    }
+  }
+
+  /* ---------- SMS-y po wizycie: ustawienia ---------- */
+  function aftercareCard() {
+    const a = data.aftercare;
+    const opts = (sel) => cache.prices.map((t) => `<option value="${t.id}"${t.id === sel ? ' selected' : ''}>${esc(t.name)}</option>`).join('');
+    return `
+      <div class="panel-card" id="aftercare">
+        <h2>SMS-y po wizycie</h2>
+        <p class="small muted">Wychodzą tylko do klientek, które przy rezerwacji zaznaczyły zgodę na SMS po wizycie (przy wizycie dodanej w panelu zaznaczasz to w formularzu). Klientka wyłączy je w każdej chwili na stronie wizyty. Wysyłka między 10:00 a 20:00.</p>
+        <form id="review-form" class="aftercare-block" novalidate>
+          <h3>Prośba o opinię</h3>
+          <p class="small muted">Dzień po wizycie, najwyżej raz na pół roku do tej samej osoby. Treść: „${esc(JM.salon.smsSender)}: Dziękuję za wizytę! Jeśli masz chwilę, napisz, jak oceniasz zabieg: [link]”.</p>
+          <div class="field"><label for="rv-url">Link do opinii</label><input id="rv-url" name="url" type="url" inputmode="url" placeholder="https://g.page/r/…/review" value="${esc(a.reviewUrl)}">
+            <span class="field-hint">W wizytówce Google: „Poproś o opinie” → skopiuj link. Możesz też wkleić link do Booksy albo Facebooka.</span></div>
+          <label class="check"><input type="checkbox" name="on" ${a.reviewOn ? 'checked' : ''}><span>Wysyłaj prośbę o opinię</span></label>
+          <button class="btn btn-outline btn-small" type="submit">Zapisz</button>
+        </form>
+        <div class="aftercare-block">
+          <h3>Przypomnienie o kolejnym zabiegu</h3>
+          <p class="small muted">Po odbytym zabiegu z listy klientka dostaje SMS z propozycją kolejnego i linkiem do rezerwacji. Nie dostanie go, jeśli już się zapisała.</p>
+          ${a.rules.length ? `<table class="table"><thead><tr><th>Po zabiegu</th><th>Po ilu tygodniach</th><th>Zaproponuj</th><th></th></tr></thead><tbody>
+            ${a.rules.map((r) => `<tr><td>${esc(r.treatment)}</td><td>${r.weeks}</td><td>${esc(r.next)}</td><td class="num"><button type="button" class="link-button small" data-rule-del="${r.treatmentId}">Usuń</button></td></tr>`).join('')}
+          </tbody></table>` : '<p class="muted">Brak przypomnień.</p>'}
+          <form id="rule-form" class="rule-form" novalidate>
+            <div class="field"><label for="ru-t">Po zabiegu</label><select id="ru-t" name="treatmentId">${opts()}</select></div>
+            <div class="field"><label for="ru-w">Po ilu tygodniach</label><input id="ru-w" name="weeks" type="number" min="1" max="104" value="4"></div>
+            <div class="field"><label for="ru-n">Zaproponuj</label><select id="ru-n" name="nextId">${opts()}</select></div>
+            <button class="btn btn-outline btn-small" type="submit">Dodaj przypomnienie</button>
+          </form>
+        </div>
+      </div>`;
   }
 
   /* ---------- Lista oczekujących ---------- */
@@ -880,14 +1013,16 @@ JM.ready.then(function () {
       wizyty: async () => (await api('GET', `/api/admin/bookings?from=${S.isoDate(past)}`)),
       klientki: async () => (await api('GET', '/api/admin/clients')),
       oczekujace: async () => { await ensureLists(); return api('GET', '/api/admin/waitlist'); },
+      karta: async () => ({ card: await api('GET', '/api/admin/client-card?key=' + encodeURIComponent(cardKey)) }),
       statystyki: async () => ({ stats: await api('GET', `/api/admin/stats?days=${statsDays}`) }),
       zabiegi: async () => (await api('GET', '/api/admin/prices')),
       promocje: async () => (await api('GET', '/api/admin/promos')),
       galeria: async () => (await api('GET', '/api/admin/gallery')),
       bony: async () => (await api('GET', '/api/admin/vouchers')),
       wiadomosci: async () => {
-        const [r, m, c] = await Promise.all([api('GET', '/api/admin/reminders'), api('GET', '/api/admin/messages'), api('GET', '/api/admin/clients')]);
-        mode = m.mode; return { reminders: r.reminders, messages: m.messages, clients: c.clients };
+        await ensureLists();
+        const [r, m, c, a] = await Promise.all([api('GET', '/api/admin/reminders'), api('GET', '/api/admin/messages'), api('GET', '/api/admin/clients'), api('GET', '/api/admin/aftercare')]);
+        mode = m.mode; return { reminders: r.reminders, messages: m.messages, clients: c.clients, aftercare: a };
       },
       godziny: async () => (await api('GET', '/api/admin/days-off')),
       konto: async () => { const [backup, ical] = await Promise.all([api('GET', '/api/admin/backup'), api('GET', '/api/admin/ical')]); return { backup, ical }; }
@@ -897,13 +1032,14 @@ JM.ready.then(function () {
   }
 
   function shell(content) {
-    const title = views.find((v) => v[0] === view)[1];
+    const navView = view === 'karta' ? 'klientki' : view;
+    const title = view === 'karta' ? 'Karta klientki' : views.find((v) => v[0] === view)[1];
     return `
       <div class="admin">
         <aside class="admin-side">
           <img src="assets/img/logo-gold.webp" alt="${JM.salon.brand}">
           <nav aria-label="Panel gabinetu"><ul class="admin-nav">
-            ${views.map(([id, label]) => `<li><button type="button" data-view="${id}" ${id === view ? 'aria-current="true"' : ''}>${label}</button></li>`).join('')}
+            ${views.map(([id, label]) => `<li><button type="button" data-view="${id}" ${id === navView ? 'aria-current="true"' : ''}>${label}</button></li>`).join('')}
           </ul></nav>
           <div class="admin-side-foot">
             <p class="admin-who">${esc(admin.name)}<br><span>${esc(admin.role)}</span></p>
@@ -926,7 +1062,7 @@ JM.ready.then(function () {
     if (!admin) { root.innerHTML = loginView(); return; }
     try {
       await loadView();
-      const fn = { pulpit: vPulpit, kalendarz: vKalendarz, wizyty: vWizyty, oczekujace: vOczekujace, klientki: vKlientki, statystyki: vStatystyki, zabiegi: vZabiegi, promocje: vPromocje, bony: vBony, galeria: vGaleria, wiadomosci: vWiadomosci, godziny: vGodziny, konto: vKonto }[view];
+      const fn = { pulpit: vPulpit, kalendarz: vKalendarz, wizyty: vWizyty, oczekujace: vOczekujace, karta: vKarta, klientki: vKlientki, statystyki: vStatystyki, zabiegi: vZabiegi, promocje: vPromocje, bony: vBony, galeria: vGaleria, wiadomosci: vWiadomosci, godziny: vGodziny, konto: vKonto }[view];
       root.innerHTML = shell(fn());
     } catch (err) {
       if (err.status === 401) { admin = null; root.innerHTML = loginView('Sesja wygasła. Zaloguj się ponownie.'); return; }
@@ -978,6 +1114,16 @@ JM.ready.then(function () {
   root.addEventListener('click', async (e) => {
     const el = e.target.closest('button'); if (!el) return;
     if (el.dataset.view) { view = el.dataset.view; render(true); return; }
+    if (el.dataset.card) { cardKey = el.dataset.card; view = 'karta'; render(true); return; }
+    if (el.dataset.photoDel) {
+      if (!confirmDialog('Usunąć zdjęcie?', 'Zdjęcie zniknie z karty klientki. Tego nie da się cofnąć.')) return;
+      return act(() => api('DELETE', `/api/admin/photos/${el.dataset.photoDel}`, {}), 'Usunięto zdjęcie.');
+    }
+    if (el.hasAttribute('data-card-purge')) {
+      if (!confirmDialog('Usunąć zdjęcia i ankiety tej klientki?', 'Tego nie da się cofnąć. Notatki z zabiegów zostaną.')) return;
+      return act(() => api('POST', '/api/admin/client-card/purge', { key: cardKey }), (r) => `Usunięto zdjęcia: ${r.removed.photos}, ankiety: ${r.removed.questionnaires}.`);
+    }
+    if (el.dataset.ruleDel) return act(() => api('DELETE', `/api/admin/aftercare/rules/${encodeURIComponent(el.dataset.ruleDel)}`, {}), 'Usunięto przypomnienie.');
     if (el.dataset.wlRemove) {
       if (!confirmDialog('Usunąć z listy oczekujących?', 'Klientka nie dostanie już SMS-a o wolnym terminie. Jej dane znikną z listy.')) return;
       return act(() => api('DELETE', `/api/admin/waitlist/${el.dataset.wlRemove}`), 'Usunięto z listy.');
@@ -1083,6 +1229,17 @@ JM.ready.then(function () {
       return;
     }
     if (f.id === 'gallery-form') return uploadPhotos(f);
+    if (f.dataset.noteForm) {
+      try { await api('PUT', `/api/admin/bookings/${f.dataset.noteForm}/note`, { text: f.elements.text.value }); ui.toast('Zapisano notatkę.'); await rerender(); } catch (err) { ui.toast(err.message); }
+      return;
+    }
+    if (f.dataset.photoForm) return uploadRecordPhotos(f);
+    if (f.id === 'review-form') {
+      return act(() => api('PUT', '/api/admin/aftercare/review', { url: f.elements.url.value.trim(), on: f.elements.on.checked }), (r) => (r.reviewOn ? 'Prośba o opinię włączona.' : 'Zapisano. Prośba o opinię jest wyłączona.'));
+    }
+    if (f.id === 'rule-form') {
+      return act(() => api('PUT', '/api/admin/aftercare/rules', { treatmentId: f.elements.treatmentId.value, weeks: Number(f.elements.weeks.value), nextId: f.elements.nextId.value }), 'Dodano przypomnienie.');
+    }
     if (f.id === 'waitlist-admin-form') {
       const v = (n) => f.elements[n].value.trim();
       try {

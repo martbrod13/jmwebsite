@@ -11,7 +11,7 @@ function load() {
   ctx.window.JM = {};
   ctx.JM = ctx.window.JM;
   vm.createContext(ctx);
-  for (const f of ['config.js', 'treatments.js']) {
+  for (const f of ['config.js', 'treatments.js', 'questionnaire.js']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'assets', 'js', f), 'utf8'), ctx, { filename: f });
   }
   // kopia „na czysto”, bez obiektów z kontekstu vm

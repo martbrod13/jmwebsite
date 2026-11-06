@@ -381,3 +381,69 @@ test('lista oczekujących: zapis tylko na zajęty okres, SMS po zwolnieniu termi
   assert.ok(!(await a('GET', '/api/admin/waitlist')).body.entries.some((e) => e.id === e2.id));
   assert.strictEqual((await client()('GET', '/api/admin/waitlist')).status, 401);
 });
+
+test('ankieta przed zabiegiem: nieobowiązkowa, wymaga zgody, tylko znane pytania, można ją usunąć', async () => {
+  const s = await freeSlot('konsultacja', 50);
+  const g = client();
+  const b = (await g('POST', '/api/bookings', { treatmentId: 'konsultacja', date: s.date, time: s.time, guest: guest('ankieta@example.com'), afterSms: true })).body.booking;
+  assert.strictEqual(b.afterSms, true);
+  assert.deepStrictEqual(b.questionnaire, { filled: false, updatedAt: null, editable: true }, 'rezerwacja bez ankiety działa');
+  const url = `/api/visit/${b.token}/questionnaire`;
+  assert.strictEqual((await g('GET', url)).body.saved, false);
+  assert.strictEqual((await g('PUT', url, { answers: { allergy: { a: 'yes', d: 'lateks' } } })).status, 400, 'bez zgody na dane o zdrowiu');
+  assert.strictEqual((await g('PUT', url, { answers: {}, consent: true })).status, 400, 'pusta ankieta');
+  const ok = await g('PUT', url, { answers: { allergy: { a: 'yes', d: 'lateks' }, pregnancy: { a: 'no', d: 'nie zapisuj' }, hack: { a: 'yes' }, other: 'Pierwszy raz' }, consent: true });
+  assert.strictEqual(ok.status, 200);
+  assert.deepStrictEqual(ok.body.answers, { pregnancy: { a: 'no' }, allergy: { a: 'yes', d: 'lateks' }, other: 'Pierwszy raz' });
+  assert.strictEqual((await client()('GET', `/api/visit/zly-klucz-123456789012345/questionnaire`)).status, 404);
+  // panel widzi ankietę przy wizycie i w karcie klientki
+  const a = await adminClient();
+  const cal = (await a('GET', `/api/admin/calendar?from=${s.date}&to=${s.date}`)).body.bookings.find((x) => x.id === b.id);
+  assert.deepStrictEqual(cal.record.questionnaire, { flags: 1 });
+  const q = (await a('GET', `/api/admin/bookings/${b.id}/questionnaire`)).body.questionnaire;
+  assert.strictEqual(q.rows.find((r) => r.id === 'allergy').detail, 'lateks');
+  assert.strictEqual((await client()('GET', `/api/admin/bookings/${b.id}/questionnaire`)).status, 401);
+  // klientka wyłącza SMS po wizycie i usuwa ankietę
+  assert.strictEqual((await g('POST', `/api/visit/${b.token}/after-sms`, { on: false })).body.booking.afterSms, false);
+  assert.strictEqual((await g('DELETE', url, {})).status, 200);
+  assert.strictEqual((await g('GET', url)).body.saved, false);
+  assert.strictEqual((await a('GET', `/api/admin/bookings/${b.id}/questionnaire`)).body.questionnaire, null);
+});
+
+test('karta klientki: notatka, prywatne zdjęcie tylko dla panelu, usunięcie na prośbę klientki', async () => {
+  const s = await freeSlot('konsultacja', 55);
+  const b = (await client()('POST', '/api/bookings', { treatmentId: 'konsultacja', date: s.date, time: s.time, guest: Object.assign(guest('karta@example.com'), { phone: '+48 600 444 555' }) })).body.booking;
+  const a = await adminClient();
+  assert.strictEqual((await client()('GET', '/api/admin/client-card?key=karta@example.com')).status, 401);
+  assert.strictEqual((await a('PUT', `/api/admin/bookings/${b.id}/note`, { text: 'Pigment: Brown 2' })).body.note.text, 'Pigment: Brown 2');
+  // najmniejszy poprawny JPEG wystarczy do sprawdzenia zapisu
+  const jpg = Buffer.from('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=', 'base64').toString('base64');
+  assert.strictEqual((await a('POST', `/api/admin/bookings/${b.id}/photos`, { image: jpg, thumb: jpg, width: 1, height: 1, kind: 'zly' })).status, 400);
+  const ph = (await a('POST', `/api/admin/bookings/${b.id}/photos`, { image: jpg, thumb: jpg, width: 1, height: 1, kind: 'before' })).body.photo;
+  assert.match(ph.src, /^\/uploads\/karta\//);
+  assert.strictEqual((await a('GET', ph.src)).status, 200);
+  assert.strictEqual((await client()('GET', ph.src)).status, 404, 'bez logowania zdjęcia nie widać');
+  const card = (await a('GET', '/api/admin/client-card?key=karta@example.com')).body;
+  assert.strictEqual(card.client.name, 'Test Klientka');
+  const v = card.visits.find((x) => x.id === b.id);
+  assert.strictEqual(v.photos.length, 1); assert.strictEqual(v.note.text, 'Pigment: Brown 2');
+  const purge = await a('POST', '/api/admin/client-card/purge', { key: 'karta@example.com' });
+  assert.deepStrictEqual(purge.body.removed, { photos: 1, questionnaires: 0, notes: 0 });
+  assert.strictEqual((await a('GET', ph.src)).status, 404, 'plik usunięty');
+});
+
+test('SMS-y po wizycie: ustawienia w panelu i krótki link do rezerwacji', async () => {
+  const a = await adminClient();
+  const st = (await a('GET', '/api/admin/aftercare')).body;
+  assert.ok(st.rules.some((r) => r.treatmentId === 'pmu-brwi' && r.nextId === 'pmu-korekta' && r.weeks === 6), 'domyślnie: brwi → korekta po 6 tygodniach');
+  assert.strictEqual((await a('PUT', '/api/admin/aftercare/review', { on: true, url: 'http://bez-https.pl' })).status, 400);
+  assert.strictEqual((await a('PUT', '/api/admin/aftercare/review', { on: true, url: '' })).status, 400);
+  assert.strictEqual((await a('PUT', '/api/admin/aftercare/review', { on: true, url: 'https://g.page/r/test/review' })).body.reviewOn, true);
+  assert.strictEqual((await a('PUT', '/api/admin/aftercare/rules', { treatmentId: 'mezo-twarz', weeks: 0, nextId: 'mezo-twarz' })).status, 400);
+  assert.ok((await a('PUT', '/api/admin/aftercare/rules', { treatmentId: 'mezo-twarz', weeks: 3, nextId: 'mezo-twarz' })).body.rules.some((r) => r.treatmentId === 'mezo-twarz' && r.days === 21));
+  assert.ok(!(await a('DELETE', '/api/admin/aftercare/rules/mezo-twarz', {})).body.rules.some((r) => r.treatmentId === 'mezo-twarz'));
+  const z = await client()('GET', '/z/pmu-korekta');
+  assert.strictEqual(z.status, 302); assert.strictEqual(z.headers.get('location'), '/rezerwacja.html?zabieg=pmu-korekta');
+  assert.strictEqual((await client()('GET', '/z/nie-ma-takiego')).status, 404);
+  assert.strictEqual((await client()('GET', '/api/admin/aftercare')).status, 401);
+});
