@@ -549,6 +549,16 @@ route('PATCH', '/api/admin/gallery/:id', galleryAction(({ params, body }) => G.u
 route('POST', '/api/admin/gallery/:id/move', galleryAction(({ params, body }) => G.move(Number(params.id), Number(body.dir))));
 route('DELETE', '/api/admin/gallery/:id', galleryAction(({ params }) => G.remove(Number(params.id))));
 
+/* ---------- Kopie zapasowe i stan ---------- */
+const Backup = require('./backup');
+route('GET', '/api/health', () => { db.prepare('SELECT 1').get(); return { ok: true, time: nowIso() }; });
+route('GET', '/api/admin/backup', (req) => { requireAdmin(req); return Backup.status(); });
+route('POST', '/api/admin/backup', (req) => { requireAdmin(req); Backup.backupNow(); return Backup.status(); });
+route('GET', '/api/admin/backup/download', (req) => {
+  requireAdmin(req);
+  return { __file: Backup.downloadCopy(), type: 'application/octet-stream', filename: 'jm-baza-' + B.isoDate(new Date()) + '.db' };
+});
+
 route('POST', '/api/admin/demo/clear', (req) => { requireAdmin(req); seed.clearDemo(); return { ok: true }; });
 
 /* ---------- Obsługa żądań ---------- */
@@ -586,6 +596,12 @@ async function handle(req, res, url) {
       if (typeof body !== 'object' || body === null || Array.isArray(body)) body = {};
     }
     const out = await r.handler(req, { params: url.pathname.match(r.re).groups || {}, query: url.searchParams, body, res, ip: Sec.clientIp(req) });
+    if (out && out.__file) {
+      res.writeHead(200, { 'Content-Type': out.type, 'Cache-Control': 'no-store', 'Content-Disposition': `attachment; filename="${out.filename}"` });
+      const s = require('fs').createReadStream(out.__file);
+      s.on('close', () => { require('fs').unlink(out.__file, () => {}); });
+      return s.pipe(res);
+    }
     if (out && out.__raw !== undefined) {
       const headers = { 'Content-Type': out.type, 'Cache-Control': 'no-store' };
       if (out.filename) headers['Content-Disposition'] = `attachment; filename="${out.filename}"`;

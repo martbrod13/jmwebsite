@@ -129,7 +129,7 @@
         </div>
         <div class="container footer-bottom">
           <p>© ${new Date().getFullYear()} ${salon.company}, NIP ${salon.nip}</p>
-          <p>${L('Wersja demonstracyjna strony', 'Demo version of the website')}</p>
+          ${salon.demoNotice !== false ? `<p>${L('Wersja demonstracyjna strony', 'Demo version of the website')}</p>` : ''}
         </div>
       </footer>`);
   }
