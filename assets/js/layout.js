@@ -200,7 +200,7 @@
       document.body.appendChild(footer());
       const cta = mobileCta(page); if (cta) { document.body.appendChild(cta); document.body.classList.add('has-mobile-cta'); }
     }
-    cookieBanner();
+    if (page !== 'panel') cookieBanner(); // panel używa tylko niezbędnych ciasteczek
 
     const toggle = document.querySelector('.menu-toggle');
     if (toggle) {

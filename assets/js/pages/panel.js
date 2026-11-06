@@ -242,6 +242,7 @@ JM.ready.then(function () {
           </ul></nav>
           <div class="admin-side-foot">
             <p class="admin-who">${esc(admin.name)}<br><span>${esc(admin.role)}</span></p>
+            <button type="button" class="link-button" data-view="konto">Zmień hasło</button>
             <a href="index.html">Zobacz stronę</a>
             <button type="button" class="link-button" data-admin-logout>Wyloguj się</button>
           </div>
