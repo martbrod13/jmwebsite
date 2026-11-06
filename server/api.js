@@ -111,6 +111,8 @@ function requireAdmin(req) {
   if (!a) throw new HttpError(401, 'Zaloguj się do panelu.');
   return a;
 }
+// wizyta dla klientki: po odbytej wizycie dochodzi link do opinii
+const withReview = (b) => Object.assign(B.publicBooking(b), b.status === 'done' ? { review: { link: '/o/' + Rv.tokenFor(b), sent: !!Rv.reviewOfBooking(b.id) } } : {});
 const clientKeyOf = (b) => R.keyOfBooking(b, new Map(b.client_id ? db.prepare('SELECT id, email FROM clients WHERE id = ?').all(b.client_id).map((c) => [c.id, c.email.toLowerCase()]) : []));
 function adminBooking(b) {
   const c = B.contactOf(b); const key = clientKeyOf(b);
@@ -218,7 +220,7 @@ route('POST', '/api/bookings', (req, { body, ip }) => {
 
 route('GET', '/api/me/bookings', (req) => {
   const c = requireClient(req);
-  return { bookings: db.prepare('SELECT * FROM bookings WHERE client_id = ? ORDER BY date, time').all(c.id).map(B.publicBooking) };
+  return { bookings: db.prepare('SELECT * FROM bookings WHERE client_id = ? ORDER BY date, time').all(c.id).map(withReview) };
 });
 route('POST', '/api/me/bookings/:id/cancel', (req, { params }) => {
   const c = requireClient(req);
@@ -231,7 +233,7 @@ route('GET', '/api/visit/:token', (req, { params }) => {
   const b = B.getBookingByToken(params.token);
   if (!b) throw new HttpError(404, T(req, 'Nie znaleziono wizyty. Sprawdź link z SMS-a albo zadzwoń do gabinetu.', 'Visit not found. Check the link in your text message or call the studio.'));
   const c = B.contactOf(b);
-  return { booking: B.publicBooking(b), firstName: c ? c.firstName : '' };
+  return { booking: withReview(b), firstName: c ? c.firstName : '' };
 });
 route('POST', '/api/visit/:token/cancel', (req, { params, ip }) => {
   if (!Sec.rateLimit('visit:' + ip, 20, 36e5)) throw new HttpError(429, 'Spróbuj później.');
@@ -748,7 +750,33 @@ route('PUT', '/api/admin/aftercare/rules', aftercareAction(({ body }) => A.setRu
 route('DELETE', '/api/admin/aftercare/rules/:id', aftercareAction(({ params }) => A.removeRule(params.id)));
 
 /* ---------- Opinie klientek ---------- */
-route('GET', '/api/reviews', () => ({ reviews: Rv.list(false) }));
+route('GET', '/api/reviews', () => ({ reviews: Rv.list(false), links: Rv.links() }));
+// opinia od klientki: link /o/<klucz> z SMS-a, ze strony wizyty i z konta, albo kod rezerwacji + telefon
+const reviewBooking = (req, token) => {
+  const b = Rv.bookingByToken(token);
+  if (!b) throw new HttpError(404, T(req, 'Nie znaleziono wizyty. Sprawdź link albo wpisz kod rezerwacji i numer telefonu.', 'Visit not found. Check the link or enter your booking code and phone number.'));
+  return b;
+};
+route('GET', '/api/review/:token', (req, { params }) => Rv.clientView(reviewBooking(req, params.token), langOf(req)));
+route('POST', '/api/review/:token', (req, { params, body, ip }) => {
+  if (!Sec.rateLimit('review:' + ip, 20, 36e5)) throw new HttpError(429, T(req, 'Spróbuj później.', 'Please try again later.'));
+  try {
+    const out = Rv.submit(reviewBooking(req, params.token), { text: body.text, rating: body.rating, author: str(body.author, 40), publish: body.publish === true }, langOf(req));
+    Events.emit('review', { by: 'client' });
+    return out;
+  } catch (e) { if (e instanceof Rv.ReviewError) throw new HttpError(400, e.message); throw e; }
+});
+route('POST', '/api/review-find', (req, { body, ip }) => {
+  if (!Sec.rateLimit('review-find:' + ip, 10, 36e5)) throw new HttpError(429, T(req, 'Zbyt wiele prób. Spróbuj za godzinę.', 'Too many attempts. Try again in an hour.'));
+  const b = Rv.findByCode(str(body.code, 12), str(body.phone, 20));
+  if (!b) throw new HttpError(404, T(req, 'Nie znaleźliśmy odbytej wizyty z tym kodem i numerem telefonu. Kod jest w SMS-ie i e-mailu z potwierdzeniem wizyty.', 'We could not find a completed visit with this code and phone number. The code is in the confirmation text and email.'));
+  return { token: Rv.tokenFor(b) };
+});
+route('GET', '/api/admin/review-links', (req) => { requireAdmin(req); return { links: Rv.links() }; });
+route('PUT', '/api/admin/review-links', (req, { body }) => {
+  requireAdmin(req);
+  try { return { links: Rv.setLinks(body) }; } catch (e) { if (e instanceof Rv.ReviewError) throw new HttpError(400, e.message); throw e; }
+});
 const reviewAction = (fn) => (req, ctx) => {
   const a = requireAdmin(req);
   try { fn(ctx, a); } catch (e) { if (e instanceof Rv.ReviewError) throw new HttpError(400, e.message); throw e; }

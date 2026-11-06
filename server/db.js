@@ -352,6 +352,14 @@ addColumn('bookings', 'review_sent', 'TEXT');
 addColumn('bookings', 'care_sent', 'TEXT');
 // wizyta z pakietu (wtedy do zapłaty 0 zł)
 addColumn('bookings', 'package_id', 'INTEGER REFERENCES packages(id)');
+// opinie od klientek ze strony: przypięte do odbytej wizyty, ze zgodą (albo bez) na publikację
+addColumn('bookings', 'review_token', 'TEXT');
+addColumn('reviews', 'booking_id', 'INTEGER REFERENCES bookings(id) ON DELETE SET NULL');
+addColumn('reviews', 'origin', "TEXT NOT NULL DEFAULT 'panel'");
+addColumn('reviews', 'publish_ok', 'INTEGER NOT NULL DEFAULT 1');
+addColumn('reviews', 'is_new', 'INTEGER NOT NULL DEFAULT 0');
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS reviews_booking ON reviews(booking_id) WHERE booking_id IS NOT NULL');
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS bookings_review_token ON bookings(review_token) WHERE review_token IS NOT NULL');
 
 const nowIso = () => new Date().toISOString();
 

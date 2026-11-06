@@ -21,6 +21,7 @@ JM.ready.then(function () {
     es = new EventSource('/api/admin/events');
     es.addEventListener('change', (e) => {
       let d; try { d = JSON.parse(e.data); } catch (err) { return; }
+      if (d.type === 'review' && d.by === 'client') { ui.toast('Nowa opinia od klientki. Zobacz w zakładce Opinie.'); if (view === 'opinie') rerender(); return; }
       if (d.by === 'client') {
         const what = { booked: 'Nowa rezerwacja online', moved: 'Klientka zmieniła termin', cancelled: 'Klientka odwołała wizytę' }[d.type];
         if (what) {
@@ -691,13 +692,36 @@ JM.ready.then(function () {
   /* ---------- Opinie klientek ---------- */
   const REVIEW_SOURCES = { google: 'Google', booksy: 'Booksy', instagram: 'Instagram', facebook: 'Facebook', 'osobiście': 'osobiście', inne: 'inne' };
   function vOpinie() {
-    const list = data.reviews;
+    const list = data.reviews; const links = data.links;
+    const fresh = list.filter((r) => r.origin === 'strona' && r.isNew);
     const today = S.isoDate(new Date());
+    const stars = (n) => (n ? `<span class="rv-stars" aria-label="ocena ${n} na 5">${'★'.repeat(n)}<span aria-hidden="true">${'★'.repeat(5 - n)}</span></span>` : '');
     const tOpts = '<option value="">bez zabiegu</option>' + cache.prices.map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
     return `
+      ${fresh.length ? `<div class="panel-card rv-fresh">
+        <h2>Nowe opinie od klientek (${fresh.length})</h2>
+        <p class="small muted">Klientki wystawiły je na stronie po odbytej wizycie. Treści nie można zmieniać. Opublikować można tylko opinię, przy której klientka zgodziła się na publikację.</p>
+        <ul class="rv-admin">${fresh.map((r) => `<li>
+          ${stars(r.rating)}<blockquote>${esc(r.text)}</blockquote>
+          <p class="small muted">Podpis: ${esc(r.author)}${/[.!?]$/.test(r.author) ? '' : '.'} ${r.visit ? `Wizyta: ${esc(r.visit.treatment)}, ${fmtDay(r.visit.date)}, ${esc(r.visit.client)}${r.visit.phone ? ` (${esc(r.visit.phone)})` : ''}.` : ''} ${r.publishOk ? 'Zgoda na publikację: tak.' : '<strong style="font-weight:500">Bez zgody na publikację: tylko dla gabinetu.</strong>'}</p>
+          <div class="v-actions">
+            ${r.publishOk ? `<button type="button" class="btn btn-primary btn-small" data-rv-pub="${r.id}" data-on="on">Opublikuj na stronie</button>` : ''}
+            <button type="button" class="btn btn-outline btn-small" data-rv-read="${r.id}">${r.publishOk ? 'Nie publikuj' : 'Przeczytana'}</button>
+            <button type="button" class="link-button small" data-rv-del="${r.id}">Usuń</button></div></li>`).join('')}</ul>
+      </div>` : ''}
+      <form class="panel-card" id="review-links" novalidate>
+        <h2>Opinie w Google, Booksy i na Facebooku</h2>
+        <p class="small muted">Te linki widzą klientki na stronie głównej, na stronie opinii i po wysłaniu opinii na stronie gabinetu. Puste pola się nie pokazują.</p>
+        <div class="form-grid">
+          <div class="field span-2"><label for="rl-g">Google</label><input id="rl-g" name="google" type="url" inputmode="url" placeholder="https://g.page/r/…/review" value="${esc(links.google)}"><span class="field-hint">W wizytówce Google: „Poproś o opinie” → skopiuj link.</span></div>
+          <div class="field span-2"><label for="rl-b">Booksy</label><input id="rl-b" name="booksy" type="url" inputmode="url" placeholder="https://booksy.com/pl-pl/…" value="${esc(links.booksy)}"><span class="field-hint">Link do profilu gabinetu na Booksy (tam jest zakładka z opiniami).</span></div>
+          <div class="field span-2"><label for="rl-f">Facebook</label><input id="rl-f" name="facebook" type="url" inputmode="url" placeholder="https://www.facebook.com/…/reviews" value="${esc(links.facebook)}"></div>
+        </div>
+        <button class="btn btn-outline btn-small" type="submit">Zapisz linki</button>
+      </form>
       <form class="panel-card" id="review-add" novalidate>
-        <h2>Dodaj opinię</h2>
-        <p class="small muted">Tylko prawdziwe opinie klientek, które były na zabiegu, i tylko za ich zgodą. Treść wklej bez zmian (możesz poprawić literówkę, nie sens). Opinie pojawiają się na stronie głównej. Prawo zabrania publikowania opinii wymyślonych albo zmienionych i pomijania negatywnych w sposób wprowadzający w błąd.</p>
+        <h2>Dodaj opinię z innego miejsca</h2>
+        <p class="small muted">Np. opinię z Google, Booksy albo usłyszaną w gabinecie. Tylko prawdziwe opinie klientek, które były na zabiegu, i tylko za ich zgodą. Treść wklej bez zmian (możesz poprawić literówkę, nie sens). Opinie pojawiają się na stronie głównej. Prawo zabrania publikowania opinii wymyślonych albo zmienionych i pomijania negatywnych w sposób wprowadzający w błąd.</p>
         <div class="form-grid">
           <div class="field"><label for="rv-a">Autorka</label><input id="rv-a" name="author" maxlength="40" placeholder="Np. Anna K." required></div>
           <div class="field"><label for="rv-t">Zabieg <span class="opt">(opcjonalnie)</span></label><select id="rv-t" name="treatmentId">${tOpts}</select></div>
@@ -715,9 +739,9 @@ JM.ready.then(function () {
         <h2>Opinie (${list.length})</h2>
         ${list.length ? `<ul class="rv-admin">${list.map((r, i) => `<li class="${r.published ? '' : 'is-hidden'}">
           <blockquote>${esc(r.text)}</blockquote>
-          <p class="small muted">${esc(r.author)}${r.treatment ? `, ${esc(r.treatment)}` : ''}, ${esc(r.sourceName)}, ${fmtDay(r.givenOn)}${r.rating ? `, ocena ${r.rating}/5` : ''}${r.consentNote ? `. Zgoda: ${esc(r.consentNote)}` : ''}${r.textEn ? '. Ma tłumaczenie EN' : ''}</p>
-          <div class="v-actions">${r.published ? '<span class="badge badge-ok">na stronie</span>' : '<span class="badge badge-off">ukryta</span>'}
-            <button type="button" class="link-button small" data-rv-pub="${r.id}" data-on="${r.published ? 'off' : 'on'}">${r.published ? 'Ukryj' : 'Pokaż na stronie'}</button>
+          <p class="small muted">${esc(r.author)}${r.treatment ? `, ${esc(r.treatment)}` : ''}, ${esc(r.sourceName)}, ${fmtDay(r.givenOn)}${r.rating ? `, ocena ${r.rating}/5` : ''}${r.consentNote ? `. Zgoda: ${esc(r.consentNote)}` : ''}${r.textEn ? '. Ma tłumaczenie EN' : ''}${r.visit ? `. Wizyta ${fmtDay(r.visit.date)}, ${esc(r.visit.client)}` : ''}</p>
+          <div class="v-actions">${r.published ? '<span class="badge badge-ok">na stronie</span>' : r.publishOk ? '<span class="badge badge-off">ukryta</span>' : '<span class="badge badge-off">tylko dla gabinetu</span>'}
+            ${r.publishOk || r.published ? `<button type="button" class="link-button small" data-rv-pub="${r.id}" data-on="${r.published ? 'off' : 'on'}">${r.published ? 'Ukryj' : 'Pokaż na stronie'}</button>` : ''}
             ${i > 0 ? `<button type="button" class="link-button small" data-rv-move="${r.id}" data-dir="-1">Wyżej</button>` : ''}
             ${i < list.length - 1 ? `<button type="button" class="link-button small" data-rv-move="${r.id}" data-dir="1">Niżej</button>` : ''}
             <button type="button" class="link-button small" data-rv-del="${r.id}">Usuń</button></div></li>`).join('')}</ul>` : '<p class="muted">Nie ma jeszcze opinii. Dopóki ich nie dodasz, sekcja z opiniami nie pokazuje się na stronie.</p>'}
@@ -825,9 +849,7 @@ JM.ready.then(function () {
         <p class="small muted">Wychodzą tylko do klientek, które przy rezerwacji zaznaczyły zgodę na SMS po wizycie (przy wizycie dodanej w panelu zaznaczasz to w formularzu). Klientka wyłączy je w każdej chwili na stronie wizyty. Wysyłka między 10:00 a 20:00.</p>
         <form id="review-form" class="aftercare-block" novalidate>
           <h3>Prośba o opinię</h3>
-          <p class="small muted">Dzień po wizycie, najwyżej raz na pół roku do tej samej osoby. Treść: „${esc(JM.salon.smsSender)}: Dziękuję za wizytę! Jeśli masz chwilę, napisz, jak oceniasz zabieg: [link]”.</p>
-          <div class="field"><label for="rv-url">Link do opinii</label><input id="rv-url" name="url" type="url" inputmode="url" placeholder="https://g.page/r/…/review" value="${esc(a.reviewUrl)}">
-            <span class="field-hint">W wizytówce Google: „Poproś o opinie” → skopiuj link. Możesz też wkleić link do Booksy albo Facebooka.</span></div>
+          <p class="small muted">Dzień po wizycie, najwyżej raz na pół roku do tej samej osoby. Treść: „${esc(JM.salon.smsSender)}: Dziękuję za wizytę! Jeśli masz chwilę, napisz, jak oceniasz zabieg: [link]”. Link otwiera stronę opinii: formularz na stronie gabinetu i przyciski do Google, Booksy i Facebooka (linki ustawiasz w zakładce <button type="button" class="link-button small" data-view="opinie">Opinie</button>).</p>
           <label class="check"><input type="checkbox" name="on" ${a.reviewOn ? 'checked' : ''}><span>Wysyłaj prośbę o opinię</span></label>
           <button class="btn btn-outline btn-small" type="submit">Zapisz</button>
         </form>
@@ -1140,7 +1162,7 @@ JM.ready.then(function () {
       galeria: async () => (await api('GET', '/api/admin/gallery')),
       bony: async () => (await api('GET', '/api/admin/vouchers')),
       pakiety: async () => { await ensureLists(); return api('GET', '/api/admin/packages'); },
-      opinie: async () => { await ensureLists(); return api('GET', '/api/admin/reviews'); },
+      opinie: async () => { await ensureLists(); const [r, l] = await Promise.all([api('GET', '/api/admin/reviews'), api('GET', '/api/admin/review-links')]); return { reviews: r.reviews, links: l.links }; },
       wiadomosci: async () => {
         await ensureLists();
         const [r, m, c, a] = await Promise.all([api('GET', '/api/admin/reminders'), api('GET', '/api/admin/messages'), api('GET', '/api/admin/clients'), api('GET', '/api/admin/aftercare')]);
@@ -1246,6 +1268,7 @@ JM.ready.then(function () {
       return act(() => api('POST', `/api/admin/packages/${el.dataset.pkVoid}/void`, { void: el.dataset.on === 'on' }), el.dataset.on === 'on' ? 'Pakiet unieważniony.' : 'Pakiet przywrócony.');
     }
     if (el.dataset.rvPub) return act(() => api('PATCH', `/api/admin/reviews/${el.dataset.rvPub}`, { published: el.dataset.on === 'on' }), el.dataset.on === 'on' ? 'Opinia jest na stronie.' : 'Opinia ukryta.');
+    if (el.dataset.rvRead) return act(() => api('PATCH', `/api/admin/reviews/${el.dataset.rvRead}`, { isNew: false }), 'Opinia zostaje tylko dla gabinetu.');
     if (el.dataset.rvMove) return act(() => api('POST', `/api/admin/reviews/${el.dataset.rvMove}/move`, { dir: Number(el.dataset.dir) }));
     if (el.dataset.rvDel) {
       if (!confirmDialog('Usunąć opinię?', 'Zniknie z panelu i ze strony.')) return;
@@ -1383,6 +1406,10 @@ JM.ready.then(function () {
     if (f.id === 'psell-form') {
       return act(() => api('POST', '/api/admin/packages', { typeId: Number(f.elements.typeId.value), key: cardKey, note: f.elements.note.value.trim() }), 'Pakiet sprzedany. Klientka zobaczy go w swoim koncie, jeśli je ma.');
     }
+    if (f.id === 'review-links') {
+      const v = (n) => f.elements[n].value.trim();
+      return act(() => api('PUT', '/api/admin/review-links', { google: v('google'), booksy: v('booksy'), facebook: v('facebook') }), 'Zapisano linki do opinii.');
+    }
     if (f.id === 'review-add') {
       const v = (n) => f.elements[n].value.trim();
       return act(() => api('POST', '/api/admin/reviews', { author: v('author'), treatmentId: v('treatmentId'), text: v('text'), textEn: v('textEn'), source: v('source'), givenOn: v('givenOn'), rating: v('rating') ? Number(v('rating')) : null, consentNote: v('consentNote'), confirm: f.elements.confirm.checked }), 'Dodano opinię.');
@@ -1393,7 +1420,7 @@ JM.ready.then(function () {
     }
     if (f.dataset.photoForm) return uploadRecordPhotos(f);
     if (f.id === 'review-form') {
-      return act(() => api('PUT', '/api/admin/aftercare/review', { url: f.elements.url.value.trim(), on: f.elements.on.checked }), (r) => (r.reviewOn ? 'Prośba o opinię włączona.' : 'Zapisano. Prośba o opinię jest wyłączona.'));
+      return act(() => api('PUT', '/api/admin/aftercare/review', { on: f.elements.on.checked }), (r) => (r.reviewOn ? 'Prośba o opinię włączona.' : 'Zapisano. Prośba o opinię jest wyłączona.'));
     }
     if (f.id === 'rule-form') {
       return act(() => api('PUT', '/api/admin/aftercare/rules', { treatmentId: f.elements.treatmentId.value, weeks: Number(f.elements.weeks.value), nextId: f.elements.nextId.value }), 'Dodano przypomnienie.');

@@ -44,18 +44,14 @@ function settings() {
   return {
     careOn: meta.get('care_email') !== '0',
     reviewOn: meta.get('review_on') === '1',
-    reviewUrl: meta.get('review_url') || '',
+
     rules: db.prepare('SELECT * FROM followup_rules').all().map((r) => ({ treatmentId: r.treatment_id, treatment: nameIn(r.treatment_id, 'pl'), weeks: Math.round(r.after_days / 7), days: r.after_days, nextId: r.next_id, next: nameIn(r.next_id, 'pl') }))
       .sort((a, b) => a.treatment.localeCompare(b.treatment, 'pl'))
   };
 }
 class AftercareError extends Error {}
-function setReview({ on, url }) {
-  const u = String(url || '').trim();
-  if (u && !/^https:\/\/[^\s<>"]{6,300}$/.test(u)) throw new AftercareError('Wklej pełny link zaczynający się od https://, np. link do opinii z wizytówki Google.');
-  if (on && !u) throw new AftercareError('Żeby włączyć prośbę o opinię, wklej link do opinii.');
-  meta.set('review_url', u); meta.set('review_on', on ? '1' : '0');
-}
+// prośba o opinię prowadzi na stronę opinii gabinetu (formularz + linki do Google, Booksy, Facebooka z zakładki Opinie)
+function setReview({ on }) { meta.set('review_on', on ? '1' : '0'); }
 function setRule({ treatmentId, weeks, nextId }) {
   if (!B.treatment(treatmentId) || !B.treatment(nextId)) throw new AftercareError('Wybierz oba zabiegi.');
   const w = Number(weeks);
@@ -100,7 +96,7 @@ function scan(now = new Date()) {
 
   // prośba o opinię
   const s = settings();
-  if (s.reviewOn && s.reviewUrl) {
+  if (s.reviewOn) {
     const from = new Date(now); from.setDate(from.getDate() - REVIEW_MAX_DAYS);
     db.prepare("SELECT * FROM bookings WHERE status = 'done' AND after_sms = 1 AND review_sent IS NULL AND demo = 0 AND date >= ?").all(isoDay(from)).forEach((b) => {
       if (now - B.startOf(b) - b.duration * 6e4 < REVIEW_AFTER_H * 36e5) return;
@@ -109,7 +105,7 @@ function scan(now = new Date()) {
       const recent = db.prepare("SELECT guest_phone, client_id FROM bookings WHERE review_sent IS NOT NULL AND review_sent NOT IN ('pominięta', 'brak telefonu') AND review_sent >= ? AND id != ?").all(since.toISOString(), b.id)
         .some((x) => phoneKey((B.contactOf(x) || {}).phone) === phoneKey(c.phone));
       if (recent) return mark('review_sent', b.id, 'pominięta');
-      M.queueSms('review', c.phone, reviewText(s.reviewUrl, b.lang), b.id);
+      M.queueSms('review', c.phone, reviewText(M.link('/o/' + require('./reviews').tokenFor(b)), b.lang), b.id);
       mark('review_sent', b.id, nowIso()); n++;
     });
   }
