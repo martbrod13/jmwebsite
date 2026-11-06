@@ -34,7 +34,26 @@ JM.ready.then(async function () {
             ${b.canMove ? '' : L('Termin możesz już zmienić tylko telefonicznie:', 'You can now change the time only by phone:') + ` <a href="tel:${JM.salon.phoneHref}">${JM.salon.phone}</a>.`}</p>
           <div class="btn-row">${b.canMove ? `<button class="btn btn-primary" type="button" data-move>${L('Zmień termin', 'Change time')}</button>` : ''}<button class="btn btn-outline" type="button" data-cancel>${L('Odwołaj wizytę', 'Cancel visit')}</button></div>`
         : `<div class="btn-row"><a class="btn btn-primary" href="rezerwacja.html">${L('Zarezerwuj wizytę', 'Book a visit')}</a></div>`}
-      </div>`;
+      </div>
+      ${extras(b)}`;
+  }
+
+  // ankieta przed zabiegiem i SMS po wizycie
+  function extras(b) {
+    const q = b.questionnaire || {};
+    const qRow = b.status === 'confirmed' && (q.editable || q.filled) ? `
+      <div class="extra-row">
+        <div><h3>${L('Ankieta przed zabiegiem', 'Pre-treatment questionnaire')}</h3>
+          <p class="small muted">${q.filled ? L('Wysłana. Możesz ją zmienić do początku wizyty.', 'Sent. You can change it until your visit starts.') : L('Nieobowiązkowa, zajmie około 2 minut: kilka pytań o zdrowie, np. o alergie i leki. Możemy też porozmawiać o tym na miejscu.', 'Optional, takes about 2 minutes: a few health questions, e.g. about allergies and medication. We can also talk about it in the studio.')}</p></div>
+        <a class="btn btn-outline btn-small" href="ankieta.html#${encodeURIComponent(token)}">${q.filled ? L('Zobacz ankietę', 'View') : L('Wypełnij ankietę', 'Fill in')}</a>
+      </div>` : '';
+    const sRow = ['confirmed', 'done'].includes(b.status) ? `
+      <div class="extra-row">
+        <div><h3>${L('SMS po wizycie', 'Text after your visit')}</h3>
+          <p class="small muted">${b.afterSms ? L('Włączony: po wizycie poprosimy o opinię, a gdy przyjdzie czas, przypomnimy o korekcie lub kolejnym zabiegu.', 'On: after the visit we will ask for your feedback and, when it is time, remind you about a touch-up or the next treatment.') : L('Wyłączony. Włącz, jeśli chcesz dostać przypomnienie o korekcie lub kolejnym zabiegu.', 'Off. Turn it on if you would like a reminder about a touch-up or the next treatment.')}</p></div>
+        <button class="btn btn-outline btn-small" type="button" data-after-sms="${b.afterSms ? 'off' : 'on'}">${b.afterSms ? L('Wyłącz', 'Turn off') : L('Włącz', 'Turn on')}</button>
+      </div>` : '';
+    return qRow || sRow ? `<div class="card visit-card visit-extras">${qRow}${sRow}</div>` : '';
   }
 
   async function load() {
@@ -49,7 +68,16 @@ JM.ready.then(async function () {
   }
 
   let current = null;
-  root.addEventListener('click', (e) => {
+  root.addEventListener('click', async (e) => {
+    const sms = e.target.closest('[data-after-sms]');
+    if (sms && current) {
+      try {
+        const d = await S.api('POST', `/api/visit/${encodeURIComponent(token)}/after-sms`, { on: sms.dataset.afterSms === 'on' });
+        current = d.booking; root.innerHTML = view(current, root.dataset.first);
+        ui.toast(current.afterSms ? L('Włączono SMS po wizycie.', 'Texts after the visit turned on.') : L('Wyłączono SMS po wizycie.', 'Texts after the visit turned off.'));
+      } catch (err) { ui.toast(err.message); }
+      return;
+    }
     if (e.target.closest('[data-move]') && current) {
       JM.moveDialog(current, async (date, time) => { const nb = await S.moveByToken(token, date, time); current = nb; root.innerHTML = view(nb, root.dataset.first); return nb; });
       return;

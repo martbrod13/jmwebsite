@@ -229,6 +229,7 @@ JM.ready.then(function () {
           <div class="field"><label for="notes">${L('Uwagi do wizyty', 'Notes for your visit')} <span class="opt">(${L('opcjonalnie', 'optional')})</span></label>
             <textarea id="notes" name="notes" maxlength="400" placeholder="${L('Np. pierwszy raz na tym zabiegu', 'E.g. first time having this treatment')}">${esc(state.notes)}</textarea></div>
           ${voucherBox()}
+          <fieldset class="consent-box"><legend class="sr-only">${L('Zgody', 'Consents')}</legend>${afterSmsBox()}</fieldset>
           <p class="small muted">${L(`Rezerwując, akceptujesz zasady odwołania z <a href="regulamin.html#odwolanie">regulaminu</a>: bezpłatnie do ${JM.booking.cancelHours} godzin przed wizytą, później opłata ${JM.booking.lateCancelFeePercent}% ceny zabiegu. Potwierdzenie wyślemy SMS-em na numer ${esc(u.phone)}, a przypomnienie ${JM.booking.reminderHours} godziny przed wizytą.`,
             `By booking, you accept the cancellation rules in our <a href="regulamin.html#odwolanie">terms</a>: free up to ${JM.booking.cancelHours} hours before the visit, after that a fee of ${JM.booking.lateCancelFeePercent}% of the treatment price. We will text the confirmation to ${esc(u.phone)} and send a reminder ${JM.booking.reminderHours} hours before the visit.`)}</p>
           <div class="step-actions">
@@ -280,6 +281,7 @@ JM.ready.then(function () {
               `I accept the <a href="regulamin.html" target="_blank">Terms and conditions</a> and booking rules, including a fee of ${JM.booking.lateCancelFeePercent}% of the treatment price for cancelling later than ${JM.booking.cancelHours} hours before the visit or not showing up, and I have read the <a href="polityka-prywatnosci.html" target="_blank">Privacy policy</a>.`)} <span class="req" aria-hidden="true">*</span><small>${L('Wymagane, żeby zarezerwować wizytę.', 'Required to book a visit.')}</small></span></label>
             <label class="check"><input type="checkbox" name="marketingSms" ${g.marketingSms ? 'checked' : ''}><span>${L('Chcę dostawać SMS-y z ofertami i promocjami gabinetu.', 'I would like to receive text messages with the studio’s offers and promotions.')}<small>${L('Opcjonalne. Zgodę możesz wycofać w każdej chwili.', 'Optional. You can withdraw your consent at any time.')}</small></span></label>
             <label class="check"><input type="checkbox" name="marketingEmail" ${g.marketingEmail ? 'checked' : ''}><span>${L('Chcę dostawać e-maile z ofertami i promocjami gabinetu.', 'I would like to receive emails with the studio’s offers and promotions.')}<small>${L('Opcjonalne. Zgodę możesz wycofać w każdej chwili.', 'Optional. You can withdraw your consent at any time.')}</small></span></label>
+            ${afterSmsBox()}
           </fieldset>
           <div class="step-actions">
             <button class="btn btn-outline" type="button" data-go="2">${L('Wstecz', 'Back')}</button>
@@ -290,6 +292,8 @@ JM.ready.then(function () {
     return `<h2 class="step-title">${L('Twoje dane', 'Your details')}</h2>${err}${choice}${body}`;
   }
 
+  // zgoda na SMS po wizycie (prośba o opinię, przypomnienie o korekcie lub kolejnym zabiegu); domyślnie wyłączona
+  const afterSmsBox = () => `<label class="check"><input type="checkbox" name="afterSms" ${state.afterSms ? 'checked' : ''}><span>${L('Po wizycie wyślij mi SMS: prośbę o opinię, a gdy przyjdzie czas, przypomnienie o korekcie lub kolejnym zabiegu.', 'After the visit, text me: a request for feedback and, when it is time, a reminder about a touch-up or the next treatment.')}<small>${L('Opcjonalne. Wyłączysz to w każdej chwili na stronie wizyty.', 'Optional. You can turn this off at any time on your visit page.')}</small></span></label>`;
   /* ---------- Krok 4: potwierdzenie ---------- */
   function smsText(b, kind) {
     const d = new Date(b.date + 'T12:00:00');
@@ -313,6 +317,11 @@ JM.ready.then(function () {
           <div class="sms-bubble">${esc(smsText(b, 'confirm'))}</div>
           <header><span>${JM.salon.smsSender}</span><span>${L(`automatycznie ${JM.booking.reminderHours} h przed wizytą`, `automatically ${JM.booking.reminderHours} h before the visit`)}</span></header>
           <div class="sms-bubble">${esc(smsText(b, 'reminder'))}</div>
+        </div>
+        <div class="done-note">
+          <h3>${L('Ankieta przed zabiegiem', 'Questionnaire before your treatment')}</h3>
+          <p>${L('Jeśli chcesz, odpowiedz na kilka pytań o zdrowie, np. o alergie i przyjmowane leki. Ankieta nie jest obowiązkowa i zajmie około 2 minut; możemy też porozmawiać o tym na miejscu. Link znajdziesz też w e-mailu i na stronie wizyty.', 'If you like, answer a few health questions, e.g. about allergies and medication. The questionnaire is optional and takes about 2 minutes; we can also talk about it in the studio. You will also find the link in the email and on your visit page.')}</p>
+          <a class="btn btn-outline btn-small" href="ankieta.html#${encodeURIComponent(b.token)}">${L('Wypełnij ankietę', 'Fill in the questionnaire')}</a>
         </div>
         <div class="btn-row">
           <button class="btn btn-outline" type="button" data-ics>${L('Dodaj do kalendarza', 'Add to calendar')}</button>
@@ -464,13 +473,15 @@ JM.ready.then(function () {
       if (!ok) return;
       const g = Object.fromEntries(['firstName', 'lastName', 'phone', 'email'].map((k) => [k, f.elements[k].value.trim()]));
       g.marketingSms = f.elements.marketingSms.checked; g.marketingEmail = f.elements.marketingEmail.checked; g.terms = f.elements.terms.checked;
-      finish(f, { guest: g, notes: f.elements.notes.value.trim(), voucherCode: f.elements.voucherCode.value.trim() || undefined });
+      state.afterSms = f.elements.afterSms.checked;
+      finish(f, { guest: g, notes: f.elements.notes.value.trim(), voucherCode: f.elements.voucherCode.value.trim() || undefined, afterSms: state.afterSms });
     } else if (f.id === 'login-form') {
       if (!validate(f, { email: emailOk, password: (el) => (el.value ? '' : L('Wpisz hasło.', 'Enter your password.')) })) return;
       try { await S.login(f.elements.email.value, f.elements.password.value); state.error = ''; render(true); ui.toast(L('Zalogowano.', 'Signed in.')); }
       catch (err) { state.error = err.message; render(); }
     } else if (f.id === 'confirm-form') {
-      finish(f, { notes: f.elements.notes.value.trim(), voucherCode: f.elements.voucherCode.value.trim() || undefined });
+      state.afterSms = f.elements.afterSms.checked;
+      finish(f, { notes: f.elements.notes.value.trim(), voucherCode: f.elements.voucherCode.value.trim() || undefined, afterSms: state.afterSms });
     }
   });
 

@@ -77,6 +77,9 @@ const email = {
         ${row(L(lang, 'Kod rezerwacji', 'Booking code'), '<strong>' + esc(b.code) + '</strong>')}
       </table>
       ${button(visitLink(b), L(lang, 'Zobacz lub odwołaj wizytę', 'View or cancel your visit'))}
+      <p style="font-size:14px">${L(lang,
+        `Jeśli chcesz, przed wizytą wypełnij <a href="${esc(link('/ankieta.html#' + b.token))}" style="color:#462a1f">krótką ankietę o zdrowiu</a>. Nie jest obowiązkowa; możemy też porozmawiać o tym na miejscu.`,
+        `If you like, fill in a <a href="${esc(link('/ankieta.html#' + b.token))}" style="color:#462a1f">short health questionnaire</a> before your visit. It is optional; we can also talk about it in the studio.`)}</p>
       <p style="font-size:13px;color:#6f6155">${L(lang,
         `Bezpłatnie odwołasz wizytę do ${C.booking.cancelHours} godzin przed terminem. Później albo przy nieobecności obowiązuje opłata ${C.booking.lateCancelFeePercent}% ceny zabiegu. Przypomnienie wyślemy SMS-em ${C.booking.reminderHours} godziny przed wizytą.`,
         `You can cancel free of charge up to ${C.booking.cancelHours} hours before the visit. After that, or if you do not come, a fee of ${C.booking.lateCancelFeePercent}% of the treatment price applies. We will text you a reminder ${C.booking.reminderHours} hours before the visit.`)}</p>`);

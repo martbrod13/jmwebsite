@@ -8,6 +8,8 @@ const G = require('./gallery');
 const Events = require('./events');
 const V = require('./vouchers');
 const W = require('./waitlist');
+const R = require('./records');
+const A = require('./aftercare');
 // krótki opis wizyty do powiadomienia w panelu (bez e-maila i telefonu)
 function live(type, b, by) {
   const c = B.contactOf(b);
@@ -110,7 +112,8 @@ function requireAdmin(req) {
 function adminBooking(b) {
   const c = B.contactOf(b);
   return Object.assign(B.publicBooking(b), {
-    clientId: b.client_id, cancelledAt: b.cancelled_at, demo: !!b.demo,
+    clientId: b.client_id, cancelledAt: b.cancelled_at, demo: !!b.demo, record: R.summary(b.id),
+    clientKey: R.keyOfBooking(b, new Map(b.client_id ? db.prepare('SELECT id, email FROM clients WHERE id = ?').all(b.client_id).map((c) => [c.id, c.email.toLowerCase()]) : [])),
     client: c ? { name: c.firstName + ' ' + c.lastName, phone: c.phone, email: c.email, type: c.account ? 'konto' : 'gość' } : { name: 'Konto usunięte', phone: '—', email: '', type: '—' }
   });
 }
@@ -118,7 +121,7 @@ function allClients() {
   const map = new Map();
   db.prepare(`SELECT c.*, (SELECT value FROM consents WHERE client_id = c.id AND kind = 'marketing_sms') AS sms,
       (SELECT value FROM consents WHERE client_id = c.id AND kind = 'marketing_email') AS mail FROM clients c`).all().forEach((c) => {
-    map.set(c.email.toLowerCase(), { id: c.id, firstName: c.first_name, lastName: c.last_name, name: c.first_name + ' ' + c.last_name, phone: c.phone, email: c.email, type: 'konto',
+    map.set(c.email.toLowerCase(), { key: c.email.toLowerCase(), id: c.id, firstName: c.first_name, lastName: c.last_name, name: c.first_name + ' ' + c.last_name, phone: c.phone, email: c.email, type: 'konto',
       createdAt: c.created_at, sms: !!c.sms, mail: !!c.mail, visits: 0, last: '', firstVisitUsed: false, language: c.language, demo: !!c.demo });
   });
   const byId = new Map([...map.values()].map((c) => [c.id, c]));
@@ -127,7 +130,7 @@ function allClients() {
     if (!c && (b.guest_email || b.guest_phone)) {
       const key = (b.guest_email || 'tel:' + b.guest_phone.replace(/\D/g, '')).toLowerCase();
       c = map.get(key);
-      if (!c) { c = { firstName: b.guest_first, lastName: b.guest_last || '', name: (b.guest_first + ' ' + (b.guest_last || '')).trim(), phone: b.guest_phone, email: b.guest_email || '', type: 'gość', createdAt: b.created_at, visits: 0, last: '', language: b.lang, demo: !!b.demo }; map.set(key, c); }
+      if (!c) { c = { key, firstName: b.guest_first, lastName: b.guest_last || '', name: (b.guest_first + ' ' + (b.guest_last || '')).trim(), phone: b.guest_phone, email: b.guest_email || '', type: 'gość', createdAt: b.created_at, visits: 0, last: '', language: b.lang, demo: !!b.demo }; map.set(key, c); }
       if (c.type === 'gość') { c.sms = !!b.guest_marketing_sms; c.mail = !!b.guest_marketing_email; c.phone = b.guest_phone; }
     }
     if (c && b.status !== 'cancelled') { c.visits++; if (b.date > c.last) c.last = b.date; if (b.client_id) c.firstVisitUsed = true; }
@@ -193,6 +196,7 @@ route('POST', '/api/bookings', (req, { body, ip }) => {
   }
   try {
     let b = B.createBooking({ treatmentId: body.treatmentId, date: body.date, time: body.time, notes: str(body.notes, 400), lang: langOf(req), client, guest });
+    if (body.afterSms === true) { db.prepare('UPDATE bookings SET after_sms = 1 WHERE id = ?').run(b.id); b = B.getBooking(b.id); }
     if (voucherCode) { const plan = V.planFor(voucherCode, b.total, langOf(req)); V.attach(b.id, plan.voucher.id, plan.amount); b = B.getBooking(b.id); }
     notify(b, 'confirmation'); live('booked', b, 'client');
     return { booking: Object.assign(B.publicBooking(b), { token: b.token }) };
@@ -277,6 +281,8 @@ route('POST', '/api/me/consents', (req, { body, ip }) => {
 });
 route('DELETE', '/api/me', (req, { res }) => {
   const c = requireClient(req);
+  // zdjęcia i ankiety z odbytych wizyt znikają razem z kontem; notatki z zabiegów zostają bez danych klientki
+  R.purgeBookings(db.prepare("SELECT id FROM bookings WHERE client_id = ? AND status != 'confirmed'").all(c.id).map((x) => x.id), true);
   tx(() => {
     // zaplanowane wizyty zostają w kalendarzu z danymi kontaktowymi potrzebnymi do ich obsługi
     db.prepare("UPDATE bookings SET guest_first = ?, guest_last = ?, guest_phone = ?, guest_email = ? WHERE client_id = ? AND status = 'confirmed'")
@@ -455,6 +461,7 @@ route('POST', '/api/admin/bookings', (req, { body }) => {
   try {
     let b = B.createManualBooking({ treatmentId: body.treatmentId, date: body.date, time: body.time, duration: body.duration, price: body.price, notes: str(body.notes, 400), source, client, guest, force: body.force === true });
     if (voucherCode) { const plan = V.planFor(voucherCode, b.total); V.attach(b.id, plan.voucher.id, plan.amount); b = B.getBooking(b.id); }
+    if (body.afterSms === true) { db.prepare('UPDATE bookings SET after_sms = 1 WHERE id = ?').run(b.id); b = B.getBooking(b.id); }
     if (body.notify !== false) notify(b, 'confirmation');
     live('booked', b, 'salon');
     return { booking: adminBooking(b) };
@@ -636,6 +643,97 @@ route('POST', '/api/admin/vouchers/:id/redeem', voucherAction(({ params, body },
 route('POST', '/api/admin/vouchers/:id/void', voucherAction(({ params, body }) => { V.setVoid(Number(params.id), body.void !== false); return V.byId(Number(params.id)); }));
 
 /* ---------- Kalendarz w telefonie ---------- */
+/* ---------- Ankieta przed zabiegiem (nieobowiązkowa) ---------- */
+// wizyta z linku (klucz z SMS-a / e-maila) albo z konta zalogowanej klientki
+function visitFor(req, { params }) {
+  if (params.token) {
+    const b = B.getBookingByToken(params.token);
+    if (!b) throw new HttpError(404, T(req, 'Nie znaleziono wizyty. Sprawdź link z SMS-a albo zadzwoń do gabinetu.', 'Visit not found. Check the link in your text message or call the studio.'));
+    return { b, client: null };
+  }
+  const c = requireClient(req);
+  const b = B.getBooking(Number(params.id));
+  if (!b || b.client_id !== c.id) throw new HttpError(404, T(req, 'Nie znaleziono wizyty.', 'Visit not found.'));
+  return { b, client: c };
+}
+const recordErr = (e) => (e instanceof R.RecordError ? new HttpError(400, e.message) : e);
+function questionnaireGet(req, ctx) {
+  const { b, client } = visitFor(req, ctx);
+  const c = B.contactOf(b);
+  const q = R.questionnaireOf(b.id);
+  // podpowiedź z poprzedniej ankiety tylko dla zalogowanej klientki (nigdy przez sam link)
+  const previous = !q && client ? R.lastQuestionnaireOfClient(client.id, b.id) : null;
+  return {
+    visit: { treatmentId: b.treatment_id, treatmentName: b.treatment_name, date: b.date, time: b.time, status: b.status, firstName: c ? c.firstName : '' },
+    answers: q ? q.answers : previous ? previous.answers : null, fromPrevious: !!previous, saved: !!q, updatedAt: q ? q.updatedAt : null,
+    editable: R.questionnaireEditable(b)
+  };
+}
+function questionnairePut(req, ctx) {
+  if (!Sec.rateLimit('questionnaire:' + ctx.ip, 30, 36e5)) throw new HttpError(429, T(req, 'Spróbuj później.', 'Please try again later.'));
+  const { b } = visitFor(req, ctx);
+  try { R.saveQuestionnaire(b, { answers: ctx.body.answers, consent: ctx.body.consent === true }, langOf(req)); } catch (e) { throw recordErr(e); }
+  Events.emit('questionnaire', { by: 'client', id: b.id });
+  return questionnaireGet(req, ctx);
+}
+function questionnaireDelete(req, ctx) {
+  const { b } = visitFor(req, ctx);
+  R.deleteQuestionnaire(b.id);
+  Events.emit('questionnaire', { by: 'client', id: b.id });
+  return { ok: true };
+}
+for (const base of ['/api/visit/:token', '/api/me/bookings/:id']) {
+  route('GET', base + '/questionnaire', questionnaireGet);
+  route('PUT', base + '/questionnaire', questionnairePut);
+  route('DELETE', base + '/questionnaire', questionnaireDelete);
+  // zgoda na SMS po wizycie: klientka może ją wyłączyć (albo włączyć) w każdej chwili
+  route('POST', base + '/after-sms', (req, ctx) => {
+    const { b } = visitFor(req, ctx);
+    db.prepare('UPDATE bookings SET after_sms = ? WHERE id = ?').run(ctx.body.on === true ? 1 : 0, b.id);
+    return { booking: B.publicBooking(B.getBooking(b.id)) };
+  });
+}
+
+/* ---------- Karta zabiegowa (panel) ---------- */
+route('GET', '/api/admin/client-card', (req, { query }) => {
+  requireAdmin(req); B.completePast();
+  const key = str(query.get('key'), 200).toLowerCase();
+  const client = allClients().find((c) => c.key === key);
+  if (!client) throw new HttpError(404, 'Nie znaleziono klientki.');
+  return { client, visits: R.card(key) };
+});
+route('PUT', '/api/admin/bookings/:id/note', (req, { params, body }) => {
+  const a = requireAdmin(req);
+  try { return { note: R.setNote(Number(params.id), body.text, a.email) }; } catch (e) { throw recordErr(e); }
+});
+route('POST', '/api/admin/bookings/:id/photos', (req, { params, body }) => {
+  const a = requireAdmin(req);
+  try { return { photo: R.addPhoto(Number(params.id), body, a.email) }; } catch (e) { throw recordErr(e); }
+});
+route('DELETE', '/api/admin/photos/:id', (req, { params }) => { requireAdmin(req); R.removePhoto(Number(params.id)); return { ok: true }; });
+route('GET', '/api/admin/bookings/:id/questionnaire', (req, { params }) => {
+  requireAdmin(req);
+  const b = B.getBooking(Number(params.id)); if (!b) throw new HttpError(404, 'Nie znaleziono wizyty.');
+  return { questionnaire: R.readable(R.questionnaireOf(b.id)) };
+});
+route('POST', '/api/admin/client-card/purge', (req, { body }) => {
+  requireAdmin(req);
+  const key = str(body.key, 200).toLowerCase();
+  if (!allClients().some((c) => c.key === key)) throw new HttpError(404, 'Nie znaleziono klientki.');
+  return { removed: R.purgeClient(key, body.keepNotes !== false) };
+});
+
+/* ---------- SMS-y po wizycie: ustawienia (panel) ---------- */
+const aftercareAction = (fn) => (req, ctx) => {
+  requireAdmin(req);
+  try { fn(ctx); } catch (e) { if (e instanceof A.AftercareError) throw new HttpError(400, e.message); throw e; }
+  return A.settings();
+};
+route('GET', '/api/admin/aftercare', aftercareAction(() => {}));
+route('PUT', '/api/admin/aftercare/review', aftercareAction(({ body }) => A.setReview({ on: body.on === true, url: body.url })));
+route('PUT', '/api/admin/aftercare/rules', aftercareAction(({ body }) => A.setRule({ treatmentId: str(body.treatmentId, 60), weeks: body.weeks, nextId: str(body.nextId, 60) })));
+route('DELETE', '/api/admin/aftercare/rules/:id', aftercareAction(({ params }) => A.removeRule(params.id)));
+
 /* ---------- Lista oczekujących ---------- */
 const waitlistErr = (e) => (e instanceof W.WaitlistError ? new HttpError(e.field === 'free' ? 409 : 400, e.message, e.field) : e);
 function validWaiter(req, firstName, phone) {
@@ -699,7 +797,7 @@ route('GET', '/api/admin/backup/download', (req) => {
   return { __file: Backup.downloadCopy(), type: 'application/octet-stream', filename: 'jm-baza-' + B.isoDate(new Date()) + '.db' };
 });
 
-route('POST', '/api/admin/demo/clear', (req) => { requireAdmin(req); seed.clearDemo(); return { ok: true }; });
+route('POST', '/api/admin/demo/clear', (req) => { requireAdmin(req); seed.clearDemo(); R.cleanupFiles(); return { ok: true }; });
 
 /* ---------- Obsługa żądań ---------- */
 async function readBody(req, limit = 64 * 1024) {
@@ -732,7 +830,8 @@ async function handle(req, res, url) {
       if (origin && new URL(origin).host !== req.headers.host) throw new HttpError(403, 'Niedozwolone żądanie.');
       if (!/application\/json/.test(req.headers['content-type'] || '')) throw new HttpError(415, 'Wymagany JSON.');
       // zdjęcia do galerii są większe niż zwykłe formularze
-      body = await readBody(req, req.method === 'POST' && url.pathname === '/api/admin/gallery' ? 16 * 1024 * 1024 : 64 * 1024);
+      const upload = req.method === 'POST' && (url.pathname === '/api/admin/gallery' || /^\/api\/admin\/bookings\/\d+\/photos$/.test(url.pathname));
+      body = await readBody(req, upload ? 16 * 1024 * 1024 : 64 * 1024);
       if (typeof body !== 'object' || body === null || Array.isArray(body)) body = {};
     }
     const out = await r.handler(req, { params: url.pathname.match(r.re).groups || {}, query: url.searchParams, body, res, ip: Sec.clientIp(req) });

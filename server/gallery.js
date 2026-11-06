@@ -94,4 +94,4 @@ function fileFor(name, isAdmin) {
   return fs.existsSync(p) ? p : null;
 }
 
-module.exports = { GalleryError, list, add, update, move, remove, fileFor };
+module.exports = { GalleryError, list, add, update, move, remove, fileFor, decode };

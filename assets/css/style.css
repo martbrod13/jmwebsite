@@ -998,3 +998,77 @@ html[lang="en"] [data-lang="pl"] { display: none !important; }
 .wl-add summary { cursor: pointer; }
 .wl-add summary h2 { display: inline; margin: 0; }
 .wl-add[open] summary { margin-bottom: 18px; }
+
+/* ---------- Ankieta przed zabiegiem ---------- */
+.q-form > p { max-width: 62ch; }
+.q-list { list-style: none; counter-reset: q; padding: 0; margin: 28px 0 8px; display: grid; gap: 0; }
+.q-list > li { counter-increment: q; border-top: 1px solid var(--hair-soft); padding: 18px 0; }
+.q-item { border: 0; padding: 0; margin: 0; min-width: 0; }
+.q-item legend { display: flex; gap: 12px; padding: 0; margin-bottom: 12px; font-size: 1rem; line-height: 1.5; }
+.q-item legend::before { content: counter(q) "."; color: var(--brass); font-variant-numeric: tabular-nums; min-width: 1.5em; }
+.q-yn { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-left: calc(1.5em + 12px); }
+.yn { position: relative; }
+.yn input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.yn span { display: inline-flex; align-items: center; justify-content: center; min-width: 72px; min-height: 40px; padding: 4px 18px; border: 1px solid var(--linen); background: var(--paper); font-size: .9375rem; transition: background .15s, border-color .15s, color .15s; }
+.yn input:hover + span { border-color: var(--ink); }
+.yn input:checked + span { background: var(--ink); border-color: var(--ink); color: var(--gold-light); }
+.yn input:focus-visible + span { outline: 2px solid var(--ink); outline-offset: 2px; }
+.q-yn .link-button { margin-left: 6px; }
+.q-detail { margin: 12px 0 0 calc(1.5em + 12px); }
+.q-form .check { margin-top: 8px; }
+.q-answers div { grid-template-columns: 1fr 200px; }
+.done-note { border: 1px solid var(--linen); background: var(--paper); padding: 20px 24px; margin: 28px 0; max-width: 560px; }
+.done-note h3 { font-size: 1.125rem; margin: 0 0 6px; }
+.done-note p { font-size: .9375rem; color: var(--ink-2); margin: 0 0 14px; }
+.visit-extras { margin-top: 20px; display: grid; gap: 0; }
+.extra-row { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 18px 0; border-top: 1px solid var(--hair-soft); }
+.extra-row:first-child { border-top: 0; padding-top: 0; }
+.extra-row:last-child { padding-bottom: 0; }
+.extra-row h3 { font-size: 1.125rem; margin: 0 0 4px; }
+.extra-row p { margin: 0; max-width: 46ch; }
+.extra-row .btn { flex-shrink: 0; }
+@media (max-width: 560px) {
+  .extra-row { flex-direction: column; align-items: flex-start; }
+  .q-yn, .q-detail { padding-left: 0; margin-left: 0; }
+  .q-answers div { grid-template-columns: 1fr; }
+}
+.visit-extra { margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; }
+
+/* ---------- Panel: karta klientki i SMS-y po wizycie ---------- */
+.card-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 24px; align-items: start; }
+.card-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 24px; margin: 0; }
+.card-facts dt { font-size: .8125rem; color: var(--taupe); }
+.card-facts dd { margin: 2px 0 0; overflow-wrap: anywhere; }
+.rec h2 { font-size: 1.375rem; margin: 0 0 2px; }
+.rec h3 { font-size: 1.0625rem; margin: 22px 0 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rec-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--hair-soft); }
+.rec-head p { margin: 0; }
+.rec-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 32px; }
+.rec-note textarea { width: 100%; min-height: 120px; }
+.rec-note-foot { display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+.q-view { margin: 0; display: grid; gap: 0; font-size: .9375rem; }
+.q-view div { padding: 8px 10px; border-bottom: 1px solid var(--hair-soft); }
+.q-view div.is-yes { background: var(--sand); border-left: 2px solid var(--gold-deep); }
+.q-view dt { color: var(--ink-2); }
+.q-view dd { margin: 2px 0 0; }
+.q-view strong { font-weight: 500; }
+.rec-photos { list-style: none; padding: 0; margin: 0 0 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 12px; }
+.rec-photos img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; border: 1px solid var(--linen); }
+.rec-photos li > div { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+.rec-upload { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rec-upload select { min-height: 40px; padding: 6px 10px; border: 1px solid var(--linen); background: var(--paper); font: inherit; font-size: .9375rem; }
+.plain-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.aftercare-block { border-top: 1px solid var(--hair-soft); padding-top: 18px; margin-top: 18px; }
+.aftercare-block h3 { font-size: 1.125rem; margin: 0 0 6px; }
+.aftercare-block .field { max-width: 560px; }
+.rule-form { display: grid; grid-template-columns: minmax(0, 1.4fr) 120px minmax(0, 1.4fr) auto; gap: 12px; align-items: end; margin-top: 16px; }
+.rule-form .field { margin: 0; }
+.rule-form select { width: 100%; }
+.q-slot { margin-top: 12px; }
+@media (max-width: 900px) {
+  .card-head, .rec-grid { grid-template-columns: 1fr; }
+  .rule-form { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px) { .card-facts, .rule-form { grid-template-columns: 1fr; } }
+.rec h3 .badge, .rec h3 .small { font-family: var(--sans); }
+.rec h3 .badge { font-size: .75rem; }

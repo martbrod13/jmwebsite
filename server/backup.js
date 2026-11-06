@@ -1,5 +1,5 @@
 /*
- * Kopie zapasowe: baza (spójna kopia także przy działającym serwerze) i zdjęcia z galerii.
+ * Kopie zapasowe: baza (spójna kopia także przy działającym serwerze), zdjęcia z galerii i z kart zabiegowych.
  * Automatycznie raz dziennie (po 3:00) do data/backups; ręcznie: npm run backup
  */
 const fs = require('fs');
@@ -18,15 +18,17 @@ function snapshot(file) {
   return file;
 }
 
-// zdjęcia: kopia lustrzana folderu galerii (nowe pliki dochodzą, usunięte znikają)
+// zdjęcia: kopia lustrzana folderów galerii i kart zabiegowych (nowe pliki dochodzą, usunięte znikają)
 function mirrorUploads() {
-  const src = path.join(env.dataDir, 'uploads', 'gallery'), dst = path.join(DIR, 'gallery');
-  if (!fs.existsSync(src)) return 0;
-  fs.mkdirSync(dst, { recursive: true });
-  const files = new Set(fs.readdirSync(src));
   let copied = 0;
-  files.forEach((f) => { const t = path.join(dst, f); if (!fs.existsSync(t)) { fs.copyFileSync(path.join(src, f), t); copied++; } });
-  fs.readdirSync(dst).forEach((f) => { if (!files.has(f)) fs.unlinkSync(path.join(dst, f)); });
+  for (const name of ['gallery', 'karta']) {
+    const src = path.join(env.dataDir, 'uploads', name), dst = path.join(DIR, name);
+    if (!fs.existsSync(src)) continue;
+    fs.mkdirSync(dst, { recursive: true });
+    const files = new Set(fs.readdirSync(src));
+    files.forEach((f) => { const t = path.join(dst, f); if (!fs.existsSync(t)) { fs.copyFileSync(path.join(src, f), t); copied++; } });
+    fs.readdirSync(dst).forEach((f) => { if (!files.has(f)) fs.unlinkSync(path.join(dst, f)); });
+  }
   return copied;
 }
 

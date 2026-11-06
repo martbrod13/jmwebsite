@@ -289,7 +289,9 @@ function publicBooking(b) {
     voucher: b.voucher_id ? { amount: b.voucher_amount, code: (db.prepare('SELECT code FROM vouchers WHERE id = ?').get(b.voucher_id) || {}).code } : null,
     toPay: Math.max(0, round2(b.total - (b.voucher_amount || 0))),
     canCancel: canCancel(b), lateCancel: canCancel(b) && isLateCancel(b), lateFee: lateFee(b),
-    canMove: canCancel(b) && !isLateCancel(b), end: toTime(b.end_min)
+    canMove: canCancel(b) && !isLateCancel(b), end: toTime(b.end_min),
+    afterSms: !!b.after_sms,
+    questionnaire: (() => { const q = db.prepare('SELECT updated_at FROM questionnaires WHERE booking_id = ?').get(b.id); return { filled: !!q, updatedAt: q ? q.updated_at : null, editable: b.status === 'confirmed' && startOf(b) > Date.now() }; })()
   };
 }
 

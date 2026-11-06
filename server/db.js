@@ -253,6 +253,43 @@ CREATE TABLE IF NOT EXISTS waitlist_notices (
 );
 `);
 
+// Karta zabiegowa: notatki z wizyty, prywatne zdjęcia przed/po i nieobowiązkowa ankieta przed zabiegiem
+db.exec(`
+CREATE TABLE IF NOT EXISTS visit_notes (
+  booking_id  INTEGER PRIMARY KEY REFERENCES bookings(id) ON DELETE CASCADE,
+  text        TEXT NOT NULL,
+  updated_at  TEXT NOT NULL,
+  updated_by  TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS visit_photos (
+  id          INTEGER PRIMARY KEY,
+  booking_id  INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  file        TEXT NOT NULL UNIQUE,
+  thumb       TEXT NOT NULL UNIQUE,
+  width       INTEGER NOT NULL,
+  height      INTEGER NOT NULL,
+  kind        TEXT NOT NULL DEFAULT 'before' CHECK (kind IN ('before','after','other')),
+  created_at  TEXT NOT NULL,
+  created_by  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS visit_photos_booking ON visit_photos(booking_id);
+CREATE TABLE IF NOT EXISTS questionnaires (
+  booking_id  INTEGER PRIMARY KEY REFERENCES bookings(id) ON DELETE CASCADE,
+  answers     TEXT NOT NULL,              -- JSON: { id: { a: 'yes'|'no', d: 'szczegóły' } }
+  flags       INTEGER NOT NULL DEFAULT 0, -- ile odpowiedzi „tak”
+  lang        TEXT NOT NULL DEFAULT 'pl',
+  consent_at  TEXT NOT NULL,              -- zgoda na przetwarzanie danych o zdrowiu
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL
+);
+-- SMS po wizycie: po zabiegu X za N dni zaproponuj zabieg Y
+CREATE TABLE IF NOT EXISTS followup_rules (
+  treatment_id TEXT PRIMARY KEY,
+  after_days   INTEGER NOT NULL CHECK (after_days BETWEEN 7 AND 730),
+  next_id      TEXT NOT NULL
+);
+`);
+
 // Migracje: nowe kolumny dodajemy do istniejącej bazy bez utraty danych
 function addColumn(table, column, definition) {
   if (!db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
@@ -264,6 +301,10 @@ addColumn('admins', 'ical_token', 'TEXT');
 // bon podarunkowy przypięty do wizyty (kwota planowana; rozliczenie po wizycie)
 addColumn('bookings', 'voucher_id', 'INTEGER REFERENCES vouchers(id)');
 addColumn('bookings', 'voucher_amount', 'REAL NOT NULL DEFAULT 0');
+// zgoda na SMS po wizycie (przypomnienie o kolejnym zabiegu, prośba o opinię) i kiedy je wysłano
+addColumn('bookings', 'after_sms', 'INTEGER NOT NULL DEFAULT 0');
+addColumn('bookings', 'followup_sent', 'TEXT');
+addColumn('bookings', 'review_sent', 'TEXT');
 
 const nowIso = () => new Date().toISOString();
 
