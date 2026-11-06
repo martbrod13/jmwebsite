@@ -22,7 +22,7 @@ JM.ready.then(async function () {
           <div><dt>${L('Termin', 'Date')}</dt><dd>${ui.fmtDate(b.date)}, ${L('godz.', 'at')} ${b.time}</dd></div>
           <div><dt>${L('Czas zabiegu', 'Treatment time')}</dt><dd>${S.formatDuration(b.duration)}</dd></div>
           <div><dt>${L('Adres', 'Address')}</dt><dd>${JM.salon.street}, ${JM.salon.city}</dd></div>
-          <div><dt>${L('Do zapłaty w gabinecie', 'To pay at the studio')}</dt><dd>${S.formatPrice(b.total)}${b.discount ? ` <span class="small muted">(${esc(S.discountLabel(b.discount))}, −${b.discount.percent}%)</span>` : ''}</dd></div>
+          <div><dt>${L('Do zapłaty w gabinecie', 'To pay at the studio')}</dt><dd>${S.formatPrice(b.toPay ?? b.total)}${b.discount ? ` <span class="small muted">(${esc(S.discountLabel(b.discount))}, −${b.discount.percent}%)</span>` : ''}${b.voucher ? `<br><span class="small muted">${L('bon podarunkowy', 'gift voucher')} −${S.formatPrice(b.voucher.amount)}</span>` : ''}</dd></div>
           <div><dt>${L('Kod rezerwacji', 'Booking code')}</dt><dd><strong>${esc(b.code)}</strong></dd></div>
         </dl>
         ${statusText ? `<p><span class="badge">${statusText}</span></p>` : ''}

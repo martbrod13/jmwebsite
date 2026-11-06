@@ -44,7 +44,7 @@ JM.ready.then(function () {
 
   const views = [
     ['pulpit', 'Pulpit'], ['kalendarz', 'Kalendarz'], ['wizyty', 'Wizyty'], ['klientki', 'Klientki'], ['zabiegi', 'Zabiegi i ceny'],
-    ['promocje', 'Promocje'], ['galeria', 'Galeria'], ['wiadomosci', 'SMS-y i e-maile'], ['godziny', 'Godziny pracy'], ['konto', 'Moje konto']
+    ['promocje', 'Promocje'], ['bony', 'Bony podarunkowe'], ['galeria', 'Galeria'], ['wiadomosci', 'SMS-y i e-maile'], ['godziny', 'Godziny pracy'], ['konto', 'Moje konto']
   ];
   const money = (v) => S.formatPrice(v);
   const dt = (iso) => { const d = new Date(iso); return d.toLocaleDateString('pl-PL') + ', ' + S.pad(d.getHours()) + ':' + S.pad(d.getMinutes()); };
@@ -64,7 +64,7 @@ JM.ready.then(function () {
         <td>${esc(b.treatmentName)}${b.notes ? `<br><span class="small muted">${esc(b.notes)}</span>` : ''}${b.lang === 'en' ? ' <span class="badge">EN</span>' : ''}</td>
         <td>${esc(b.client.name)}${b.demo ? ' <span class="badge badge-off">przykład</span>' : ''}</td><td><a href="tel:${esc(b.client.phone)}">${esc(b.client.phone)}</a></td>
         <td><span class="badge">${b.client.type}</span>${b.source && b.source !== 'online' ? `<br><span class="small muted">${SOURCES[b.source] || b.source}</span>` : ''}</td>
-        <td class="num">${money(b.total)}${b.discount ? `<br><span class="small muted">−${b.discount.percent}% ${esc(b.discount.label)}</span>` : ''}</td>
+        <td class="num">${money(b.toPay)}${b.discount ? `<br><span class="small muted">−${b.discount.percent}% ${esc(b.discount.label)}</span>` : ''}${b.voucher ? `<br><span class="small muted">bon −${money(b.voucher.amount)}</span>` : ''}</td>
         ${actions ? `<td class="num">${actions(b)}</td>` : ''}</tr>`).join('')}
     </tbody></table>`;
   }
@@ -231,6 +231,27 @@ JM.ready.then(function () {
         ${data.days.length ? `<table class="table" style="margin-top:20px"><tbody>${data.days.map((d) => `<tr><td>${ui.fmtDate(d.date)}</td><td class="small muted">${esc(d.note || '')}</td><td class="num"><button type="button" class="btn btn-outline btn-small" data-unblock="${d.date}">Odblokuj</button></td></tr>`).join('')}</tbody></table>` : ''}
       </form>`;
   }
+  function icalCard() {
+    const url = location.origin + '/kalendarz/' + data.ical.token + '.ics';
+    const webcal = url.replace(/^https?:/, 'webcal:');
+    return `
+      <div class="panel-card" style="max-width:560px">
+        <h2>Kalendarz w telefonie</h2>
+        <p class="small muted">Wizyty i blokady same pojawią się w kalendarzu w Twoim telefonie, obok prywatnych spraw. W kalendarzu widać zabieg i imię z inicjałem nazwiska; telefon klientki i uwagi zostają w panelu. Link jest prywatny: nie wysyłaj go nikomu.</p>
+        ${local ? '<p class="small panel-inline-note">Kalendarz Google i telefon pobierają wizyty z internetu, więc subskrypcja zadziała po publikacji strony. Teraz możesz pobrać plik i zobaczyć, jak wyglądają wizyty.</p>' : ''}
+        <div class="field"><label for="ical-url">Twój link do kalendarza</label><input id="ical-url" readonly value="${esc(url)}"></div>
+        <div class="btn-row">
+          <button type="button" class="btn btn-primary btn-small" data-copy-ical>Kopiuj link</button>
+          ${local ? `<a class="btn btn-outline btn-small" href="${esc(url)}" download="gabinet.ics">Pobierz plik</a>` : `<a class="btn btn-outline btn-small" href="${esc(webcal)}">Dodaj na iPhonie</a><a class="btn btn-outline btn-small" href="https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcal)}" target="_blank" rel="noopener">Dodaj do Kalendarza Google</a>`}
+        </div>
+        <details class="move-box"><summary>Jak dodać ręcznie</summary>
+          <p class="small"><strong style="font-weight:500">Kalendarz Google:</strong> na komputerze otwórz calendar.google.com → po lewej „Inne kalendarze” → „+” → „Z adresu URL” → wklej link. Kalendarz pojawi się też w aplikacji na telefonie.</p>
+          <p class="small"><strong style="font-weight:500">iPhone:</strong> Ustawienia → Kalendarz → Konta → Dodaj konto → Inne → Dodaj subskrybowany kalendarz → wklej link.</p>
+          <p class="small muted">Google odświeża subskrybowane kalendarze co kilka godzin, iPhone częściej. Nowe rezerwacje od razu widać w panelu.</p>
+        </details>
+        <p class="small" style="margin-top:14px"><button type="button" class="link-button" data-renew-ical>Wygeneruj nowy link</button> <span class="muted">— stary przestanie działać, np. gdy ktoś niepowołany go zobaczył.</span></p>
+      </div>`;
+  }
   function vKonto() {
     return `
       <form class="panel-card" id="pass-form" novalidate style="max-width:560px">
@@ -240,6 +261,7 @@ JM.ready.then(function () {
         <div class="field"><label for="pw-new">Nowe hasło</label><input id="pw-new" name="next" type="password" autocomplete="new-password" minlength="12" required></div>
         <button class="btn btn-primary" type="submit">Zmień hasło</button>
       </form>
+      ${icalCard()}
       <div class="panel-card" style="max-width:560px">
         <h2>Kopie zapasowe</h2>
         <p class="small muted">Serwer robi kopię bazy automatycznie raz dziennie (po 3:00) i trzyma ${14} ostatnich w folderze <code>${esc(data.backup.dir)}</code>, razem ze zdjęciami z galerii. Raz na jakiś czas pobierz kopię i zapisz ją poza serwerem, np. na dysku w chmurze. Plik zawiera dane osobowe klientek: nie wysyłaj go mailem.</p>
@@ -372,6 +394,7 @@ JM.ready.then(function () {
           <div class="field"><label for="nb-dur">Czas (minuty)</label><input id="nb-dur" name="duration" type="number" min="10" max="600" step="5" value="${first.duration}"></div>
           <div class="field"><label for="nb-price">Cena (zł)</label><input id="nb-price" name="price" type="number" min="0" step="10" value="${first.price}"></div>
           <div class="field"><label for="nb-src">Skąd wizyta</label><select id="nb-src" name="source"><option value="telefon">Telefon</option><option value="instagram">Instagram</option><option value="osobiście">Osobiście w gabinecie</option><option value="inne">Inne</option></select></div>
+          <div class="field"><label for="nb-voucher">Kod bonu <span class="opt">(opcjonalnie)</span></label><input id="nb-voucher" name="voucherCode" maxlength="20" placeholder="JM-XXXX-XXXX" autocomplete="off"></div>
           <div class="field span-2"><label for="nb-notes">Uwagi <span class="opt">(opcjonalnie)</span></label><textarea id="nb-notes" name="notes" maxlength="400"></textarea></div>
         </div>
         <label class="check"><input type="checkbox" name="notify" checked><span>Wyślij klientce SMS z potwierdzeniem i linkiem do wizyty<small>Przypomnienie ${JM.booking.reminderHours} h przed wizytą wyśle się tak jak przy rezerwacji online.</small></span></label>
@@ -380,7 +403,7 @@ JM.ready.then(function () {
     async (f, close) => {
       const v = (n) => (f.elements[n] ? f.elements[n].value.trim() : '');
       const picked = f.dataset.clientId;
-      const payload = (force) => ({ treatmentId: v('treatmentId'), date: v('date'), time: v('time'), duration: Number(v('duration')), price: v('price'), source: v('source'), notes: v('notes'), notify: f.elements.notify.checked, force,
+      const payload = (force) => ({ treatmentId: v('treatmentId'), date: v('date'), time: v('time'), duration: Number(v('duration')), price: v('price'), source: v('source'), notes: v('notes'), voucherCode: v('voucherCode'), notify: f.elements.notify.checked, force,
         clientId: picked && f.dataset.clientType === 'konto' ? Number(picked) : undefined,
         guest: picked && f.dataset.clientType === 'konto' ? undefined : { firstName: v('firstName'), lastName: v('lastName'), phone: v('phone'), email: v('email') } });
       await withConfirm((force) => api('POST', '/api/admin/bookings', payload(force)));
@@ -416,7 +439,7 @@ JM.ready.then(function () {
         <dl class="visit-dl">
           <div><dt>Termin</dt><dd>${ui.fmtDate(b.date)}, ${b.time}–${b.end}</dd></div>
           <div><dt>Klientka</dt><dd>${esc(b.client.name)}${b.demo ? ' <span class="badge badge-off">przykład</span>' : ''}<br><a href="tel:${esc(b.client.phone)}">${esc(b.client.phone)}</a>${b.client.email ? ` · <a href="mailto:${esc(b.client.email)}">${esc(b.client.email)}</a>` : ''}</dd></div>
-          <div><dt>Do zapłaty</dt><dd>${money(b.total)}${b.discount ? ` <span class="small muted">(−${b.discount.percent}% ${esc(b.discount.label)})</span>` : ''}</dd></div>
+          <div><dt>Do zapłaty</dt><dd>${money(b.toPay)}${b.discount ? ` <span class="small muted">(−${b.discount.percent}% ${esc(b.discount.label)})</span>` : ''}${b.voucher ? `<br><span class="small muted">bon ${esc(b.voucher.code)}: −${money(b.voucher.amount)} (cena ${money(b.total)})</span>` : ''}</dd></div>
           <div><dt>Skąd</dt><dd>${SOURCES[b.source] || 'strona'} · ${b.client.type}${b.lang === 'en' ? ' · EN' : ''} · kod ${esc(b.code)}</dd></div>
           ${b.notes ? `<div><dt>Uwagi</dt><dd>${esc(b.notes)}</dd></div>` : ''}
           ${b.status !== 'confirmed' || b.fee ? `<div><dt>Status</dt><dd>${statusBadge(b)} ${feeBadge(b)}</dd></div>` : ''}
@@ -573,6 +596,73 @@ JM.ready.then(function () {
     });
   }
 
+  /* ---------- Bony podarunkowe ---------- */
+  function vBony() {
+    const list = data.vouchers;
+    const inYear = new Date(); inYear.setFullYear(inYear.getFullYear() + 1);
+    const state = (v) => v.status === 'void' ? '<span class="badge badge-off">unieważniony</span>' : !v.valid ? '<span class="badge badge-off">po terminie</span>' : v.balance <= 0 ? '<span class="badge">wykorzystany</span>' : '<span class="badge badge-ok">aktywny</span>';
+    return `
+      <form class="panel-card" id="voucher-form" novalidate>
+        <h2>Wystaw bon</h2>
+        <p class="small muted">Bon dostaje unikalny kod. Klientka wpisuje go przy rezerwacji online albo podaje w gabinecie. Z salda schodzi kwota odbytej wizyty, więc bon można wykorzystać w kilku częściach.</p>
+        <div class="form-grid">
+          <div class="field"><label for="v-amount">Kwota (zł)</label><input id="v-amount" name="amount" type="number" min="10" step="10" value="300" required></div>
+          <div class="field"><label for="v-until">Ważny do</label><input id="v-until" name="validUntil" type="date" value="${S.isoDate(inYear)}" required></div>
+          <div class="field"><label for="v-to">Dla kogo <span class="opt">(na bonie)</span></label><input id="v-to" name="recipient" maxlength="80" placeholder="Np. Anny"></div>
+          <div class="field"><label for="v-from">Od kogo <span class="opt">(na bonie)</span></label><input id="v-from" name="giver" maxlength="80" placeholder="Np. Kasia i Tomek"></div>
+          <div class="field span-2"><label for="v-msg">Dedykacja <span class="opt">(na bonie, opcjonalnie)</span></label><input id="v-msg" name="message" maxlength="240" placeholder="Np. Wszystkiego najlepszego z okazji urodzin!"></div>
+          <div class="field span-2"><label for="v-paid">Płatność <span class="opt">(widzi tylko panel)</span></label><input id="v-paid" name="paidNote" maxlength="120" placeholder="Np. zapłacono kartą w gabinecie 6.11"></div>
+        </div>
+        <button class="btn btn-primary" type="submit">Wystaw bon</button>
+      </form>
+      <div class="panel-card">
+        <h2>Bony (${list.length})</h2>
+        ${list.length ? `<table class="table"><thead><tr><th>Kod</th><th>Dla kogo</th><th class="num">Kwota</th><th class="num">Do wykorzystania</th><th>Ważny do</th><th>Status</th><th></th></tr></thead><tbody>
+          ${list.map((v) => `<tr>
+            <td><strong style="font-weight:500;letter-spacing:.04em">${esc(v.code)}</strong>${v.paidNote ? `<br><span class="small muted">${esc(v.paidNote)}</span>` : ''}</td>
+            <td>${esc(v.recipient || '—')}${v.giver ? `<br><span class="small muted">od: ${esc(v.giver)}</span>` : ''}</td>
+            <td class="num">${money(v.amount)}</td>
+            <td class="num">${money(v.available) === 'bezpłatnie' ? '0 zł' : money(v.available)}${v.available !== v.balance ? `<br><span class="small muted">saldo ${money(v.balance)}, reszta zarezerwowana</span>` : ''}</td>
+            <td>${new Date(v.validUntil + 'T12:00').toLocaleDateString('pl-PL')}</td>
+            <td>${state(v)}</td>
+            <td class="num v-actions">
+              <a class="btn btn-outline btn-small" href="bon.html?id=${v.id}" target="_blank" rel="noopener">Drukuj</a>
+              ${v.valid && v.available > 0 ? `<button type="button" class="btn btn-outline btn-small" data-v-redeem="${v.id}">Rozlicz</button>` : ''}
+              <button type="button" class="link-button small" data-v-history="${v.id}">Historia</button>
+              <button type="button" class="link-button small" data-v-void="${v.id}" data-void="${v.status === 'void' ? 0 : 1}">${v.status === 'void' ? 'Przywróć' : 'Unieważnij'}</button>
+            </td></tr>`).join('')}
+        </tbody></table>` : '<p class="muted">Nie wystawiono jeszcze żadnego bonu.</p>'}
+        <p class="small muted" style="margin-top:14px">„Rozlicz” służy do bonów wykorzystanych w gabinecie bez rezerwacji przez stronę. Wizyty zarezerwowane z kodem bonu rozliczają się same po odbytej wizycie; nieobecność zwraca kwotę na bon.</p>
+      </div>`;
+  }
+  function voucherRedeem(v) {
+    openDialog(`
+      <form class="modal-body" novalidate>
+        <h2>Rozlicz bon ${esc(v.code)}</h2>
+        <p class="small muted">Do wykorzystania: ${money(v.available)}. Kwota zejdzie z salda bonu.</p>
+        <div class="form-grid">
+          <div class="field"><label for="vr-amount">Kwota (zł)</label><input id="vr-amount" name="amount" type="number" min="1" step="1" max="${v.available}" value="${v.available}"></div>
+          <div class="field"><label for="vr-note">Za co <span class="opt">(opcjonalnie)</span></label><input id="vr-note" name="note" maxlength="160" placeholder="Np. mezoterapia 12.11"></div>
+        </div>
+        <div class="modal-actions"><button class="btn btn-primary" type="submit">Rozlicz</button><button class="btn btn-outline" type="button" data-close>Anuluj</button></div>
+      </form>`,
+    async (f, close) => {
+      await api('POST', `/api/admin/vouchers/${v.id}/redeem`, { amount: Number(f.elements.amount.value), note: f.elements.note.value });
+      close(); ui.toast('Bon rozliczony.'); rerender();
+    });
+  }
+  function voucherHistory(v) {
+    const rows = v.uses.map((u) => `<tr><td>${dt(u.at)}</td><td>${u.booking_id ? `wizyta ${u.date ? ui.fmtShort(u.date) + ', ' + u.time : ''} ${esc(u.treatment_name || '')}` : esc(u.note || 'rozliczenie w gabinecie')}</td><td class="num">−${money(u.amount)}</td></tr>`)
+      .concat(v.planned.map((b) => `<tr><td class="muted">zaplanowane</td><td>wizyta ${ui.fmtShort(b.date)}, ${b.time} ${esc(b.treatment_name)}</td><td class="num muted">−${money(b.voucher_amount)}</td></tr>`));
+    openDialog(`
+      <div class="modal-body">
+        <h2>Bon ${esc(v.code)}</h2>
+        <p class="small muted">Wystawiony ${dt(v.createdAt)} przez ${esc(v.createdBy)} na ${money(v.amount)}. Saldo: ${money(v.balance) === 'bezpłatnie' ? '0 zł' : money(v.balance)}.</p>
+        ${rows.length ? `<table class="table"><tbody>${rows.join('')}</tbody></table>` : '<p class="muted">Bon nie był jeszcze używany.</p>'}
+        <div class="modal-actions"><button class="btn btn-outline" type="button" data-close>Zamknij</button></div>
+      </div>`);
+  }
+
   /* ---------- Dane dla widoków ---------- */
   async function loadView() {
     const today = new Date(); const past = new Date(); past.setDate(past.getDate() - 30);
@@ -584,12 +674,13 @@ JM.ready.then(function () {
       zabiegi: async () => (await api('GET', '/api/admin/prices')),
       promocje: async () => (await api('GET', '/api/admin/promos')),
       galeria: async () => (await api('GET', '/api/admin/gallery')),
+      bony: async () => (await api('GET', '/api/admin/vouchers')),
       wiadomosci: async () => {
         const [r, m, c] = await Promise.all([api('GET', '/api/admin/reminders'), api('GET', '/api/admin/messages'), api('GET', '/api/admin/clients')]);
         mode = m.mode; return { reminders: r.reminders, messages: m.messages, clients: c.clients };
       },
       godziny: async () => (await api('GET', '/api/admin/days-off')),
-      konto: async () => ({ backup: await api('GET', '/api/admin/backup') })
+      konto: async () => { const [backup, ical] = await Promise.all([api('GET', '/api/admin/backup'), api('GET', '/api/admin/ical')]); return { backup, ical }; }
     };
     data = await loaders[view]();
     void today;
@@ -624,7 +715,7 @@ JM.ready.then(function () {
     if (!admin) { root.innerHTML = loginView(); return; }
     try {
       await loadView();
-      const fn = { pulpit: vPulpit, kalendarz: vKalendarz, wizyty: vWizyty, klientki: vKlientki, zabiegi: vZabiegi, promocje: vPromocje, galeria: vGaleria, wiadomosci: vWiadomosci, godziny: vGodziny, konto: vKonto }[view];
+      const fn = { pulpit: vPulpit, kalendarz: vKalendarz, wizyty: vWizyty, klientki: vKlientki, zabiegi: vZabiegi, promocje: vPromocje, bony: vBony, galeria: vGaleria, wiadomosci: vWiadomosci, godziny: vGodziny, konto: vKonto }[view];
       root.innerHTML = shell(fn());
     } catch (err) {
       if (err.status === 401) { admin = null; root.innerHTML = loginView('Sesja wygasła. Zaloguj się ponownie.'); return; }
@@ -694,7 +785,23 @@ JM.ready.then(function () {
       Notification.requestPermission().then((p) => { ui.toast(p === 'granted' ? 'Powiadomienia włączone: nowa rezerwacja pokaże się na ekranie, nawet gdy panel jest w tle.' : 'Powiadomienia wyłączone. Nowe rezerwacje i tak pojawią się w panelu.'); rerender(); });
       return;
     }
+    if (el.hasAttribute('data-copy-ical')) {
+      const inp = document.getElementById('ical-url');
+      try { await navigator.clipboard.writeText(inp.value); } catch (err) { inp.select(); document.execCommand && document.execCommand('copy'); }
+      ui.toast('Skopiowano link do kalendarza.'); return;
+    }
+    if (el.hasAttribute('data-renew-ical')) {
+      if (!confirmDialog('Wygenerować nowy link?', 'Stary link przestanie działać. Kalendarz trzeba będzie dodać w telefonie od nowa.')) return;
+      return act(() => api('POST', '/api/admin/ical/renew', {}), 'Nowy link gotowy. Dodaj kalendarz w telefonie ponownie.');
+    }
     if (el.hasAttribute('data-backup-now')) return act(() => api('POST', '/api/admin/backup', {}), 'Kopia zapasowa gotowa.');
+    if (el.dataset.vRedeem) { voucherRedeem(data.vouchers.find((x) => String(x.id) === el.dataset.vRedeem)); return; }
+    if (el.dataset.vHistory) { voucherHistory(data.vouchers.find((x) => String(x.id) === el.dataset.vHistory)); return; }
+    if (el.dataset.vVoid) {
+      const on = el.dataset.void === '1';
+      if (on && !confirmDialog('Unieważnić bon?', 'Bonu nie da się wtedy użyć przy rezerwacji ani w gabinecie. Możesz go później przywrócić.')) return;
+      return act(() => api('POST', `/api/admin/vouchers/${el.dataset.vVoid}/void`, { void: on }), on ? 'Bon unieważniony.' : 'Bon przywrócony.');
+    }
     if (el.dataset.gMove) return act(() => api('POST', `/api/admin/gallery/${el.dataset.gMove}/move`, { dir: Number(el.dataset.dir) }));
     if (el.dataset.gToggle) { const g = data.photos.find((x) => String(x.id) === el.dataset.gToggle); return act(() => api('PATCH', '/api/admin/gallery/' + g.id, { published: !g.published }), g.published ? 'Zdjęcie ukryte na stronie.' : 'Zdjęcie widoczne na stronie.'); }
     if (el.dataset.gEdit) { galleryEdit(data.photos.find((x) => String(x.id) === el.dataset.gEdit)); return; }
@@ -749,6 +856,15 @@ JM.ready.then(function () {
       return;
     }
     if (f.id === 'gallery-form') return uploadPhotos(f);
+    if (f.id === 'voucher-form') {
+      const v = (n) => f.elements[n].value.trim();
+      try {
+        const r = await api('POST', '/api/admin/vouchers', { amount: Number(v('amount')), validUntil: v('validUntil'), recipient: v('recipient'), giver: v('giver'), message: v('message'), paidNote: v('paidNote') });
+        await rerender();
+        ui.toast(`Bon ${r.voucher.code} wystawiony. Kliknij „Drukuj”, żeby przygotować go do wręczenia.`);
+      } catch (err) { ui.toast(err.message); }
+      return;
+    }
     if (f.id === 'prices-form') {
       const prices = {}; f.querySelectorAll('.price-input').forEach((i) => { if (i.value !== '') prices[i.name] = Number(i.value); });
       return act(() => api('PUT', '/api/admin/prices', { prices }), 'Zapisano ceny.');

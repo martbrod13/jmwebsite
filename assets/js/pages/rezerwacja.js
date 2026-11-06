@@ -17,8 +17,19 @@ JM.ready.then(function () {
     step: 1, cat: 'all', treatmentId: null, date: null, time: null,
     month: new Date(today.getFullYear(), today.getMonth(), 1),
     who: 'guest', guest: { firstName: '', lastName: '', phone: '', email: '', notes: '', marketingSms: false, marketingEmail: false },
-    notes: '', booking: null, error: '', phone: '', autoMonth: true
+    notes: '', booking: null, error: '', phone: '', autoMonth: true,
+    voucher: null // { code, available } po sprawdzeniu kodu bonu
   };
+  // pole na kod bonu podarunkowego (krok 3)
+  function voucherBox() {
+    const v = state.voucher;
+    return `<details class="voucher-box"${v ? ' open' : ''}><summary>${L('Mam bon podarunkowy', 'I have a gift voucher')}</summary>
+      <div class="field"><label for="vc-code">${L('Kod bonu', 'Voucher code')}</label>
+        <div class="voucher-row"><input id="vc-code" name="voucherCode" maxlength="20" autocomplete="off" placeholder="JM-XXXX-XXXX" value="${esc(v ? v.code : '')}">
+        <button type="button" class="btn btn-outline btn-small" data-check-voucher>${L('Sprawdź', 'Check')}</button></div>
+        <span class="field-hint" id="vc-msg">${v ? L(`Bon ważny. Do wykorzystania: ${S.formatPrice(v.available)}.`, `Voucher valid. Available: ${S.formatPrice(v.available)}.`) : L('Kod znajdziesz na bonie, np. JM-AB12-CD34.', 'You will find the code on the voucher, e.g. JM-AB12-CD34.')}</span></div>
+    </details>`;
+  }
 
   // wznowienie po zalogowaniu / rejestracji
   try {
@@ -162,6 +173,7 @@ JM.ready.then(function () {
         <form id="confirm-form" novalidate>
           <div class="field"><label for="notes">${L('Uwagi do wizyty', 'Notes for your visit')} <span class="opt">(${L('opcjonalnie', 'optional')})</span></label>
             <textarea id="notes" name="notes" maxlength="400" placeholder="${L('Np. pierwszy raz na tym zabiegu', 'E.g. first time having this treatment')}">${esc(state.notes)}</textarea></div>
+          ${voucherBox()}
           <p class="small muted">${L(`Rezerwując, akceptujesz zasady odwołania z <a href="regulamin.html#odwolanie">regulaminu</a>: bezpłatnie do ${JM.booking.cancelHours} godzin przed wizytą, później opłata ${JM.booking.lateCancelFeePercent}% ceny zabiegu. Potwierdzenie wyślemy SMS-em na numer ${esc(u.phone)}, a przypomnienie ${JM.booking.reminderHours} godziny przed wizytą.`,
             `By booking, you accept the cancellation rules in our <a href="regulamin.html#odwolanie">terms</a>: free up to ${JM.booking.cancelHours} hours before the visit, after that a fee of ${JM.booking.lateCancelFeePercent}% of the treatment price. We will text the confirmation to ${esc(u.phone)} and send a reminder ${JM.booking.reminderHours} hours before the visit.`)}</p>
           <div class="step-actions">
@@ -206,6 +218,7 @@ JM.ready.then(function () {
             <div class="field"><label for="g-email">E-mail</label><input id="g-email" name="email" type="email" autocomplete="email" required value="${esc(g.email)}"></div>
             <div class="field span-2"><label for="g-notes">${L('Uwagi do wizyty', 'Notes for your visit')} <span class="opt">(${L('opcjonalnie', 'optional')})</span></label><textarea id="g-notes" name="notes" maxlength="400">${esc(g.notes)}</textarea></div>
           </div>
+          ${voucherBox()}
           <fieldset class="consent-box">
             <legend>${L('Zgody', 'Consents')}</legend>
             <label class="check"><input type="checkbox" name="terms" required><span>${L(`Akceptuję <a href="regulamin.html" target="_blank">Regulamin</a> i zasady rezerwacji, w tym opłatę ${JM.booking.lateCancelFeePercent}% ceny zabiegu za odwołanie później niż ${JM.booking.cancelHours} godzin przed wizytą lub nieobecność, oraz zapoznałam/em się z <a href="polityka-prywatnosci.html" target="_blank">Polityką prywatności</a>.`,
@@ -262,6 +275,9 @@ JM.ready.then(function () {
     const bk = state.booking;
     const p = state.step === 4 && bk ? { base: bk.price, cut: Math.round((bk.price - bk.total) * 100) / 100, total: bk.total, lowest30: bk.lowest30 ?? bk.price,
       discount: bk.discount ? Object.assign({}, bk.discount, { label: S.discountLabel(bk.discount) }) : null } : ps;
+    // bon: po rezerwacji kwota z serwera, wcześniej podgląd z salda
+    const vAmount = state.step === 4 && bk ? (bk.voucher ? bk.voucher.amount : 0) : (state.voucher && state.step === 3 ? Math.min(state.voucher.available, p.total) : 0);
+    const toPay = Math.max(0, Math.round((p.total - vAmount) * 100) / 100);
     summary.innerHTML = `
       <h2>${L('Podsumowanie', 'Summary')}</h2>
       <dl>
@@ -272,7 +288,8 @@ JM.ready.then(function () {
         <div><span>${L('Cena zabiegu', 'Treatment price')}</span><span>${S.formatPrice(p.base, tr.from)}</span></div>
         ${p.discount ? `<div><span>${esc(p.discount.label)} (−${p.discount.percent}%)</span><span>−${S.formatPrice(p.cut)}</span></div>
           <div class="omni"><span>${L('Najniższa cena z 30 dni przed obniżką', 'Lowest price in the 30 days before the discount')}</span><span>${S.formatPrice(p.lowest30)}</span></div>` : ''}
-        <div class="total"><span>${L('Do zapłaty w gabinecie', 'To pay at the studio')}</span><span>${S.formatPrice(p.total, tr.from)}</span></div>
+        ${vAmount ? `<div><span>${L('Bon podarunkowy', 'Gift voucher')}</span><span>−${S.formatPrice(vAmount)}</span></div>` : ''}
+        <div class="total"><span>${L('Do zapłaty w gabinecie', 'To pay at the studio')}</span><span>${toPay === 0 && vAmount ? L('0 zł', '0 PLN') : S.formatPrice(toPay, tr.from)}</span></div>
       </div>
       ${!u && tr.price > 0 && state.step < 4 ? `<div class="member-hint"><p>${L('Z kontem ten zabieg kosztowałby', 'With an account this treatment would cost')} ${S.formatPrice(Math.round(tr.price * (100 - JM.discounts.firstVisitPercent)) / 100, tr.from)}.</p><a href="konto.html?powrot=rezerwacja#rejestracja" data-save-draft>${L('Załóż konto', 'Create an account')}</a> ${L('albo', 'or')} <button type="button" class="link-button" data-who="login">${L('zaloguj się', 'sign in')}</button></div>` : ''}
       <p class="summary-foot">${L(`Płatność w gabinecie po wizycie. Bezpłatne odwołanie do ${JM.booking.cancelHours} godzin przed terminem, później opłata ${JM.booking.lateCancelFeePercent}% ceny zabiegu.`, `Payment at the studio after the visit. Free cancellation up to ${JM.booking.cancelHours} hours before the visit; after that a fee of ${JM.booking.lateCancelFeePercent}% of the treatment price.`)}</p>`;
@@ -348,6 +365,20 @@ JM.ready.then(function () {
       render(); return;
     }
     if (el.hasAttribute('data-save-draft')) { saveDraft(); return; }
+    if (el.hasAttribute('data-check-voucher')) {
+      const inp = document.getElementById('vc-code'), msg = document.getElementById('vc-msg');
+      const code = inp.value.trim(); if (!code) { inp.focus(); return; }
+      el.disabled = true;
+      try {
+        const r = await S.api('GET', '/api/vouchers/' + encodeURIComponent(code));
+        state.voucher = { code: r.voucher.code, available: r.voucher.available };
+        inp.value = r.voucher.code; inp.removeAttribute('aria-invalid');
+        msg.textContent = L(`Bon ważny. Do wykorzystania: ${S.formatPrice(r.voucher.available)}.`, `Voucher valid. Available: ${S.formatPrice(r.voucher.available)}.`);
+        renderSummary();
+      } catch (err) { state.voucher = null; inp.setAttribute('aria-invalid', 'true'); msg.textContent = err.message; renderSummary(); }
+      finally { el.disabled = false; }
+      return;
+    }
     if (el.hasAttribute('data-logout')) { await S.logout(); state.who = 'guest'; render(); ui.toast(L('Wylogowano.', 'Signed out.')); return; }
     if (el.hasAttribute('data-ics')) { downloadIcs(state.booking); }
   });
@@ -371,13 +402,13 @@ JM.ready.then(function () {
       if (!ok) return;
       const g = Object.fromEntries(['firstName', 'lastName', 'phone', 'email'].map((k) => [k, f.elements[k].value.trim()]));
       g.marketingSms = f.elements.marketingSms.checked; g.marketingEmail = f.elements.marketingEmail.checked; g.terms = f.elements.terms.checked;
-      finish(f, { guest: g, notes: f.elements.notes.value.trim() });
+      finish(f, { guest: g, notes: f.elements.notes.value.trim(), voucherCode: f.elements.voucherCode.value.trim() || undefined });
     } else if (f.id === 'login-form') {
       if (!validate(f, { email: emailOk, password: (el) => (el.value ? '' : L('Wpisz hasło.', 'Enter your password.')) })) return;
       try { await S.login(f.elements.email.value, f.elements.password.value); state.error = ''; render(true); ui.toast(L('Zalogowano.', 'Signed in.')); }
       catch (err) { state.error = err.message; render(); }
     } else if (f.id === 'confirm-form') {
-      finish(f, { notes: f.elements.notes.value.trim() });
+      finish(f, { notes: f.elements.notes.value.trim(), voucherCode: f.elements.voucherCode.value.trim() || undefined });
     }
   });
 

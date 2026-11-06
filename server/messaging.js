@@ -72,7 +72,8 @@ const email = {
         ${row(L(lang, 'Zabieg', 'Treatment'), esc(name))}
         ${row(L(lang, 'Termin', 'Date'), esc(fmtLongDate(b.date, lang)) + ', ' + esc(b.time))}
         ${row(L(lang, 'Adres', 'Address'), esc(S.street + ', ' + S.city))}
-        ${row(L(lang, 'Do zapłaty', 'To pay'), esc(money(b.total, lang)) + (b.discount_percent ? ` <span style="color:#6f6155">(${L(lang, 'zniżka', 'discount')} ${b.discount_percent}%)</span>` : ''))}
+        ${b.voucher_amount ? row(L(lang, 'Bon podarunkowy', 'Gift voucher'), '−' + esc(money(b.voucher_amount, lang))) : ''}
+        ${row(L(lang, 'Do zapłaty', 'To pay'), esc(money(Math.max(0, Math.round((b.total - (b.voucher_amount || 0)) * 100) / 100), lang)) + (b.discount_percent ? ` <span style="color:#6f6155">(${L(lang, 'zniżka', 'discount')} ${b.discount_percent}%)</span>` : ''))}
         ${row(L(lang, 'Kod rezerwacji', 'Booking code'), '<strong>' + esc(b.code) + '</strong>')}
       </table>
       ${button(visitLink(b), L(lang, 'Zobacz lub odwołaj wizytę', 'View or cancel your visit'))}

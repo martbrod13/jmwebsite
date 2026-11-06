@@ -20,6 +20,7 @@ const M = require('./messaging');
 const B = require('./booking');
 const G = require('./gallery');
 const Events = require('./events');
+const ICal = require('./ical');
 const Sec = require('./security');
 
 const ROOT = path.join(__dirname, '..');
@@ -123,6 +124,13 @@ const server = http.createServer((req, res) => {
   try { url = new URL(req.url, 'http://localhost'); } catch (e) { res.writeHead(400); return res.end(); }
   const p = url.pathname;
 
+  // kalendarz w telefonie: /kalendarz/<prywatny-klucz>.ics
+  const ics = p.match(/^\/kalendarz\/([A-Za-z0-9_-]{24,64})\.ics$/);
+  if (ics) {
+    if (!ICal.adminByToken(ics[1])) return notFound(res);
+    res.writeHead(200, { 'Content-Type': 'text/calendar; charset=utf-8', 'Cache-Control': 'no-cache', 'Content-Disposition': 'inline; filename="gabinet.ics"' });
+    return res.end(ICal.feed(env.publicUrl || `http://localhost:${server.address().port}`));
+  }
   // powiadomienia na żywo dla zalogowanego panelu
   if (p === '/api/admin/events') {
     if (!Sec.readSession(req, 'admin')) { res.writeHead(401); return res.end(); }

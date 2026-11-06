@@ -245,7 +245,10 @@ function markNoShow(b) {
   if (startOf(b) > Date.now()) throw new BookingError('noshow', 'Wizyta jeszcze się nie odbyła.');
   if (!['confirmed', 'done'].includes(b.status)) throw new BookingError('noshow', 'Tej wizyty nie można oznaczyć jako nieobecność.');
   const fee = lateFee(b);
-  db.prepare("UPDATE bookings SET status = 'no_show', fee = ?, fee_status = 'due' WHERE id = ?").run(fee, b.id);
+  tx(() => {
+    db.prepare("UPDATE bookings SET status = 'no_show', fee = ?, fee_status = 'due' WHERE id = ?").run(fee, b.id);
+    require('./vouchers').unsettleBooking(b);
+  });
   return getBooking(b.id);
 }
 function setFeeStatus(b, status) {
@@ -257,7 +260,13 @@ function setFeeStatus(b, status) {
 function completePast() {
   const now = new Date();
   const today = isoDate(now); const nowMin = now.getHours() * 60 + now.getMinutes();
-  db.prepare("UPDATE bookings SET status = 'done' WHERE status = 'confirmed' AND (date < ? OR (date = ? AND end_min <= ?))").run(today, today, nowMin);
+  const V = require('./vouchers');
+  const ended = db.prepare("SELECT * FROM bookings WHERE status = 'confirmed' AND (date < ? OR (date = ? AND end_min <= ?))").all(today, today, nowMin);
+  if (!ended.length) return;
+  tx(() => ended.forEach((b) => {
+    db.prepare("UPDATE bookings SET status = 'done' WHERE id = ?").run(b.id);
+    V.settleBooking(b); // bon podarunkowy rozliczamy po odbytej wizycie
+  }));
 }
 
 function contactOf(b) {
@@ -277,6 +286,8 @@ function publicBooking(b) {
     discount: b.discount_percent ? { id: b.discount_id, label: b.discount_label, percent: b.discount_percent } : null,
     lowest30: b.lowest30, notes: b.notes, lang: b.lang, createdAt: b.created_at,
     cancelledBy: b.cancelled_by, fee: b.fee, feeStatus: b.fee_status, source: b.source,
+    voucher: b.voucher_id ? { amount: b.voucher_amount, code: (db.prepare('SELECT code FROM vouchers WHERE id = ?').get(b.voucher_id) || {}).code } : null,
+    toPay: Math.max(0, round2(b.total - (b.voucher_amount || 0))),
     canCancel: canCancel(b), lateCancel: canCancel(b) && isLateCancel(b), lateFee: lateFee(b),
     canMove: canCancel(b) && !isLateCancel(b), end: toTime(b.end_min)
   };

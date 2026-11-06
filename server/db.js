@@ -197,12 +197,44 @@ CREATE TABLE IF NOT EXISTS gallery (
 );
 `);
 
+// Bony podarunkowe: saldo zmniejsza się przy rozliczeniu wizyty (także częściowo)
+db.exec(`
+CREATE TABLE IF NOT EXISTS vouchers (
+  id          INTEGER PRIMARY KEY,
+  code        TEXT NOT NULL UNIQUE,
+  amount      REAL NOT NULL CHECK (amount > 0),
+  balance     REAL NOT NULL CHECK (balance >= 0),
+  recipient   TEXT,
+  giver       TEXT,
+  message     TEXT,
+  paid_note   TEXT,
+  valid_until TEXT NOT NULL,
+  status      TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','void')),
+  created_at  TEXT NOT NULL,
+  created_by  TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS voucher_uses (
+  id         INTEGER PRIMARY KEY,
+  voucher_id INTEGER NOT NULL REFERENCES vouchers(id),
+  booking_id INTEGER REFERENCES bookings(id) ON DELETE SET NULL,
+  amount     REAL NOT NULL,
+  note       TEXT,
+  at         TEXT NOT NULL,
+  by         TEXT NOT NULL
+);
+`);
+
 // Migracje: nowe kolumny dodajemy do istniejącej bazy bez utraty danych
 function addColumn(table, column, definition) {
   if (!db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
 }
 // skąd wizyta: online (strona), telefon, instagram, osobiście, inne
 addColumn('bookings', 'source', "TEXT NOT NULL DEFAULT 'online'");
+// prywatny link do kalendarza w telefonie (iCal) dla konta panelu
+addColumn('admins', 'ical_token', 'TEXT');
+// bon podarunkowy przypięty do wizyty (kwota planowana; rozliczenie po wizycie)
+addColumn('bookings', 'voucher_id', 'INTEGER REFERENCES vouchers(id)');
+addColumn('bookings', 'voucher_amount', 'REAL NOT NULL DEFAULT 0');
 
 const nowIso = () => new Date().toISOString();
 

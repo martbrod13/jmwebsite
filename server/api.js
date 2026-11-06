@@ -6,6 +6,7 @@ const Sec = require('./security');
 const seed = require('./seed');
 const G = require('./gallery');
 const Events = require('./events');
+const V = require('./vouchers');
 // krótki opis wizyty do powiadomienia w panelu (bez e-maila i telefonu)
 function live(type, b, by) {
   const c = B.contactOf(b);
@@ -182,8 +183,14 @@ route('POST', '/api/bookings', (req, { body, ip }) => {
     need(g.terms === true, req, 'terms', 'Zaakceptuj regulamin, żeby zarezerwować wizytę.', 'Accept the terms to book a visit.');
     guest = { firstName: str(g.firstName, 60), lastName: str(g.lastName, 60), phone: str(g.phone, 20), email: str(g.email, 120).toLowerCase(), marketingSms: !!g.marketingSms, marketingEmail: !!g.marketingEmail };
   }
+  const voucherCode = str(body.voucherCode, 20);
+  if (voucherCode) {
+    if (!Sec.rateLimit('voucher:' + ip, 20, 36e5)) throw new HttpError(429, T(req, 'Zbyt wiele prób. Spróbuj później.', 'Too many attempts. Try again later.'));
+    try { V.planFor(voucherCode, 1, langOf(req)); } catch (e) { if (e instanceof V.VoucherError) throw new HttpError(400, e.message, 'voucherCode'); throw e; }
+  }
   try {
-    const b = B.createBooking({ treatmentId: body.treatmentId, date: body.date, time: body.time, notes: str(body.notes, 400), lang: langOf(req), client, guest });
+    let b = B.createBooking({ treatmentId: body.treatmentId, date: body.date, time: body.time, notes: str(body.notes, 400), lang: langOf(req), client, guest });
+    if (voucherCode) { const plan = V.planFor(voucherCode, b.total, langOf(req)); V.attach(b.id, plan.voucher.id, plan.amount); b = B.getBooking(b.id); }
     notify(b, 'confirmation'); live('booked', b, 'client');
     return { booking: Object.assign(B.publicBooking(b), { token: b.token }) };
   } catch (e) {
@@ -396,8 +403,11 @@ route('POST', '/api/admin/bookings', (req, { body }) => {
     guest = { firstName: str(g.firstName, 60), lastName: str(g.lastName, 60), phone: str(g.phone, 20), email: str(g.email, 120).toLowerCase() };
   }
   const source = ['telefon', 'instagram', 'osobiście', 'inne'].includes(body.source) ? body.source : 'telefon';
+  const voucherCode = str(body.voucherCode, 20);
+  if (voucherCode) { try { V.planFor(voucherCode, 1); } catch (e) { if (e instanceof V.VoucherError) throw new HttpError(400, e.message, 'voucherCode'); throw e; } }
   try {
-    const b = B.createManualBooking({ treatmentId: body.treatmentId, date: body.date, time: body.time, duration: body.duration, price: body.price, notes: str(body.notes, 400), source, client, guest, force: body.force === true });
+    let b = B.createManualBooking({ treatmentId: body.treatmentId, date: body.date, time: body.time, duration: body.duration, price: body.price, notes: str(body.notes, 400), source, client, guest, force: body.force === true });
+    if (voucherCode) { const plan = V.planFor(voucherCode, b.total); V.attach(b.id, plan.voucher.id, plan.amount); b = B.getBooking(b.id); }
     if (body.notify !== false) notify(b, 'confirmation');
     live('booked', b, 'salon');
     return { booking: adminBooking(b) };
@@ -557,6 +567,30 @@ route('POST', '/api/admin/gallery', galleryAction(({ body }, a) => G.add(body, a
 route('PATCH', '/api/admin/gallery/:id', galleryAction(({ params, body }) => G.update(Number(params.id), body)));
 route('POST', '/api/admin/gallery/:id/move', galleryAction(({ params, body }) => G.move(Number(params.id), Number(body.dir))));
 route('DELETE', '/api/admin/gallery/:id', galleryAction(({ params }) => G.remove(Number(params.id))));
+
+/* ---------- Bony podarunkowe ---------- */
+route('GET', '/api/vouchers/:code', (req, { params, ip }) => {
+  if (!Sec.rateLimit('voucher:' + ip, 20, 36e5)) throw new HttpError(429, T(req, 'Zbyt wiele prób. Spróbuj później.', 'Too many attempts. Try again later.'));
+  try { const p = V.planFor(params.code, Infinity, langOf(req)); return { voucher: V.view(p.voucher, false) }; }
+  catch (e) { if (e instanceof V.VoucherError) throw new HttpError(404, e.message, 'voucherCode'); throw e; }
+});
+const voucherAction = (fn) => (req, ctx) => {
+  const a = requireAdmin(req);
+  try { const v = fn(ctx, a); return { voucher: v ? V.view(v, true) : null, vouchers: V.list() }; } catch (e) { if (e instanceof V.VoucherError) throw new HttpError(400, e.message); throw e; }
+};
+route('GET', '/api/admin/vouchers', (req) => { requireAdmin(req); return { vouchers: V.list() }; });
+route('GET', '/api/admin/vouchers/:id', (req, { params }) => {
+  requireAdmin(req); const v = V.byId(Number(params.id)); if (!v) throw new HttpError(404, 'Nie znaleziono bonu.');
+  return { voucher: V.view(v, true), salon: { brand: C.salon.brand, street: C.salon.street, city: C.salon.city, phone: C.salon.phone } };
+});
+route('POST', '/api/admin/vouchers', voucherAction(({ body }, a) => V.issue(body, a.email)));
+route('POST', '/api/admin/vouchers/:id/redeem', voucherAction(({ params, body }, a) => V.redeem(Number(params.id), body.amount, body.note, a.email)));
+route('POST', '/api/admin/vouchers/:id/void', voucherAction(({ params, body }) => { V.setVoid(Number(params.id), body.void !== false); return V.byId(Number(params.id)); }));
+
+/* ---------- Kalendarz w telefonie ---------- */
+const ICal = require('./ical');
+route('GET', '/api/admin/ical', (req) => { const a = requireAdmin(req); return { token: ICal.tokenFor(a.id, false) }; });
+route('POST', '/api/admin/ical/renew', (req) => { const a = requireAdmin(req); return { token: ICal.tokenFor(a.id, true) }; });
 
 /* ---------- Kopie zapasowe i stan ---------- */
 const Backup = require('./backup');

@@ -7,7 +7,7 @@
 window.JM = window.JM || {};
 
 (function () {
-  const forcePl = /panel\.html$/.test(location.pathname);
+  const forcePl = /(panel|bon)\.html$/.test(location.pathname);
   let lang = 'pl';
   try { if (localStorage.getItem('jm_lang') === 'en' && !forcePl) lang = 'en'; } catch (e) { /* ignore */ }
 

@@ -1,0 +1,35 @@
+/* Bon podarunkowy: A5 poziomo, granat ze złotem i beż */
+.bon-body { background: var(--sand); min-height: 100vh; }
+.bon-toolbar { max-width: 210mm; margin: 32px auto 20px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; font-size: .875rem; color: var(--taupe); }
+.bon-toolbar p { margin: 0; flex: 1 1 300px; }
+.bon-toolbar .btn-row { margin: 0; }
+.voucher {
+  width: 210mm; height: 148mm; margin: 0 auto 48px; display: grid; grid-template-columns: 62mm 1fr;
+  background: var(--paper); box-shadow: 0 18px 50px rgba(31, 37, 54, .14); overflow: hidden;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+.v-side { background: var(--ink); display: grid; place-items: center; position: relative; }
+.v-side::after { content: ""; position: absolute; inset: 7mm; border: 1px solid rgba(214, 185, 127, .45); }
+.v-side img { width: 40mm; height: auto; }
+.v-main { position: relative; padding: 14mm 15mm 11mm 14mm; display: flex; flex-direction: column; }
+.v-main::before { content: ""; position: absolute; inset: 7mm 7mm 7mm 0; border: 1px solid var(--hair); border-left: 0; pointer-events: none; }
+.v-kicker { font-family: var(--serif); font-style: italic; font-size: 15pt; color: var(--brass); margin: 0 0 1mm; }
+.v-amount { font-family: var(--serif); font-size: 46pt; line-height: 1; color: var(--ink); margin: 0 0 5mm; letter-spacing: -.01em; }
+.v-amount span { font-size: 22pt; }
+.v-for { font-size: 12pt; margin: 0 0 2mm; color: var(--ink); }
+.v-for em { font-family: var(--serif); font-size: 16pt; }
+.v-msg { font-family: var(--serif); font-style: italic; font-size: 11.5pt; line-height: 1.45; color: var(--ink-2); margin: 0 0 1.5mm; max-width: 110mm; }
+.v-from { font-size: 10pt; color: var(--taupe); margin: 0; }
+.v-from::before { content: "— "; }
+.v-meta { display: flex; gap: 10mm; margin: auto 0 3mm; padding-top: 4mm; border-top: 1px solid var(--hair-soft); }
+.v-meta dt { font-size: 8pt; color: var(--taupe); }
+.v-meta dd { margin: 0; font-size: 11pt; letter-spacing: .06em; color: var(--ink); font-weight: 500; }
+.v-how { font-size: 8pt; line-height: 1.5; color: var(--taupe); margin: 0; max-width: 120mm; }
+@media (max-width: 860px) { .voucher { transform: scale(.45); transform-origin: top left; margin-bottom: -80mm; } #bon { padding: 0 16px; } }
+@media print {
+  @page { size: A5 landscape; margin: 0; }
+  .bon-body { background: none; }
+  .bon-toolbar, .form-msg { display: none !important; }
+  .voucher { margin: 0; box-shadow: none; }
+  html, body { width: 210mm; height: 148mm; }
+}
