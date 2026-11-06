@@ -291,6 +291,7 @@ function publicBooking(b) {
     canCancel: canCancel(b), lateCancel: canCancel(b) && isLateCancel(b), lateFee: lateFee(b),
     canMove: canCancel(b) && !isLateCancel(b), end: toTime(b.end_min),
     afterSms: !!b.after_sms,
+    package: b.package_id ? (() => { const p = db.prepare('SELECT name FROM packages WHERE id = ?').get(b.package_id); return { id: b.package_id, name: p ? p.name : '' }; })() : null,
     questionnaire: (() => { const q = db.prepare('SELECT updated_at FROM questionnaires WHERE booking_id = ?').get(b.id); return { filled: !!q, updatedAt: q ? q.updated_at : null, editable: b.status === 'confirmed' && startOf(b) > Date.now() }; })()
   };
 }

@@ -44,7 +44,7 @@ JM.ready.then(function () {
 
   const views = [
     ['pulpit', 'Pulpit'], ['kalendarz', 'Kalendarz'], ['wizyty', 'Wizyty'], ['oczekujace', 'Lista oczekujących'], ['klientki', 'Klientki'], ['statystyki', 'Statystyki'], ['zabiegi', 'Zabiegi i ceny'],
-    ['promocje', 'Promocje'], ['bony', 'Bony podarunkowe'], ['galeria', 'Galeria'], ['wiadomosci', 'SMS-y i e-maile'], ['godziny', 'Godziny pracy'], ['konto', 'Moje konto']
+    ['promocje', 'Promocje'], ['pakiety', 'Pakiety'], ['bony', 'Bony podarunkowe'], ['opinie', 'Opinie'], ['galeria', 'Galeria'], ['wiadomosci', 'SMS-y i e-maile'], ['godziny', 'Godziny pracy'], ['konto', 'Moje konto']
   ];
   const money = (v) => S.formatPrice(v);
   const dt = (iso) => { const d = new Date(iso); return d.toLocaleDateString('pl-PL') + ', ' + S.pad(d.getHours()) + ':' + S.pad(d.getMinutes()); };
@@ -171,7 +171,7 @@ JM.ready.then(function () {
     return { gsm, parts: Math.max(1, Math.ceil(text.length / per)) };
   }
   const msgStatus = (m) => ({ test: '<span class="badge">test</span>', sent: '<span class="badge badge-ok">wysłana</span>', queued: '<span class="badge">w kolejce</span>', failed: `<span class="badge badge-warn" title="${esc(m.error || '')}">błąd</span>` }[m.status]);
-  const kindName = { moved: 'zmiana terminu', reminder_prev: 'przypomnienie (stary termin)', confirmation: 'potwierdzenie', reminder: 'przypomnienie', cancellation: 'odwołanie', welcome: 'powitanie', reset: 'reset hasła', contact: 'formularz', campaign: 'kampania', waitlist: 'lista oczekujących', review: 'prośba o opinię', followup: 'kolejny zabieg' };
+  const kindName = { moved: 'zmiana terminu', reminder_prev: 'przypomnienie (stary termin)', confirmation: 'potwierdzenie', reminder: 'przypomnienie', cancellation: 'odwołanie', welcome: 'powitanie', reset: 'reset hasła', contact: 'formularz', campaign: 'kampania', waitlist: 'lista oczekujących', review: 'prośba o opinię', followup: 'kolejny zabieg', care: 'zalecenia po zabiegu' };
   function vWiadomosci() {
     const testMode = mode.sms === 'test' || mode.email === 'test';
     const smsC = data.clients.filter((c) => c.sms && !c.demo).length, mailC = data.clients.filter((c) => c.mail && !c.demo).length;
@@ -184,6 +184,7 @@ JM.ready.then(function () {
           <tr><td>Potwierdzenie rezerwacji</td><td>SMS i e-mail od razu po rezerwacji, z linkiem do podglądu i odwołania wizyty</td></tr>
           <tr><td>Przypomnienie</td><td>SMS ${JM.booking.reminderHours} godziny przed wizytą (gdy rezerwacja była wcześniej niż ${JM.booking.reminderHours} h przed terminem)</td></tr>
           <tr><td>Odwołanie</td><td>SMS i e-mail po odwołaniu przez klientkę albo gabinet, z informacją o ewentualnej opłacie</td></tr>
+          <tr><td>Zalecenia po zabiegu</td><td>E-mail około 2 godzin po wizycie z zaleceniami do danego rodzaju zabiegu (te same co w opisach zabiegów na stronie). ${data.aftercare.careOn ? '<span class="badge badge-ok">włączone</span>' : '<span class="badge badge-off">wyłączone</span>'} <button type="button" class="link-button small" data-care="${data.aftercare.careOn ? 'off' : 'on'}">${data.aftercare.careOn ? 'Wyłącz' : 'Włącz'}</button></td></tr>
           <tr><td>Konto</td><td>E-mail powitalny i link do ustawienia nowego hasła</td></tr>
         </tbody></table>
       </div>
@@ -253,6 +254,24 @@ JM.ready.then(function () {
         <p class="small" style="margin-top:14px"><button type="button" class="link-button" data-renew-ical>Wygeneruj nowy link</button> <span class="muted">— stary przestanie działać, np. gdy ktoś niepowołany go zobaczył.</span></p>
       </div>`;
   }
+  // panel jako aplikacja na telefonie
+  let installPrompt = null;
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installPrompt = e; if (view === 'konto') rerender(); });
+  window.addEventListener('appinstalled', () => { installPrompt = null; if (view === 'konto') rerender(); ui.toast('Panel dodany do ekranu.'); });
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/panel-sw.js', { scope: '/panel' }).catch(() => { /* bez instalacji też działa */ });
+  const standalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  function appCard() {
+    if (standalone()) return '<div class="panel-card" style="max-width:560px"><h2>Panel na telefonie</h2><p class="small muted" style="margin:0">Panel jest otwarty jako aplikacja. Nowe rezerwacje pojawiają się tu same, gdy aplikacja jest otwarta.</p></div>';
+    return `
+      <div class="panel-card" style="max-width:560px">
+        <h2>Panel na telefonie</h2>
+        <p class="small muted">Dodaj panel do ekranu telefonu: otworzy się jak aplikacja, bez paska przeglądarki, z ikonką gabinetu. Dane zawsze idą prosto z serwera, więc to ten sam panel co na komputerze.</p>
+        ${installPrompt ? '<button class="btn btn-primary btn-small" type="button" data-install>Dodaj panel do ekranu</button>' : ''}
+        <p class="small"><strong style="font-weight:500">iPhone:</strong> otwórz panel w Safari → przycisk Udostępnij (kwadrat ze strzałką) → „Do ekranu początkowego” → „Dodaj”.</p>
+        <p class="small"><strong style="font-weight:500">Android:</strong> otwórz panel w Chrome → menu (trzy kropki) → „Zainstaluj aplikację” albo „Dodaj do ekranu głównego”.</p>
+        ${local ? '<p class="small panel-inline-note">Na telefonie zadziała po publikacji strony (wymaga adresu https). Na komputerze możesz to sprawdzić już teraz w Chrome: ikona instalacji w pasku adresu.</p>' : ''}
+      </div>`;
+  }
   function vKonto() {
     return `
       <form class="panel-card" id="pass-form" novalidate style="max-width:560px">
@@ -263,6 +282,7 @@ JM.ready.then(function () {
         <button class="btn btn-primary" type="submit">Zmień hasło</button>
       </form>
       ${icalCard()}
+      ${appCard()}
       <div class="panel-card" style="max-width:560px">
         <h2>Kopie zapasowe</h2>
         <p class="small muted">Serwer robi kopię bazy automatycznie raz dziennie (po 3:00) i trzyma ${14} ostatnich w folderze <code>${esc(data.backup.dir)}</code>, razem ze zdjęciami z galerii. Raz na jakiś czas pobierz kopię i zapisz ją poza serwerem, np. na dysku w chmurze. Plik zawiera dane osobowe klientek: nie wysyłaj go mailem.</p>
@@ -441,6 +461,8 @@ JM.ready.then(function () {
         <dl class="visit-dl">
           <div><dt>Termin</dt><dd>${ui.fmtDate(b.date)}, ${b.time}–${b.end}</dd></div>
           <div><dt>Klientka</dt><dd>${esc(b.client.name)}${b.demo ? ' <span class="badge badge-off">przykład</span>' : ''}<br><a href="tel:${esc(b.client.phone)}">${esc(b.client.phone)}</a>${b.client.email ? ` · <a href="mailto:${esc(b.client.email)}">${esc(b.client.email)}</a>` : ''}</dd></div>
+          ${b.package ? `<div><dt>Pakiet</dt><dd>${esc(b.package.name)} <button type="button" class="link-button small" data-dlg-unpack>Odepnij</button></dd></div>` : ''}
+          ${b.packageOffers && b.packageOffers.length ? `<div><dt>Pakiet</dt><dd>${b.packageOffers.map((p) => `<button type="button" class="btn btn-outline btn-small" data-dlg-pack="${p.id}">Rozlicz z pakietu: ${esc(p.name)} (zostało ${p.left})</button>`).join(' ')}</dd></div>` : ''}
           <div><dt>Do zapłaty</dt><dd>${money(b.toPay)}${b.discount ? ` <span class="small muted">(−${b.discount.percent}% ${esc(b.discount.label)})</span>` : ''}${b.voucher ? `<br><span class="small muted">bon ${esc(b.voucher.code)}: −${money(b.voucher.amount)} (cena ${money(b.total)})</span>` : ''}</dd></div>
           <div><dt>Skąd</dt><dd>${SOURCES[b.source] || 'strona'} · ${b.client.type}${b.lang === 'en' ? ' · EN' : ''} · kod ${esc(b.code)}</dd></div>
           ${b.notes ? `<div><dt>Uwagi</dt><dd>${esc(b.notes)}</dd></div>` : ''}
@@ -476,6 +498,12 @@ JM.ready.then(function () {
         catch (err) { d.querySelector('.q-slot').innerHTML = `<p class="form-msg">${esc(err.message)}</p>`; }
       }, true);
       dlg.addEventListener('click', async (e) => {
+        const pk = e.target.closest('[data-dlg-pack]');
+        if (pk) { dlg.remove(); return act(() => api('POST', `/api/admin/bookings/${b.id}/package`, { packageId: Number(pk.dataset.dlgPack) }), 'Wizyta rozliczona z pakietu.'); }
+        if (e.target.closest('[data-dlg-unpack]')) {
+          if (!confirmDialog('Odpiąć pakiet od wizyty?', 'Wizyta wróci do zwykłej ceny, a zabieg wróci do pakietu.')) return;
+          dlg.remove(); return act(() => api('DELETE', `/api/admin/bookings/${b.id}/package`, {}), 'Pakiet odpięty.');
+        }
         if (e.target.closest('[data-dlg-card]')) { dlg.remove(); cardKey = b.clientKey; view = 'karta'; render(true); return; }
         if (e.target.closest('[data-dlg-cancel]')) {
           if (!confirmDialog('Odwołać wizytę?', 'Klientka dostanie SMS i e-mail z informacją. Opłata nie jest naliczana, bo odwołuje gabinet.')) return;
@@ -607,6 +635,95 @@ JM.ready.then(function () {
     });
   }
 
+  /* ---------- Pakiety zabiegów ---------- */
+  const pkState = (p) => (p.status === 'void' ? '<span class="badge badge-off">unieważniony</span>' : !p.valid ? '<span class="badge badge-off">po terminie</span>' : p.left + p.planned === 0 ? '<span class="badge">wykorzystany</span>' : '<span class="badge badge-ok">aktywny</span>');
+  const pkLeft = (p) => `${p.left} z ${p.sessions}${p.planned ? ` <span class="small muted">(+${p.planned} ${plural(p.planned, 'zaplanowany', 'zaplanowane', 'zaplanowanych')})</span>` : ''}`;
+  const fmtDay = (d) => new Date(d + 'T12:00').toLocaleDateString('pl-PL');
+  function vPakiety() {
+    const { types, sold } = data;
+    const opts = cache.prices.map((t) => `<option value="${t.id}" data-price="${t.price}">${esc(t.name)}</option>`).join('');
+    return `
+      <div class="panel-card">
+        <h2>Oferta pakietów</h2>
+        <p class="small muted">Pakiety widać w cenniku na stronie. Klientka kupuje je w gabinecie; sprzedajesz je w karcie klientki (Klientki → nazwisko). Wizyty z pakietu kosztują 0 zł. Zabieg z pakietu zużywa się po odbytej wizycie, przy nieobecności i przy odwołaniu później niż ${JM.booking.cancelHours} h przed wizytą.</p>
+        ${types.length ? `<table class="table"><thead><tr><th>Pakiet</th><th class="num">Zabiegi</th><th class="num">Cena</th><th class="num">Za zabieg</th><th>Ważność</th><th>W cenniku</th><th></th></tr></thead><tbody>
+          ${types.map((t) => `<tr><td>${esc(t.name)}</td><td class="num">${t.sessions}</td><td class="num">${money(t.price)}</td><td class="num small muted">${money(t.perSession)}</td><td>${t.validMonths} mies.</td>
+            <td>${t.active ? '<span class="badge badge-ok">widoczny</span>' : '<span class="badge badge-off">ukryty</span>'}</td>
+            <td class="num v-actions"><button type="button" class="link-button small" data-pt-toggle="${t.id}" data-on="${t.active ? 'off' : 'on'}">${t.active ? 'Ukryj' : 'Pokaż'}</button> <button type="button" class="link-button small" data-pt-del="${t.id}">Usuń</button></td></tr>`).join('')}
+        </tbody></table>` : '<p class="muted">Nie ma jeszcze żadnego pakietu. Dodaj pierwszy poniżej.</p>'}
+        <form id="ptype-form" class="ptype-form" novalidate>
+          <div class="field span-2"><label for="pt-t">Zabieg</label><select id="pt-t" name="treatmentId">${opts}</select></div>
+          <div class="field"><label for="pt-n">Liczba zabiegów</label><input id="pt-n" name="sessions" type="number" min="2" max="20" value="3"></div>
+          <div class="field"><label for="pt-p">Cena pakietu (zł)</label><input id="pt-p" name="price" type="number" min="1" step="10" required></div>
+          <div class="field"><label for="pt-m">Ważność (miesiące)</label><input id="pt-m" name="validMonths" type="number" min="1" max="24" value="6"></div>
+          <div class="field span-2"><label for="pt-name">Nazwa <span class="opt">(opcjonalnie)</span></label><input id="pt-name" name="name" maxlength="80" placeholder="Np. Seria mezoterapii — 3 zabiegi"></div>
+          <p class="small muted span-2" id="pt-hint" style="margin:0"></p>
+          <div><button class="btn btn-primary btn-small" type="submit">Dodaj pakiet</button></div>
+        </form>
+      </div>
+      <div class="panel-card">
+        <h2>Pakiety klientek (${sold.length})</h2>
+        ${sold.length ? `<table class="table"><thead><tr><th>Klientka</th><th>Pakiet</th><th>Zostało</th><th>Ważny do</th><th>Status</th></tr></thead><tbody>
+          ${sold.map((p) => `<tr><td><button type="button" class="link-button" data-card="${esc(p.clientKey)}">${esc(p.clientName)}</button></td><td>${esc(p.name)}<br><span class="small muted">${money(p.price)}${p.note ? `, ${esc(p.note)}` : ''}</span></td>
+            <td>${pkLeft(p)}</td><td>${fmtDay(p.validUntil)}</td><td>${pkState(p)}</td></tr>`).join('')}
+        </tbody></table>` : '<p class="muted">Żadna klientka nie ma jeszcze pakietu.</p>'}
+      </div>`;
+  }
+  // pakiety w karcie klientki
+  function cardPackages(card) {
+    const pk = card.packages, types = card.packageTypes;
+    return `
+      <div class="panel-card">
+        <h2>Pakiety</h2>
+        ${pk.length ? `<ul class="pk-list">${pk.map((p) => `<li>
+          <div><strong style="font-weight:500">${esc(p.name)}</strong> ${pkState(p)}<br>
+            <span class="small muted">Zostało ${p.left} z ${p.sessions}${p.planned ? `, zaplanowane: ${p.planned}` : ''}. Ważny do ${fmtDay(p.validUntil)}. ${money(p.price)}${p.note ? `, ${esc(p.note)}` : ''}</span>
+            ${p.visits.length ? `<br><span class="small muted">Wizyty: ${p.visits.map((v) => `${ui.fmtShort(v.date)} (${v.status === 'confirmed' ? 'zaplanowana' : v.counted ? 'wykorzystany' : 'odwołana, nie liczy się'})`).join(', ')}</span>` : ''}</div>
+          <button type="button" class="link-button small" data-pk-void="${p.id}" data-on="${p.status === 'void' ? 'off' : 'on'}">${p.status === 'void' ? 'Przywróć' : 'Unieważnij'}</button></li>`).join('')}</ul>` : '<p class="small muted">Klientka nie ma pakietów.</p>'}
+        ${types.length ? `<form id="psell-form" class="psell-form" novalidate>
+          <div class="field"><label for="ps-t">Sprzedaj pakiet</label><select id="ps-t" name="typeId">${types.map((t) => `<option value="${t.id}">${esc(t.name)}, ${money(t.price)}, ważny ${t.validMonths} mies.</option>`).join('')}</select></div>
+          <div class="field"><label for="ps-note">Płatność <span class="opt">(widzi tylko panel)</span></label><input id="ps-note" name="note" maxlength="200" placeholder="Np. zapłacono kartą"></div>
+          <div><button class="btn btn-outline btn-small" type="submit">Sprzedaj</button></div>
+        </form>` : '<p class="small muted">Żeby sprzedać pakiet, najpierw dodaj go w zakładce Pakiety.</p>'}
+      </div>`;
+  }
+
+  /* ---------- Opinie klientek ---------- */
+  const REVIEW_SOURCES = { google: 'Google', booksy: 'Booksy', instagram: 'Instagram', facebook: 'Facebook', 'osobiście': 'osobiście', inne: 'inne' };
+  function vOpinie() {
+    const list = data.reviews;
+    const today = S.isoDate(new Date());
+    const tOpts = '<option value="">bez zabiegu</option>' + cache.prices.map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
+    return `
+      <form class="panel-card" id="review-add" novalidate>
+        <h2>Dodaj opinię</h2>
+        <p class="small muted">Tylko prawdziwe opinie klientek, które były na zabiegu, i tylko za ich zgodą. Treść wklej bez zmian (możesz poprawić literówkę, nie sens). Opinie pojawiają się na stronie głównej. Prawo zabrania publikowania opinii wymyślonych albo zmienionych i pomijania negatywnych w sposób wprowadzający w błąd.</p>
+        <div class="form-grid">
+          <div class="field"><label for="rv-a">Autorka</label><input id="rv-a" name="author" maxlength="40" placeholder="Np. Anna K." required></div>
+          <div class="field"><label for="rv-t">Zabieg <span class="opt">(opcjonalnie)</span></label><select id="rv-t" name="treatmentId">${tOpts}</select></div>
+          <div class="field span-2"><label for="rv-text">Treść opinii</label><textarea id="rv-text" name="text" maxlength="1200" rows="4" required></textarea></div>
+          <div class="field span-2"><label for="rv-en">Tłumaczenie na angielski <span class="opt">(opcjonalnie, do wersji EN)</span></label><textarea id="rv-en" name="textEn" maxlength="1200" rows="2"></textarea></div>
+          <div class="field"><label for="rv-s">Skąd</label><select id="rv-s" name="source">${Object.entries(REVIEW_SOURCES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></div>
+          <div class="field"><label for="rv-d">Data opinii</label><input id="rv-d" name="givenOn" type="date" max="${today}" value="${today}"></div>
+          <div class="field"><label for="rv-r">Ocena <span class="opt">(opcjonalnie)</span></label><select id="rv-r" name="rating"><option value="">bez oceny</option>${[5, 4, 3, 2, 1].map((n) => `<option value="${n}">${n} / 5</option>`).join('')}</select></div>
+          <div class="field"><label for="rv-c">Jak uzyskano zgodę <span class="opt">(widzi tylko panel)</span></label><input id="rv-c" name="consentNote" maxlength="200" placeholder="Np. zgoda SMS 6.11"></div>
+        </div>
+        <label class="check"><input type="checkbox" name="confirm"><span>Potwierdzam, że to prawdziwa opinia klientki, która była na zabiegu w gabinecie, i że mam jej zgodę na publikację.</span></label>
+        <button class="btn btn-primary" type="submit">Dodaj opinię</button>
+      </form>
+      <div class="panel-card">
+        <h2>Opinie (${list.length})</h2>
+        ${list.length ? `<ul class="rv-admin">${list.map((r, i) => `<li class="${r.published ? '' : 'is-hidden'}">
+          <blockquote>${esc(r.text)}</blockquote>
+          <p class="small muted">${esc(r.author)}${r.treatment ? `, ${esc(r.treatment)}` : ''}, ${esc(r.sourceName)}, ${fmtDay(r.givenOn)}${r.rating ? `, ocena ${r.rating}/5` : ''}${r.consentNote ? `. Zgoda: ${esc(r.consentNote)}` : ''}${r.textEn ? '. Ma tłumaczenie EN' : ''}</p>
+          <div class="v-actions">${r.published ? '<span class="badge badge-ok">na stronie</span>' : '<span class="badge badge-off">ukryta</span>'}
+            <button type="button" class="link-button small" data-rv-pub="${r.id}" data-on="${r.published ? 'off' : 'on'}">${r.published ? 'Ukryj' : 'Pokaż na stronie'}</button>
+            ${i > 0 ? `<button type="button" class="link-button small" data-rv-move="${r.id}" data-dir="-1">Wyżej</button>` : ''}
+            ${i < list.length - 1 ? `<button type="button" class="link-button small" data-rv-move="${r.id}" data-dir="1">Niżej</button>` : ''}
+            <button type="button" class="link-button small" data-rv-del="${r.id}">Usuń</button></div></li>`).join('')}</ul>` : '<p class="muted">Nie ma jeszcze opinii. Dopóki ich nie dodasz, sekcja z opiniami nie pokazuje się na stronie.</p>'}
+      </div>`;
+  }
+
   /* ---------- Karta klientki ---------- */
   let cardKey = null;
   const PHOTO_KIND = { before: 'przed', after: 'po', other: 'inne' };
@@ -639,6 +756,7 @@ JM.ready.then(function () {
           <div><dt>Oferty</dt><dd>SMS: ${c.sms ? 'tak' : 'nie'}, e-mail: ${c.mail ? 'tak' : 'nie'}</dd></div>
         </dl>
       </div>
+      ${cardPackages(data.card)}
       ${active.map((v) => `
         <section class="panel-card rec" id="rec-${v.id}">
           <header class="rec-head">
@@ -891,12 +1009,14 @@ JM.ready.then(function () {
               <tbody>${sources.map((x) => `<tr><td>${esc(x.label)}</td><td class="num">${x.n}</td><td class="num">${x.share}%</td></tr>`).join('')}</tbody></table></details>` : ''}
           </div>
           <div class="panel-card">
-            <h2>Bony podarunkowe</h2>
+            <h2>Bony i pakiety</h2>
             <dl class="stats-dl">
               <div><dt>Sprzedane w tym okresie</dt><dd>${zl(st.vouchers.soldValue)} <span class="small muted">(${st.vouchers.sold} ${plural(st.vouchers.sold, 'bon', 'bony', 'bonów')})</span></dd></div>
               <div><dt>Wykorzystane w tym okresie</dt><dd>${zl(st.vouchers.used)}</dd></div>
               <div><dt>Do wykorzystania na ważnych bonach</dt><dd>${zl(st.vouchers.open)}</dd></div>
+              <div><dt>Sprzedane pakiety w tym okresie</dt><dd>${zl(st.packages.soldValue)} <span class="small muted">(${st.packages.sold})</span></dd></div>
             </dl>
+            <p class="small muted" style="margin:12px 0 0">Wizyty z pakietów liczą się w wykresie jako 0 zł, bo pakiet jest opłacony przy zakupie.</p>
           </div>
         </div>
       </div>`;
@@ -1019,6 +1139,8 @@ JM.ready.then(function () {
       promocje: async () => (await api('GET', '/api/admin/promos')),
       galeria: async () => (await api('GET', '/api/admin/gallery')),
       bony: async () => (await api('GET', '/api/admin/vouchers')),
+      pakiety: async () => { await ensureLists(); return api('GET', '/api/admin/packages'); },
+      opinie: async () => { await ensureLists(); return api('GET', '/api/admin/reviews'); },
       wiadomosci: async () => {
         await ensureLists();
         const [r, m, c, a] = await Promise.all([api('GET', '/api/admin/reminders'), api('GET', '/api/admin/messages'), api('GET', '/api/admin/clients'), api('GET', '/api/admin/aftercare')]);
@@ -1062,7 +1184,7 @@ JM.ready.then(function () {
     if (!admin) { root.innerHTML = loginView(); return; }
     try {
       await loadView();
-      const fn = { pulpit: vPulpit, kalendarz: vKalendarz, wizyty: vWizyty, oczekujace: vOczekujace, karta: vKarta, klientki: vKlientki, statystyki: vStatystyki, zabiegi: vZabiegi, promocje: vPromocje, bony: vBony, galeria: vGaleria, wiadomosci: vWiadomosci, godziny: vGodziny, konto: vKonto }[view];
+      const fn = { pulpit: vPulpit, kalendarz: vKalendarz, wizyty: vWizyty, oczekujace: vOczekujace, karta: vKarta, klientki: vKlientki, statystyki: vStatystyki, zabiegi: vZabiegi, promocje: vPromocje, bony: vBony, pakiety: vPakiety, opinie: vOpinie, galeria: vGaleria, wiadomosci: vWiadomosci, godziny: vGodziny, konto: vKonto }[view];
       root.innerHTML = shell(fn());
     } catch (err) {
       if (err.status === 401) { admin = null; root.innerHTML = loginView('Sesja wygasła. Zaloguj się ponownie.'); return; }
@@ -1114,6 +1236,21 @@ JM.ready.then(function () {
   root.addEventListener('click', async (e) => {
     const el = e.target.closest('button'); if (!el) return;
     if (el.dataset.view) { view = el.dataset.view; render(true); return; }
+    if (el.dataset.ptToggle) return act(() => api('PATCH', `/api/admin/package-types/${el.dataset.ptToggle}`, { active: el.dataset.on === 'on' }), el.dataset.on === 'on' ? 'Pakiet widoczny w cenniku.' : 'Pakiet ukryty w cenniku.');
+    if (el.dataset.ptDel) {
+      if (!confirmDialog('Usunąć pakiet z oferty?', 'Sprzedane już pakiety zostają bez zmian.')) return;
+      return act(() => api('DELETE', `/api/admin/package-types/${el.dataset.ptDel}`, {}), 'Usunięto pakiet z oferty.');
+    }
+    if (el.dataset.pkVoid) {
+      if (el.dataset.on === 'on' && !confirmDialog('Unieważnić pakiet?', 'Klientka nie będzie mogła go już użyć. Zaplanowane wizyty z pakietu zostają.')) return;
+      return act(() => api('POST', `/api/admin/packages/${el.dataset.pkVoid}/void`, { void: el.dataset.on === 'on' }), el.dataset.on === 'on' ? 'Pakiet unieważniony.' : 'Pakiet przywrócony.');
+    }
+    if (el.dataset.rvPub) return act(() => api('PATCH', `/api/admin/reviews/${el.dataset.rvPub}`, { published: el.dataset.on === 'on' }), el.dataset.on === 'on' ? 'Opinia jest na stronie.' : 'Opinia ukryta.');
+    if (el.dataset.rvMove) return act(() => api('POST', `/api/admin/reviews/${el.dataset.rvMove}/move`, { dir: Number(el.dataset.dir) }));
+    if (el.dataset.rvDel) {
+      if (!confirmDialog('Usunąć opinię?', 'Zniknie z panelu i ze strony.')) return;
+      return act(() => api('DELETE', `/api/admin/reviews/${el.dataset.rvDel}`, {}), 'Usunięto opinię.');
+    }
     if (el.dataset.card) { cardKey = el.dataset.card; view = 'karta'; render(true); return; }
     if (el.dataset.photoDel) {
       if (!confirmDialog('Usunąć zdjęcie?', 'Zdjęcie zniknie z karty klientki. Tego nie da się cofnąć.')) return;
@@ -1123,6 +1260,8 @@ JM.ready.then(function () {
       if (!confirmDialog('Usunąć zdjęcia i ankiety tej klientki?', 'Tego nie da się cofnąć. Notatki z zabiegów zostaną.')) return;
       return act(() => api('POST', '/api/admin/client-card/purge', { key: cardKey }), (r) => `Usunięto zdjęcia: ${r.removed.photos}, ankiety: ${r.removed.questionnaires}.`);
     }
+    if (el.hasAttribute('data-install') && installPrompt) { installPrompt.prompt(); installPrompt = null; return; }
+    if (el.dataset.care) return act(() => api('PUT', '/api/admin/aftercare/care', { on: el.dataset.care === 'on' }), el.dataset.care === 'on' ? 'E-mail z zaleceniami włączony.' : 'E-mail z zaleceniami wyłączony.');
     if (el.dataset.ruleDel) return act(() => api('DELETE', `/api/admin/aftercare/rules/${encodeURIComponent(el.dataset.ruleDel)}`, {}), 'Usunięto przypomnienie.');
     if (el.dataset.wlRemove) {
       if (!confirmDialog('Usunąć z listy oczekujących?', 'Klientka nie dostanie już SMS-a o wolnym terminie. Jej dane znikną z listy.')) return;
@@ -1202,7 +1341,15 @@ JM.ready.then(function () {
   // proste potwierdzenie (window.confirm jest czytelne i dostępne także z klawiatury)
   function confirmDialog(title, text) { return window.confirm(title + '\n\n' + text); }
 
+  // podpowiedź przy nowym pakiecie: ile kosztowałyby zabiegi osobno
+  function ptypeHint(f) {
+    const opt = f.elements.treatmentId.selectedOptions[0]; const n = Number(f.elements.sessions.value) || 0; const price = Number(opt && opt.dataset.price) || 0;
+    const p = Number(f.elements.price.value) || 0;
+    f.querySelector('#pt-hint').textContent = n && price ? `Osobno: ${n} × ${money(price)} = ${money(n * price)}${p ? `. W pakiecie ${money(Math.round(p / n))} za zabieg${p < n * price ? `, klientka oszczędza ${money(n * price - p)}` : ''}.` : '.'}` : '';
+  }
+  root.addEventListener('change', (e) => { if (e.target.form && e.target.form.id === 'ptype-form') ptypeHint(e.target.form); });
   root.addEventListener('input', (e) => {
+    if (e.target.form && e.target.form.id === 'ptype-form') { ptypeHint(e.target.form); return; }
     if (e.target.id === 'q') {
       query = e.target.value; const pos = e.target.selectionStart;
       root.querySelector('.admin-main').innerHTML = root.querySelector('.admin-main .admin-top').outerHTML + vKlientki();
@@ -1229,6 +1376,17 @@ JM.ready.then(function () {
       return;
     }
     if (f.id === 'gallery-form') return uploadPhotos(f);
+    if (f.id === 'ptype-form') {
+      const v = (n) => f.elements[n].value.trim();
+      return act(() => api('POST', '/api/admin/package-types', { treatmentId: v('treatmentId'), sessions: Number(v('sessions')), price: Number(v('price')), validMonths: Number(v('validMonths')), name: v('name') }), 'Dodano pakiet.');
+    }
+    if (f.id === 'psell-form') {
+      return act(() => api('POST', '/api/admin/packages', { typeId: Number(f.elements.typeId.value), key: cardKey, note: f.elements.note.value.trim() }), 'Pakiet sprzedany. Klientka zobaczy go w swoim koncie, jeśli je ma.');
+    }
+    if (f.id === 'review-add') {
+      const v = (n) => f.elements[n].value.trim();
+      return act(() => api('POST', '/api/admin/reviews', { author: v('author'), treatmentId: v('treatmentId'), text: v('text'), textEn: v('textEn'), source: v('source'), givenOn: v('givenOn'), rating: v('rating') ? Number(v('rating')) : null, consentNote: v('consentNote'), confirm: f.elements.confirm.checked }), 'Dodano opinię.');
+    }
     if (f.dataset.noteForm) {
       try { await api('PUT', `/api/admin/bookings/${f.dataset.noteForm}/note`, { text: f.elements.text.value }); ui.toast('Zapisano notatkę.'); await rerender(); } catch (err) { ui.toast(err.message); }
       return;

@@ -73,6 +73,7 @@ const email = {
         ${row(L(lang, 'Termin', 'Date'), esc(fmtLongDate(b.date, lang)) + ', ' + esc(b.time))}
         ${row(L(lang, 'Adres', 'Address'), esc(S.street + ', ' + S.city))}
         ${b.voucher_amount ? row(L(lang, 'Bon podarunkowy', 'Gift voucher'), '−' + esc(money(b.voucher_amount, lang))) : ''}
+        ${b.package_id ? row(L(lang, 'Płatność', 'Payment'), L(lang, 'z pakietu zabiegów', 'from your treatment package')) : ''}
         ${row(L(lang, 'Do zapłaty', 'To pay'), esc(money(Math.max(0, Math.round((b.total - (b.voucher_amount || 0)) * 100) / 100), lang)) + (b.discount_percent ? ` <span style="color:#6f6155">(${L(lang, 'zniżka', 'discount')} ${b.discount_percent}%)</span>` : ''))}
         ${row(L(lang, 'Kod rezerwacji', 'Booking code'), '<strong>' + esc(b.code) + '</strong>')}
       </table>
@@ -102,6 +103,14 @@ const email = {
       : L(lang, 'Twoja wizyta została odwołana.', 'Your visit has been cancelled.');
     const fee = b.fee ? `<p>${L(lang, `Zgodnie z regulaminem opłata za odwołanie później niż ${C.booking.cancelHours} godzin przed wizytą wynosi <strong>${esc(money(b.fee, lang))}</strong>. Możesz ją uregulować przelewem albo przy następnej wizycie.`, `Under our terms, the fee for cancelling later than ${C.booking.cancelHours} hours before the visit is <strong>${esc(money(b.fee, lang))}</strong>. You can pay it by bank transfer or at your next visit.`)}</p>` : '';
     return { subject, html: emailLayout(lang, subject, `<p>${text}</p><p>${esc(name)}, ${esc(fmtLongDate(b.date, lang))}, ${esc(b.time)}.</p>${fee}${button(link('/rezerwacja.html'), L(lang, 'Zarezerwuj nowy termin', 'Book a new time'))}`) };
+  },
+  // zalecenia po zabiegu, kilka godzin po wizycie (informacja o wykonanej usłudze)
+  care(b, name, firstName, items, lang) {
+    const subject = L(lang, `Zalecenia po zabiegu: ${name}`, `Aftercare: ${name}`);
+    return { subject, html: emailLayout(lang, L(lang, `Dzień dobry${firstName ? ', ' + firstName : ''}`, `Hello${firstName ? ', ' + firstName : ''}`), `
+      <p>${L(lang, `Dziękuję za wizytę ${esc(fmtLongDate(b.date, lang))}. Żeby efekt zabiegu <strong>${esc(name)}</strong> był jak najlepszy, pamiętaj o kilku zasadach:`, `Thank you for your visit on ${esc(fmtLongDate(b.date, lang))}. To get the best result from your <strong>${esc(name)}</strong>, please remember a few things:`)}</p>
+      <ul style="padding-left:20px;margin:16px 0 20px">${items.map((i) => `<li style="margin-bottom:8px">${esc(i)}</li>`).join('')}</ul>
+      <p style="font-size:14px">${L(lang, 'To ogólne zalecenia. Jeśli w gabinecie ustaliłyśmy coś innego, stosuj się do tego. Gdyby coś Cię niepokoiło, zadzwoń:', 'These are general guidelines. If we agreed on something different in the studio, follow that. If anything worries you, call us:')} <a href="tel:${esc(S.phoneHref)}" style="color:#462a1f">${esc(S.phone)}</a>.</p>`) };
   },
   welcome(c, lang) {
     const subject = L(lang, 'Witaj w gronie klientek gabinetu', 'Welcome to the studio');

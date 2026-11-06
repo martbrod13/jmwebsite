@@ -447,3 +447,64 @@ test('SMS-y po wizycie: ustawienia w panelu i krótki link do rezerwacji', async
   assert.strictEqual((await client()('GET', '/z/nie-ma-takiego')).status, 404);
   assert.strictEqual((await client()('GET', '/api/admin/aftercare')).status, 401);
 });
+
+test('pakiety: oferta w cenniku, sprzedaż, wizyta z pakietu za 0 zł, odwołanie zwraca zabieg', async () => {
+  const a = await adminClient();
+  assert.strictEqual((await a('POST', '/api/admin/package-types', { treatmentId: 'mezo-oczy', sessions: 1, price: 100, validMonths: 6 })).status, 400);
+  const types = (await a('POST', '/api/admin/package-types', { treatmentId: 'mezo-oczy', sessions: 3, price: 1050, validMonths: 6 })).body.types;
+  const type = types.find((t) => t.treatmentId === 'mezo-oczy');
+  assert.strictEqual(type.perSession, 350);
+  assert.ok((await client()('GET', '/api/packages')).body.types.some((t) => t.id === type.id), 'pakiet w cenniku');
+  const k = client();
+  await k('POST', '/api/register', { firstName: 'Pola', lastName: 'Pakiet', phone: '+48 600 555 666', email: 'pola@example.com', password: 'haslo1234', terms: true });
+  assert.strictEqual((await a('POST', '/api/admin/packages', { typeId: type.id, key: 'nie@ma.pl' })).status, 400);
+  const pk = (await a('POST', '/api/admin/packages', { typeId: type.id, key: 'pola@example.com', note: 'karta' })).body.package;
+  assert.strictEqual(pk.left, 3);
+  assert.strictEqual((await k('GET', '/api/me/packages')).body.packages[0].left, 3);
+  const s = await freeSlot('mezo-oczy', 3);
+  assert.strictEqual((await k('POST', '/api/bookings', { treatmentId: 'konsultacja', date: s.date, time: s.time, packageId: pk.id })).status, 400, 'inny zabieg');
+  const s2 = await freeSlot('mezo-oczy', 8);
+  const b = (await k('POST', '/api/bookings', { treatmentId: 'mezo-oczy', date: s2.date, time: s2.time, packageId: pk.id })).body.booking;
+  assert.strictEqual(b.total, 0); assert.strictEqual(b.toPay, 0); assert.strictEqual(b.package.id, pk.id);
+  let mine = (await k('GET', '/api/me/packages')).body.packages[0];
+  assert.deepStrictEqual([mine.left, mine.planned, mine.used], [2, 1, 0]);
+  await k('POST', `/api/me/bookings/${b.id}/cancel`, {});
+  mine = (await k('GET', '/api/me/packages')).body.packages[0];
+  assert.deepStrictEqual([mine.left, mine.planned, mine.used], [3, 0, 0], 'wczesne odwołanie oddaje zabieg');
+  const s3 = await freeSlot('mezo-oczy', 12);
+  // zwykła wizyta wpisana w panelu (limit rezerwacji online z jednego adresu jest w testach już wykorzystany)
+  const pola = (await a('GET', '/api/admin/clients')).body.clients.find((c) => c.email === 'pola@example.com');
+  const b3 = (await a('POST', '/api/admin/bookings', { clientId: pola.id, treatmentId: 'mezo-oczy', date: s3.date, time: s3.time, notify: false })).body.booking;
+  const cal = (await a('GET', `/api/admin/calendar?from=${s3.date}&to=${s3.date}`)).body.bookings.find((x) => x.id === b3.id);
+  assert.deepStrictEqual(cal.packageOffers.map((p) => p.id), [pk.id]);
+  assert.strictEqual((await a('POST', `/api/admin/bookings/${b3.id}/package`, { packageId: pk.id })).body.booking.total, 0);
+  assert.strictEqual((await a('POST', `/api/admin/bookings/${b3.id}/package`, { packageId: pk.id })).status, 400, 'drugi raz nie');
+  assert.ok((await a('DELETE', `/api/admin/bookings/${b3.id}/package`, {})).body.booking.total > 0);
+  await a('POST', `/api/admin/packages/${pk.id}/void`, {});
+  assert.strictEqual((await k('GET', '/api/me/packages')).body.packages[0].valid, false, 'unieważniony');
+  assert.strictEqual((await client()('GET', '/api/admin/packages')).status, 401);
+});
+
+test('opinie: tylko z potwierdzeniem prawdziwości, ukryte nie są publiczne, panel wymaga logowania', async () => {
+  const a = await adminClient();
+  const today = new Date().toISOString().slice(0, 10);
+  const base = { author: 'Ewa M.', text: 'Bardzo delikatnie i dokładnie, polecam.', givenOn: today, source: 'google', rating: 5, treatmentId: 'pmu-brwi' };
+  assert.strictEqual((await a('POST', '/api/admin/reviews', base)).status, 400, 'bez potwierdzenia');
+  assert.strictEqual((await a('POST', '/api/admin/reviews', Object.assign({}, base, { confirm: true, rating: 7 }))).status, 400);
+  assert.strictEqual((await a('POST', '/api/admin/reviews', Object.assign({}, base, { confirm: true, givenOn: '2999-01-01' }))).status, 400);
+  const r = (await a('POST', '/api/admin/reviews', Object.assign({}, base, { confirm: true, consentNote: 'SMS 6.11' }))).body.reviews[0];
+  const pub = (await client()('GET', '/api/reviews')).body.reviews;
+  assert.strictEqual(pub[0].text, base.text); assert.strictEqual(pub[0].consentNote, undefined, 'publicznie bez notatki o zgodzie');
+  await a('PATCH', `/api/admin/reviews/${r.id}`, { published: false });
+  assert.ok(!(await client()('GET', '/api/reviews')).body.reviews.some((x) => x.id === r.id));
+  assert.strictEqual((await client()('POST', '/api/admin/reviews', Object.assign({}, base, { confirm: true }))).status, 401);
+});
+
+test('panel jako aplikacja: manifest i service worker', async () => {
+  const m = await client()('GET', '/panel.webmanifest');
+  assert.strictEqual(m.status, 200); assert.match(m.headers.get('content-type'), /manifest\+json/);
+  assert.strictEqual(m.body.start_url, '/panel.html'); assert.ok(m.body.icons.length >= 2);
+  for (const icon of m.body.icons) assert.strictEqual((await client()('GET', icon.src)).status, 200);
+  const sw = await client()('GET', '/panel-sw.js');
+  assert.strictEqual(sw.status, 200); assert.match(sw.headers.get('content-type'), /javascript/);
+});

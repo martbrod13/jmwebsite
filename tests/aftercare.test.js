@@ -15,13 +15,13 @@ const A = require('../server/aftercare');
 after(() => { db.close(); fs.rmSync(dir, { recursive: true, force: true }); });
 
 let n = 0;
-function visit({ treatment = 'pmu-brwi', daysAgo, afterSms = 1, phone = '+48 600 100 200', status = 'done', hoursAgo }) {
+function visit({ treatment = 'pmu-brwi', daysAgo, afterSms = 1, phone = '+48 600 100 200', status = 'done', hoursAgo, email = null }) {
   const d = new Date(); d.setDate(d.getDate() - daysAgo);
   if (hoursAgo !== undefined) d.setTime(Date.now() - hoursAgo * 36e5);
   const start = Math.max(0, d.getHours() * 60 - 60);
   n++;
-  const r = db.prepare(`INSERT INTO bookings (code, token, status, treatment_id, treatment_name, duration, date, time, start_min, end_min, guest_first, guest_phone, price, total, created_at, after_sms)
-    VALUES (?,?,?,?,?,60,?,?,?,?,?,?,100,100,?,?)`).run('A' + n, 'tok-after-' + n, status, treatment, treatment, B.isoDate(d), B.toTime(start), start, start + 60, 'Ala', phone, new Date().toISOString(), afterSms);
+  const r = db.prepare(`INSERT INTO bookings (code, token, status, treatment_id, treatment_name, duration, date, time, start_min, end_min, guest_first, guest_phone, guest_email, price, total, created_at, after_sms, care_sent)
+    VALUES (?,?,?,?,?,60,?,?,?,?,?,?,?,100,100,?,?,?)`).run('A' + n, 'tok-after-' + n, status, treatment, treatment, B.isoDate(d), B.toTime(start), start, start + 60, 'Ala', phone, email, new Date().toISOString(), afterSms, email ? null : 'test');
   return Number(r.lastInsertRowid);
 }
 const sent = (kind) => db.prepare('SELECT * FROM messages WHERE kind = ?').all(kind);
@@ -57,4 +57,20 @@ test('prośba o opinię: dopiero gdy włączona, dzień po wizycie, raz na pół
   A.scan(noon());
   assert.strictEqual(sent('review').length, 1, 'ta sama osoba nie dostaje drugiej prośby');
   assert.strictEqual(meta.get('review_on'), '1');
+});
+
+test('e-mail z zaleceniami: po odbytej wizycie, z zaleceniami kategorii, bez zgody marketingowej, raz', () => {
+  const now = new Date(); now.setHours(15, 0, 0, 0);
+  const d = new Date(now); d.setHours(10, 0, 0, 0);
+  n++;
+  db.prepare(`INSERT INTO bookings (code, token, status, treatment_id, treatment_name, duration, date, time, start_min, end_min, guest_first, guest_phone, guest_email, price, total, created_at, after_sms)
+    VALUES (?,?,'done','kwas-migdalowy','Peeling',45,?,'10:00',600,645,'Ala','+48 600 999 000','ala@example.com',100,100,?,0)`).run('C' + n, 'tok-care-' + n, B.isoDate(d), new Date().toISOString());
+  A.scan(now);
+  const care = sent('care');
+  assert.strictEqual(care.length, 1);
+  assert.strictEqual(care[0].to_addr, 'ala@example.com');
+  assert.match(care[0].body, /SPF 50/);
+  A.scan(now);
+  assert.strictEqual(sent('care').length, 1, 'bez powtórek');
+  A.setCare(false); assert.strictEqual(A.settings().careOn, false);
 });

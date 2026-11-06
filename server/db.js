@@ -282,6 +282,49 @@ CREATE TABLE IF NOT EXISTS questionnaires (
   created_at  TEXT NOT NULL,
   updated_at  TEXT NOT NULL
 );
+-- Opinie klientek na stronie: tylko prawdziwe, za zgodą autorki
+CREATE TABLE IF NOT EXISTS reviews (
+  id           INTEGER PRIMARY KEY,
+  author       TEXT NOT NULL,               -- np. „Anna K.”
+  treatment_id TEXT,
+  text         TEXT NOT NULL,               -- oryginalna treść, bez zmian
+  text_en      TEXT,                        -- opcjonalne tłumaczenie do wersji EN
+  rating       INTEGER CHECK (rating BETWEEN 1 AND 5),
+  source       TEXT NOT NULL DEFAULT 'osobiście',
+  given_on     TEXT NOT NULL,               -- kiedy klientka wystawiła opinię
+  published    INTEGER NOT NULL DEFAULT 1,
+  sort         INTEGER NOT NULL DEFAULT 0,
+  consent_note TEXT,
+  created_at   TEXT NOT NULL,
+  created_by   TEXT NOT NULL
+);
+-- Pakiety zabiegów: oferta i pakiety sprzedane klientkom
+CREATE TABLE IF NOT EXISTS package_types (
+  id           INTEGER PRIMARY KEY,
+  name         TEXT NOT NULL,
+  treatment_id TEXT NOT NULL,
+  sessions     INTEGER NOT NULL CHECK (sessions BETWEEN 2 AND 20),
+  price        REAL NOT NULL CHECK (price > 0),
+  valid_days   INTEGER NOT NULL CHECK (valid_days BETWEEN 30 AND 730),
+  active       INTEGER NOT NULL DEFAULT 1,
+  created_at   TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS packages (
+  id           INTEGER PRIMARY KEY,
+  type_id      INTEGER REFERENCES package_types(id) ON DELETE SET NULL,
+  name         TEXT NOT NULL,
+  treatment_id TEXT NOT NULL,
+  sessions     INTEGER NOT NULL,
+  price        REAL NOT NULL,
+  client_key   TEXT NOT NULL,               -- ten sam klucz co na liście klientek (e-mail albo tel:cyfry)
+  client_name  TEXT NOT NULL,
+  valid_until  TEXT NOT NULL,
+  status       TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','void')),
+  note         TEXT,
+  created_at   TEXT NOT NULL,
+  created_by   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS packages_client ON packages(client_key);
 -- SMS po wizycie: po zabiegu X za N dni zaproponuj zabieg Y
 CREATE TABLE IF NOT EXISTS followup_rules (
   treatment_id TEXT PRIMARY KEY,
@@ -305,6 +348,10 @@ addColumn('bookings', 'voucher_amount', 'REAL NOT NULL DEFAULT 0');
 addColumn('bookings', 'after_sms', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('bookings', 'followup_sent', 'TEXT');
 addColumn('bookings', 'review_sent', 'TEXT');
+// e-mail z zaleceniami po zabiegu
+addColumn('bookings', 'care_sent', 'TEXT');
+// wizyta z pakietu (wtedy do zapłaty 0 zł)
+addColumn('bookings', 'package_id', 'INTEGER REFERENCES packages(id)');
 
 const nowIso = () => new Date().toISOString();
 

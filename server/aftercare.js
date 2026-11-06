@@ -14,6 +14,8 @@ const REVIEW_AFTER_H = 18;              // prośba o opinię najwcześniej 18 go
 const REVIEW_MAX_DAYS = 5;              // ...i najpóźniej 5 dni po niej
 const REVIEW_GAP_DAYS = 180;            // ta sama osoba dostaje prośbę najwyżej raz na pół roku
 const FOLLOWUP_LATE_DAYS = 14;          // spóźnione przypomnienie (np. po przerwie w działaniu serwera) wysyłamy do 2 tygodni
+const CARE_AFTER_H = 2;                 // e-mail z zaleceniami 2 godziny po końcu wizyty (między 8:00 a 21:00)
+const CARE_MAX_DAYS = 2;                // starszych wizyt nie nadrabiamy
 
 const L = (lang, pl, en) => (lang === 'en' ? en : pl);
 const sender = () => env.smsSender || C.salon.smsSender;
@@ -32,8 +34,15 @@ function seedRules() {
 seedRules();
 
 /* ---------- Ustawienia (panel) ---------- */
+// zalecenia po zabiegu z opisu kategorii (strona zabiegów); konsultacja nie ma zaleceń
+function careItems(treatmentId, lang) {
+  const t = B.treatment(treatmentId); if (!t || !t.category) return [];
+  if (lang === 'en' && (C.afterEn[t.category] || []).length) return C.afterEn[t.category];
+  return ((C.categories.find((c) => c.id === t.category) || {}).after) || [];
+}
 function settings() {
   return {
+    careOn: meta.get('care_email') !== '0',
     reviewOn: meta.get('review_on') === '1',
     reviewUrl: meta.get('review_url') || '',
     rules: db.prepare('SELECT * FROM followup_rules').all().map((r) => ({ treatmentId: r.treatment_id, treatment: nameIn(r.treatment_id, 'pl'), weeks: Math.round(r.after_days / 7), days: r.after_days, nextId: r.next_id, next: nameIn(r.next_id, 'pl') }))
@@ -54,6 +63,7 @@ function setRule({ treatmentId, weeks, nextId }) {
   db.prepare(`INSERT INTO followup_rules (treatment_id, after_days, next_id) VALUES (?,?,?)
     ON CONFLICT(treatment_id) DO UPDATE SET after_days = excluded.after_days, next_id = excluded.next_id`).run(treatmentId, w * 7, nextId);
 }
+const setCare = (on) => meta.set('care_email', on ? '1' : '0');
 const removeRule = (treatmentId) => db.prepare('DELETE FROM followup_rules WHERE treatment_id = ?').run(treatmentId);
 
 /* ---------- Treść SMS-ów ---------- */
@@ -72,9 +82,21 @@ const reviewText = (url, lang) => L(lang,
 /* ---------- Wysyłka (co minutę z harmonogramu) ---------- */
 function scan(now = new Date()) {
   const h = now.getHours();
-  if ((h < SEND_FROM || h >= SEND_TO) && !process.env.JM_SMS_ANYTIME) return 0;
   let n = 0;
   const mark = (col, id, val) => db.prepare(`UPDATE bookings SET ${col} = ? WHERE id = ?`).run(val, id);
+
+  // e-mail z zaleceniami po zabiegu: to informacja o wykonanej usłudze, więc nie wymaga zgody marketingowej
+  if (settings().careOn && ((h >= 8 && h < 21) || process.env.JM_SMS_ANYTIME)) {
+    const from = new Date(now); from.setDate(from.getDate() - CARE_MAX_DAYS);
+    db.prepare("SELECT * FROM bookings WHERE status = 'done' AND care_sent IS NULL AND demo = 0 AND date >= ?").all(isoDay(from)).forEach((b) => {
+      if (now - B.startOf(b) - b.duration * 6e4 < CARE_AFTER_H * 36e5) return;
+      const c = B.contactOf(b); const items = careItems(b.treatment_id, b.lang);
+      if (!c || !c.email || !items.length) return mark('care_sent', b.id, 'pominięty');
+      M.queueEmail('care', c.email, M.email.care(b, nameIn(b.treatment_id, b.lang), c.firstName, items, b.lang), b.id);
+      mark('care_sent', b.id, nowIso()); n++;
+    });
+  }
+  if ((h < SEND_FROM || h >= SEND_TO) && !process.env.JM_SMS_ANYTIME) { if (n) M.processQueue(); return n; }
 
   // prośba o opinię
   const s = settings();
@@ -115,4 +137,4 @@ function scan(now = new Date()) {
   return n;
 }
 
-module.exports = { AftercareError, settings, setReview, setRule, removeRule, scan, followupText, reviewText };
+module.exports = { AftercareError, settings, setReview, setRule, removeRule, setCare, careItems, scan, followupText, reviewText };

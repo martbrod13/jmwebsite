@@ -19,9 +19,28 @@ JM.ready.then(function () {
     who: 'guest', guest: { firstName: '', lastName: '', phone: '', email: '', notes: '', marketingSms: false, marketingEmail: false },
     notes: '', booking: null, error: '', phone: '', autoMonth: true,
     voucher: null, // { code, available } po sprawdzeniu kodu bonu
-    waitlist: null // formularz listy oczekujących dla wybranego zabiegu
+    waitlist: null, // formularz listy oczekujących dla wybranego zabiegu
+    packages: null, packagesFor: null, usePackage: null // pakiety zalogowanej klientki
   };
   // pole na kod bonu podarunkowego (krok 3)
+  // pakiet zalogowanej klientki na ten zabieg, ważny w dniu wizyty
+  function usablePackages() {
+    const u = user(); if (!u) return [];
+    if (state.packagesFor !== u.email) {
+      state.packagesFor = u.email; state.packages = [];
+      S.api('GET', '/api/me/packages').then((d) => { state.packages = d.packages; if (state.step === 3) render(); }).catch(() => {});
+    }
+    const tr = t();
+    return (state.packages || []).filter((p) => tr && p.treatmentId === tr.id && p.valid && p.left > 0 && (!state.date || p.validUntil >= state.date));
+  }
+  const activePackage = () => { const list = usablePackages(); return state.usePackage === false ? null : list.find((p) => p.id === state.usePackage) || list[0] || null; };
+  function packageBox() {
+    const list = usablePackages(); if (!list.length) return '';
+    const cur = activePackage();
+    return `<fieldset class="consent-box"><legend>${L('Pakiet', 'Package')}</legend>
+      ${list.map((p) => `<label class="check"><input type="checkbox" name="usePackage" value="${p.id}" ${cur && cur.id === p.id ? 'checked' : ''}><span>${L(`Wizyta z pakietu: ${esc(p.name)}`, `Use my package: ${esc(p.nameEn)}`)}<small>${L(`Zostało ${p.left} z ${p.sessions}, ważny do ${ui.fmtShort(p.validUntil)}.${p.validUntil.slice(0, 4)}. Na miejscu nic nie płacisz.`, `${p.left} of ${p.sessions} left, valid until ${ui.fmtShort(p.validUntil)}.${p.validUntil.slice(0, 4)}. Nothing to pay on the day.`)}</small></span></label>`).join('')}
+    </fieldset>`;
+  }
   function voucherBox() {
     const v = state.voucher;
     return `<details class="voucher-box"${v ? ' open' : ''}><summary>${L('Mam bon podarunkowy', 'I have a gift voucher')}</summary>
@@ -228,7 +247,8 @@ JM.ready.then(function () {
         <form id="confirm-form" novalidate>
           <div class="field"><label for="notes">${L('Uwagi do wizyty', 'Notes for your visit')} <span class="opt">(${L('opcjonalnie', 'optional')})</span></label>
             <textarea id="notes" name="notes" maxlength="400" placeholder="${L('Np. pierwszy raz na tym zabiegu', 'E.g. first time having this treatment')}">${esc(state.notes)}</textarea></div>
-          ${voucherBox()}
+          ${packageBox()}
+          ${activePackage() ? '' : voucherBox()}
           <fieldset class="consent-box"><legend class="sr-only">${L('Zgody', 'Consents')}</legend>${afterSmsBox()}</fieldset>
           <p class="small muted">${L(`Rezerwując, akceptujesz zasady odwołania z <a href="regulamin.html#odwolanie">regulaminu</a>: bezpłatnie do ${JM.booking.cancelHours} godzin przed wizytą, później opłata ${JM.booking.lateCancelFeePercent}% ceny zabiegu. Potwierdzenie wyślemy SMS-em na numer ${esc(u.phone)}, a przypomnienie ${JM.booking.reminderHours} godziny przed wizytą.`,
             `By booking, you accept the cancellation rules in our <a href="regulamin.html#odwolanie">terms</a>: free up to ${JM.booking.cancelHours} hours before the visit, after that a fee of ${JM.booking.lateCancelFeePercent}% of the treatment price. We will text the confirmation to ${esc(u.phone)} and send a reminder ${JM.booking.reminderHours} hours before the visit.`)}</p>
@@ -340,8 +360,9 @@ JM.ready.then(function () {
     const p = state.step === 4 && bk ? { base: bk.price, cut: Math.round((bk.price - bk.total) * 100) / 100, total: bk.total, lowest30: bk.lowest30 ?? bk.price,
       discount: bk.discount ? Object.assign({}, bk.discount, { label: S.discountLabel(bk.discount) }) : null } : ps;
     // bon: po rezerwacji kwota z serwera, wcześniej podgląd z salda
-    const vAmount = state.step === 4 && bk ? (bk.voucher ? bk.voucher.amount : 0) : (state.voucher && state.step === 3 ? Math.min(state.voucher.available, p.total) : 0);
-    const toPay = Math.max(0, Math.round((p.total - vAmount) * 100) / 100);
+    const pkg = state.step === 4 && bk ? bk.package : state.step === 3 ? activePackage() : null;
+    const vAmount = pkg ? 0 : state.step === 4 && bk ? (bk.voucher ? bk.voucher.amount : 0) : (state.voucher && state.step === 3 ? Math.min(state.voucher.available, p.total) : 0);
+    const toPay = pkg ? 0 : Math.max(0, Math.round((p.total - vAmount) * 100) / 100);
     summary.innerHTML = `
       <h2>${L('Podsumowanie', 'Summary')}</h2>
       <dl>
@@ -350,10 +371,11 @@ JM.ready.then(function () {
       </dl>
       <div class="summary-prices">
         <div><span>${L('Cena zabiegu', 'Treatment price')}</span><span>${S.formatPrice(p.base, tr.from)}</span></div>
-        ${p.discount ? `<div><span>${esc(p.discount.label)} (−${p.discount.percent}%)</span><span>−${S.formatPrice(p.cut)}</span></div>
+        ${pkg ? `<div><span>${L('Z pakietu', 'From your package')}</span><span>−${S.formatPrice(p.base)}</span></div>` : ''}
+        ${p.discount && !pkg ? `<div><span>${esc(p.discount.label)} (−${p.discount.percent}%)</span><span>−${S.formatPrice(p.cut)}</span></div>
           <div class="omni"><span>${L('Najniższa cena z 30 dni przed obniżką', 'Lowest price in the 30 days before the discount')}</span><span>${S.formatPrice(p.lowest30)}</span></div>` : ''}
         ${vAmount ? `<div><span>${L('Bon podarunkowy', 'Gift voucher')}</span><span>−${S.formatPrice(vAmount)}</span></div>` : ''}
-        <div class="total"><span>${L('Do zapłaty w gabinecie', 'To pay at the studio')}</span><span>${toPay === 0 && vAmount ? L('0 zł', '0 PLN') : S.formatPrice(toPay, tr.from)}</span></div>
+        <div class="total"><span>${L('Do zapłaty w gabinecie', 'To pay at the studio')}</span><span>${toPay === 0 && (vAmount || pkg) ? L('0 zł', '0 PLN') : S.formatPrice(toPay, tr.from)}</span></div>
       </div>
       ${!u && tr.price > 0 && state.step < 4 ? `<div class="member-hint"><p>${L('Z kontem ten zabieg kosztowałby', 'With an account this treatment would cost')} ${S.formatPrice(Math.round(tr.price * (100 - JM.discounts.firstVisitPercent)) / 100, tr.from)}.</p><a href="konto.html?powrot=rezerwacja#rejestracja" data-save-draft>${L('Załóż konto', 'Create an account')}</a> ${L('albo', 'or')} <button type="button" class="link-button" data-who="login">${L('zaloguj się', 'sign in')}</button></div>` : ''}
       <p class="summary-foot">${L(`Płatność w gabinecie po wizycie. Bezpłatne odwołanie do ${JM.booking.cancelHours} godzin przed terminem, później opłata ${JM.booking.lateCancelFeePercent}% ceny zabiegu.`, `Payment at the studio after the visit. Free cancellation up to ${JM.booking.cancelHours} hours before the visit; after that a fee of ${JM.booking.lateCancelFeePercent}% of the treatment price.`)}</p>`;
@@ -452,6 +474,12 @@ JM.ready.then(function () {
       flow.querySelector('[data-go="2"]').focus();
     }
   });
+  flow.addEventListener('change', (e) => {
+    if (e.target.name !== 'usePackage') return;
+    state.usePackage = e.target.checked ? Number(e.target.value) : false;
+    state.notes = (flow.querySelector('#notes') || {}).value || state.notes;
+    render();
+  });
   flow.addEventListener('input', (e) => {
     const f = e.target.form;
     if (f && f.id === 'waitlist-form') {
@@ -481,7 +509,8 @@ JM.ready.then(function () {
       catch (err) { state.error = err.message; render(); }
     } else if (f.id === 'confirm-form') {
       state.afterSms = f.elements.afterSms.checked;
-      finish(f, { notes: f.elements.notes.value.trim(), voucherCode: f.elements.voucherCode.value.trim() || undefined, afterSms: state.afterSms });
+      const pk = activePackage();
+      finish(f, { notes: f.elements.notes.value.trim(), voucherCode: (!pk && f.elements.voucherCode && f.elements.voucherCode.value.trim()) || undefined, afterSms: state.afterSms, packageId: pk ? pk.id : undefined });
     }
   });
 

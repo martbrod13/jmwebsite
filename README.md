@@ -46,9 +46,9 @@ Prawdziwa wysyłka włącza się w pliku `.env` (wzór: `.env.example`): SMS prz
 
 | Strona | Co robi |
 |---|---|
-| `index.html` | Strona główna: baner z logo, kategorie zabiegów, korzyści z konta, jak umówić wizytę, sekcja „O mnie” |
+| `index.html` | Strona główna: baner z logo, kategorie zabiegów, korzyści z konta, jak umówić wizytę, sekcja „O mnie”, opinie klientek (pojawiają się, gdy dodasz je w panelu) |
 | `zabiegi.html` | Opisy wszystkich zabiegów w rozwijanych zakładkach, przygotowanie, przeciwwskazania, zalecenia |
-| `cennik.html` | Cennik w tabelach + najczęstsze pytania |
+| `cennik.html` | Cennik w tabelach, pakiety zabiegów z panelu + najczęstsze pytania |
 | `rezerwacja.html` | Rezerwacja w 4 krokach: zabieg, kalendarz wolnych terminów, dane (gość / logowanie / rejestracja), potwierdzenie z podglądem SMS i plikiem do kalendarza. Pole na kod bonu podarunkowego i zapis na listę oczekujących pod kalendarzem |
 | `konto.html` | Logowanie, rejestracja ze zgodami, reset hasła przez e-mail, profil: wizyty, odwoływanie, oferty, dane, zgody z historią, usuwanie konta |
 | `galeria.html` | Galeria efektów ze zdjęciami dodanymi w panelu: filtr kategorii, powiększenie (strzałki, przesuwanie palcem). Bez zdjęć pokazuje odnośnik do Instagrama |
@@ -57,7 +57,7 @@ Prawdziwa wysyłka włącza się w pliku `.env` (wzór: `.env.example`): SMS prz
 | `bon.html` | Bon podarunkowy do druku albo zapisania jako PDF (A5 poziomo), otwierany z panelu |
 | `ankieta.html` | Nieobowiązkowa ankieta przed zabiegiem (pytania o zdrowie) z linku w e-mailu, ze strony wizyty i z konta. Pytania są w `assets/js/questionnaire.js` |
 | `kontakt.html` | Dane kontaktowe, godziny, formularz, mapa Google wczytywana dopiero po zgodzie |
-| `panel.html` | Panel gabinetu: kalendarz tygodnia (wizyty z telefonu i Instagrama, blokowanie godzin, przenoszenie), wizyty (odwołanie, nieobecność, opłaty), lista oczekujących, klientki z eksportem CSV i kartą zabiegową, statystyki, ceny z historią, promocje, bony podarunkowe, galeria (zdjęcia ze zgodą klientki, opis PL/EN, ukrywanie, kolejność), SMS-y i e-maile, dni wolne, zmiana hasła, kalendarz w telefonie, kopie zapasowe |
+| `panel.html` | Panel gabinetu: kalendarz tygodnia (wizyty z telefonu i Instagrama, blokowanie godzin, przenoszenie), wizyty (odwołanie, nieobecność, opłaty), lista oczekujących, klientki z eksportem CSV i kartą zabiegową, statystyki, ceny z historią, promocje, pakiety, bony podarunkowe, opinie, galeria (zdjęcia ze zgodą klientki, opis PL/EN, ukrywanie, kolejność), SMS-y i e-maile, dni wolne, zmiana hasła, kalendarz w telefonie, kopie zapasowe |
 | `regulamin.html`, `polityka-prywatnosci.html`, `polityka-cookies.html` | Projekty dokumentów |
 
 Zasady:
@@ -78,6 +78,10 @@ Zasady:
 - **Karta zabiegowa:** w zakładce Klientki kliknij nazwisko. Karta pokazuje wszystkie wizyty, a przy każdej: ankietę przed zabiegiem (odpowiedzi „tak” są wyróżnione), notatkę z zabiegu (np. pigment, igła, parametry, zalecenia) i zdjęcia przed/po. Zdjęcia są prywatne: zapisują się w `data/uploads/karta`, otwiera je tylko zalogowany panel, przeglądarka zmniejsza je i usuwa dane EXIF (np. lokalizację). Skrót karty jest też w oknie wizyty w kalendarzu. Na prośbę klientki jednym przyciskiem usuwasz jej zdjęcia i ankiety (notatki zostają).
 - **Ankieta przed zabiegiem:** nie jest obowiązkowa. Klientka dostaje link w e-mailu z potwierdzeniem, na ekranie po rezerwacji, na stronie wizyty i w koncie. Odpowiada na te pytania, na które chce; żeby wysłać ankietę, zaznacza zgodę na przetwarzanie danych o zdrowiu. Może ją zmienić do początku wizyty albo usunąć. Zalogowana klientka przy kolejnej wizycie dostaje podpowiedź z poprzedniej ankiety.
 - **SMS po wizycie:** tylko dla klientek, które zaznaczyły tę zgodę przy rezerwacji (w panelu: pole w formularzu nowej wizyty). Wyłączą to na stronie wizyty albo w koncie. W zakładce SMS-y i e-maile ustawiasz: prośbę o opinię dzień po wizycie (link np. do opinii Google; najwyżej raz na pół roku do tej samej osoby) i przypomnienia o kolejnym zabiegu (np. brwi, usta, kreska, rzęsy → korekta po 6 tygodniach; te są ustawione na start). Przypomnienie nie wychodzi, jeśli klientka już się zapisała. SMS-y po wizycie wychodzą między 10:00 a 20:00, a link `/z/<zabieg>` otwiera rezerwację z wybranym zabiegiem.
+- **Zalecenia po zabiegu:** około 2 godzin po odbytej wizycie klientka dostaje e-mail z zaleceniami do danego rodzaju zabiegu (te same co w sekcji „po zabiegu” w `assets/js/treatments.js` i `treatments.en.js`). To informacja o wykonanej usłudze, więc nie wymaga zgody marketingowej. Wyłączysz to w zakładce SMS-y i e-maile.
+- **Panel jako aplikacja:** w Moim koncie jest instrukcja dodania panelu do ekranu telefonu (iPhone: Safari → Udostępnij → „Do ekranu początkowego”; Android: Chrome → „Zainstaluj aplikację”). Panel otwiera się wtedy bez paska przeglądarki, z brązową ikoną gabinetu. Działa po publikacji strony (https); dane zawsze idą z serwera, nic nie jest zapisywane w telefonie. Pliki: `panel.webmanifest`, `panel-sw.js`, ikony `assets/img/panel-*.png`.
+- **Opinie klientek:** dodajesz je w zakładce Opinie (autorka, zabieg, treść, skąd, data, ocena) i potwierdzasz, że to prawdziwa opinia klientki, która była na zabiegu, i że masz jej zgodę. Sekcja na stronie głównej pokazuje się dopiero przy pierwszej opublikowanej opinii, razem z informacją, jak sprawdzamy opinie (wymóg prawa konsumenckiego). Nie dodawaj opinii wymyślonych ani zmienionych.
+- **Pakiety zabiegów:** w zakładce Pakiety ustalasz ofertę (zabieg, liczba zabiegów, cena, ważność); pojawia się w cenniku. Pakiet sprzedajesz w karcie klientki. Zalogowana klientka przy rezerwacji online zaznacza „Wizyta z pakietu” i płaci 0 zł; wizytę z telefonu rozliczasz z pakietu w oknie wizyty w kalendarzu. Zabieg zużywa się po odbytej wizycie, przy nieobecności i przy odwołaniu później niż 12 h przed wizytą (regulamin § 7b). Klientka widzi pakiety i to, ile zostało, w swoim koncie.
 - Strona ma wersję angielską (przełącznik PL / EN w nagłówku). Domyślnie i przy pierwszej wizycie strona jest po polsku; wybór języka zapamiętuje przeglądarka. Panel gabinetu jest zawsze po polsku, a rezerwacje zapisują polską nazwę zabiegu. Dokumenty prawne mają tłumaczenie z dopiskiem, że wiążąca jest wersja polska.
 
 ### Gdzie co zmieniać
