@@ -1,10 +1,14 @@
 {
   "name": "jmwebsite",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Prototyp strony gabinetu Justyna Mańka Beauty & Aesthetics",
+  "description": "Strona i system rezerwacji gabinetu Justyna Mańka Beauty & Aesthetics",
   "scripts": {
-    "dev": "node dev-server.js",
-    "start": "node dev-server.js"
+    "dev": "node --disable-warning=ExperimentalWarning --watch-path=server --watch-path=assets/js server/index.js",
+    "start": "node --disable-warning=ExperimentalWarning server/index.js --production",
+    "test": "node --disable-warning=ExperimentalWarning --test"
+  },
+  "engines": {
+    "node": ">=22.13"
   }
 }

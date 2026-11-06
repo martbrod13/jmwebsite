@@ -1,4 +1,4 @@
-(function () {
+JM.ready.then(function () {
   const S = JM.store, ui = JM.ui, L = JM.L;
   const all = S.allTreatments();
   const list = (items) => '<ul class="dash-list">' + items.map((i) => `<li>${i}</li>`).join('') + '</ul>';
@@ -96,4 +96,4 @@
   } else if (target) {
     requestAnimationFrame(() => target.scrollIntoView({ block: 'start' }));
   }
-})();
+});

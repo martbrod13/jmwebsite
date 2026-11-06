@@ -1,6 +1,6 @@
 # Baza danych
 
-Schemat dla PostgreSQL 15+ (zgodny z Supabase). Prototyp strony jeszcze z niej nie korzysta: dane zapisuje w przeglądarce. Baza będzie potrzebna przy przenoszeniu strony na Next.js.
+Schemat dla PostgreSQL 15+ (zgodny z Supabase), na wypadek przeniesienia danych do Supabase. Strona korzysta obecnie z bazy SQLite wbudowanej w Node.js (`server/db.js`, plik `data/jm.db`), która ma te same tabele i zasady.
 
 | Plik | Co zawiera |
 |---|---|

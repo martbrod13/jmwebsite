@@ -1,4 +1,4 @@
-(function () {
+JM.ready.then(function () {
   const S = JM.store, ui = JM.ui, esc = ui.esc, L = JM.L;
   // nazwa zabiegu w języku strony (w rezerwacji zapisujemy polską, bo panel jest po polsku)
   const tName = (b) => { const x = S.treatment(b.treatmentId) || (b.treatmentId === 'konsultacja' && JM.consultation); return x ? x.name : b.treatmentName; };
@@ -9,12 +9,15 @@
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const lastDay = new Date(today); lastDay.setDate(lastDay.getDate() + JM.booking.daysAhead);
+  // wolne terminy z serwera: { 'YYYY-MM-DD': ['10:00', ...] | [] (zajęte) | null (nieczynne) }
+  const avail = {};
+  let loadingKey = '';
 
   const state = {
     step: 1, cat: 'all', treatmentId: null, date: null, time: null,
     month: new Date(today.getFullYear(), today.getMonth(), 1),
     who: 'guest', guest: { firstName: '', lastName: '', phone: '', email: '', notes: '', marketingSms: false, marketingEmail: false },
-    notes: '', booking: null, error: ''
+    notes: '', booking: null, error: '', phone: '', autoMonth: true
   };
 
   // wznowienie po zalogowaniu / rejestracji
@@ -62,10 +65,35 @@
   function dayState(d) {
     const iso = S.isoDate(d);
     if (d < today || d > lastDay) return { ok: false, reason: L('poza zakresem', 'not available') };
-    if (!S.dayHours(iso)) return { ok: false, reason: L('nieczynne', 'closed') };
-    const slots = S.slotsFor(iso, t().duration);
-    return { ok: slots.length > 0, slots, reason: slots.length ? '' : L('brak wolnych terminów', 'fully booked') };
+    const a = (avail[state.treatmentId] || {})[iso];
+    if (a === undefined) return { ok: false, loading: true, reason: L('sprawdzamy terminy', 'checking availability') };
+    if (a === null) return { ok: false, reason: L('nieczynne', 'closed') };
+    return { ok: a.length > 0, slots: a, reason: a.length ? '' : L('brak wolnych terminów', 'fully booked') };
   }
+  // pobiera z serwera wolne terminy dla widocznego miesiąca
+  async function loadMonth() {
+    const tr = t(); if (!tr) return;
+    const m = state.month;
+    const from = new Date(Math.max(new Date(m.getFullYear(), m.getMonth(), 1), today));
+    const to = new Date(Math.min(new Date(m.getFullYear(), m.getMonth() + 1, 0), lastDay));
+    if (from > to) return;
+    const key = tr.id + S.isoDate(from);
+    loadingKey = key;
+    try {
+      const days = await S.availability(tr.id, S.isoDate(from), S.isoDate(to));
+      avail[tr.id] = Object.assign(avail[tr.id] || {}, days);
+      if (loadingKey !== key) return;
+      // pierwszy miesiąc bez wolnych terminów — przechodzimy od razu do następnego
+      if (state.autoMonth && !state.date && !Object.values(days).some((x) => x && x.length) && to < lastDay) {
+        state.autoMonth = false; state.month = new Date(m.getFullYear(), m.getMonth() + 1, 1); loadMonth(); return;
+      }
+      state.autoMonth = false;
+      if (state.step === 2) render();
+    } catch (err) {
+      if (state.step === 2) { state.error = err.message; render(); }
+    }
+  }
+  function refreshAvailability() { delete avail[state.treatmentId]; loadMonth(); }
   function calendar() {
     const m = state.month;
     const first = new Date(m.getFullYear(), m.getMonth(), 1);
@@ -80,10 +108,11 @@
       const iso = S.isoDate(d); const st = dayState(d);
       const sel = iso === state.date;
       const label = ui.fmtDate(iso) + (st.ok ? L(', wolne terminy: ', ', free slots: ') + st.slots.length : ', ' + st.reason);
-      cells += `<button type="button" class="cal-day${st.ok ? ' is-available' : ''}${sel ? ' is-selected' : ''}" data-date="${iso}" ${st.ok ? '' : 'disabled'} aria-label="${label}" ${sel ? 'aria-pressed="true"' : ''}>${n}</button>`;
+      cells += `<button type="button" class="cal-day${st.ok ? ' is-available' : ''}${st.loading ? ' is-loading' : ''}${sel ? ' is-selected' : ''}" data-date="${iso}" ${st.ok ? '' : 'disabled'} ${st.loading ? 'data-loading' : ''} aria-label="${label}" ${sel ? 'aria-pressed="true"' : ''}>${n}</button>`;
     }
+    const loading = cells.includes('data-loading');
     return `
-      <div>
+      <div${loading ? ' aria-busy="true"' : ''}>
         <div class="cal-head">
           <button type="button" class="icon-btn" data-month="-1" ${canPrev ? '' : 'disabled'} aria-label="${L('Poprzedni miesiąc', 'Previous month')}">${ui.icons.arrowL}</button>
           <h3>${JM.monthNames[m.getMonth()]} ${m.getFullYear()}</h3>
@@ -98,7 +127,7 @@
   }
   function slotsView() {
     if (!state.date) return `<div><p class="slots-head">${L('Godzina', 'Time')}</p><p class="slots-empty">${L('Wybierz dzień w kalendarzu, żeby zobaczyć wolne godziny.', 'Choose a day in the calendar to see the free times.')}</p></div>`;
-    const slots = S.slotsFor(state.date, t().duration);
+    const slots = ((avail[state.treatmentId] || {})[state.date]) || [];
     return `<div>
       <p class="slots-head">${L('Wolne godziny', 'Free times')}, ${ui.fmtDate(state.date, false)}</p>
       ${slots.length ? `<div class="slots" role="group" aria-label="${L('Wolne godziny', 'Free times')}">${slots.map((s) => `<button type="button" class="slot" data-time="${s}" aria-pressed="${s === state.time}">${s}</button>`).join('')}</div>`
@@ -109,6 +138,7 @@
   function stepDate() {
     return `
       <h2 class="step-title">${L('Wybierz termin', 'Choose a date')}</h2>
+      ${state.error ? `<p class="form-msg" role="alert">${esc(state.error)}</p>` : ''}
       <div class="cal-wrap">${calendar()}${slotsView()}</div>
       <div class="step-actions">
         <button class="btn btn-outline" type="button" data-go="1">${L('Wstecz', 'Back')}</button>
@@ -196,14 +226,15 @@
   function smsText(b, kind) {
     const d = new Date(b.date + 'T12:00:00');
     const date = S.pad(d.getDate()) + '.' + S.pad(d.getMonth() + 1);
-    if (kind === 'confirm') return L(`${JM.salon.smsSender}: Potwierdzamy wizytę ${date} o ${b.time} (${tName(b)}), ${JM.salon.street}. Zmiana lub odwołanie: justynamanka.pl/w/${b.code}`,
-      `${JM.salon.smsSender}: Your visit on ${date} at ${b.time} (${tName(b)}) is confirmed, ${JM.salon.street}. To change or cancel: justynamanka.pl/w/${b.code}`);
-    return L(`${JM.salon.smsSender}: Przypominamy o jutrzejszej wizycie o ${b.time}. Bezpłatne odwołanie do ${JM.booking.cancelHours} h przed wizytą: justynamanka.pl/w/${b.code}`,
-      `${JM.salon.smsSender}: A reminder about your visit tomorrow at ${b.time}. Free cancellation up to ${JM.booking.cancelHours} h before: justynamanka.pl/w/${b.code}`);
+    const url = location.origin + '/w/' + b.token;
+    if (kind === 'confirm') return L(`${JM.salon.smsSender}: Potwierdzamy wizytę ${date} o ${b.time} (${tName(b)}), ${JM.salon.street}. Zmiana lub odwołanie: ${url}`,
+      `${JM.salon.smsSender}: Your visit on ${date} at ${b.time} (${tName(b)}) is confirmed, ${JM.salon.street}. To change or cancel: ${url}`);
+    return L(`${JM.salon.smsSender}: Przypominamy o wizycie jutro o ${b.time} (${tName(b)}), ${JM.salon.street}. Odwołanie: ${url}`,
+      `${JM.salon.smsSender}: A reminder about your visit tomorrow at ${b.time} (${tName(b)}), ${JM.salon.street}. To cancel: ${url}`);
   }
   function stepDone() {
     const b = state.booking; const u = user();
-    const phone = u ? u.phone : b.guest.phone;
+    const phone = u ? u.phone : state.phone;
     return `
       <div class="done">
         <div class="done-mark">${ui.icons.check}</div>
@@ -219,7 +250,7 @@
           <button class="btn btn-outline" type="button" data-ics>${L('Dodaj do kalendarza', 'Add to calendar')}</button>
           ${u ? `<a class="btn btn-primary" href="konto.html">${L('Moje wizyty', 'My visits')}</a>` : `<a class="btn btn-primary" href="konto.html#rejestracja">${L('Załóż konto na kolejne wizyty', 'Create an account for future visits')}</a>`}
         </div>
-        <p class="small muted" style="margin-top:28px">${L('Kod rezerwacji', 'Booking code')}: <strong>${b.code}</strong>. ${L(`Bezpłatnie odwołasz wizytę do ${JM.booking.cancelHours} godzin przed terminem, później obowiązuje opłata ${JM.booking.lateCancelFeePercent}% ceny zabiegu.`, `You can cancel free of charge up to ${JM.booking.cancelHours} hours before the visit; after that a fee of ${JM.booking.lateCancelFeePercent}% of the treatment price applies.`)}</p>
+        <p class="small muted" style="margin-top:28px">${L('Kod rezerwacji', 'Booking code')}: <strong>${b.code}</strong>. ${u ? '' : L('Wizytę zobaczysz i odwołasz przez link z SMS-a i e-maila. ', 'You can view and cancel the visit using the link in the text message and email. ')}${L(`Bezpłatnie odwołasz wizytę do ${JM.booking.cancelHours} godzin przed terminem, później obowiązuje opłata ${JM.booking.lateCancelFeePercent}% ceny zabiegu.`, `You can cancel free of charge up to ${JM.booking.cancelHours} hours before the visit; after that a fee of ${JM.booking.lateCancelFeePercent}% of the treatment price applies.`)}</p>
       </div>`;
   }
 
@@ -228,7 +259,9 @@
     const tr = t(); const u = user();
     if (!tr) { summary.innerHTML = `<h2>${L('Podsumowanie', 'Summary')}</h2><p class="muted">${L('Wybierz zabieg, żeby zobaczyć szczegóły i cenę.', 'Choose a treatment to see the details and price.')}</p>`; return; }
     const ps = S.priceSummary(tr, state.date || S.isoDate(today), state.step === 4 ? null : u);
-    const p = state.step === 4 && state.booking ? { base: state.booking.price, cut: state.booking.price - state.booking.total, total: state.booking.total, discount: state.booking.discount, lowest30: state.booking.price } : ps;
+    const bk = state.booking;
+    const p = state.step === 4 && bk ? { base: bk.price, cut: Math.round((bk.price - bk.total) * 100) / 100, total: bk.total, lowest30: bk.lowest30 ?? bk.price,
+      discount: bk.discount ? Object.assign({}, bk.discount, { label: S.discountLabel(bk.discount) }) : null } : ps;
     summary.innerHTML = `
       <h2>${L('Podsumowanie', 'Summary')}</h2>
       <dl>
@@ -280,17 +313,17 @@
   const phoneOk = (el) => (/^(\+?48)?[\s-]?(\d[\s-]?){9}$/.test(el.value.trim()) ? '' : L('Wpisz numer telefonu, np. +48 600 000 000.', 'Enter a phone number, e.g. +48 600 000 000.'));
   const emailOk = (el) => (/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(el.value.trim()) ? '' : L('Wpisz adres e-mail, np. anna@example.com.', 'Enter an email address, e.g. anna@example.com.'));
 
-  function finish(data) {
-    const tr = t(); const u = user();
-    if (!S.slotsFor(state.date, tr.duration).includes(state.time)) {
-      state.error = L('Ten termin został właśnie zajęty. Wybierz inną godzinę.', 'This time has just been taken. Please choose another one.'); state.step = 2; state.time = null; render(true); return;
-    }
-    const ps = S.priceSummary(tr, state.date, u);
-    state.booking = S.createBooking(Object.assign({
-      treatmentId: tr.id, treatmentName: tr.namePl || tr.name, duration: tr.duration, date: state.date, time: state.time, lang: JM.lang,
-      price: ps.base, total: ps.total, discount: ps.discount, userId: u ? u.id : null
-    }, data));
-    state.step = 4; state.error = ''; render(true);
+  async function finish(form, data) {
+    const btn = form.querySelector('[type=submit]'); btn.disabled = true; btn.setAttribute('aria-busy', 'true');
+    try {
+      state.booking = await S.createBooking(Object.assign({ treatmentId: t().id, date: state.date, time: state.time }, data));
+      state.phone = data.guest ? data.guest.phone : '';
+      state.step = 4; state.error = ''; render(true);
+    } catch (err) {
+      if (err.field === 'slot') { state.error = err.message; state.step = 2; state.time = null; refreshAvailability(); render(true); return; }
+      const el = err.field && form.elements[err.field];
+      if (el) { validate(form, { [err.field]: () => err.message }); } else { state.error = err.message; render(); }
+    } finally { btn.disabled = false; btn.removeAttribute('aria-busy'); }
   }
 
   /* ---------- Zdarzenia ---------- */
@@ -300,12 +333,14 @@
     if (el.dataset.go) {
       const go = Number(el.dataset.go);
       if (go === 3 && !(state.date && state.time)) return;
-      state.step = go; state.error = ''; render(true); return;
+      state.step = go; state.error = ''; render(true);
+      if (go === 2) loadMonth();
+      return;
     }
     if (el.dataset.month) {
-      const m = state.month; state.month = new Date(m.getFullYear(), m.getMonth() + Number(el.dataset.month), 1); render(); return;
+      const m = state.month; state.month = new Date(m.getFullYear(), m.getMonth() + Number(el.dataset.month), 1); state.error = ''; render(); loadMonth(); return;
     }
-    if (el.dataset.date) { state.date = el.dataset.date; state.time = null; render(); flow.querySelector('.slots, .slots-empty')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); return; }
+    if (el.dataset.date) { state.date = el.dataset.date; state.time = null; state.error = ''; render(); flow.querySelector('.slots, .slots-empty')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); return; }
     if (el.dataset.time) { state.time = el.dataset.time; render(); return; }
     if (el.dataset.who) {
       state.who = el.dataset.who; state.error = '';
@@ -313,12 +348,12 @@
       render(); return;
     }
     if (el.hasAttribute('data-save-draft')) { saveDraft(); return; }
-    if (el.hasAttribute('data-logout')) { S.logout(); state.who = 'guest'; render(); ui.toast(L('Wylogowano.', 'Signed out.')); return; }
+    if (el.hasAttribute('data-logout')) { await S.logout(); state.who = 'guest'; render(); ui.toast(L('Wylogowano.', 'Signed out.')); return; }
     if (el.hasAttribute('data-ics')) { downloadIcs(state.booking); }
   });
   flow.addEventListener('change', (e) => {
     if (e.target.name === 'treatment') {
-      state.treatmentId = e.target.value; state.date = null; state.time = null; render();
+      state.treatmentId = e.target.value; state.date = null; state.time = null; state.autoMonth = true; state.month = new Date(today.getFullYear(), today.getMonth(), 1); render(); loadMonth();
       flow.querySelector('[data-go="2"]').focus();
     }
   });
@@ -334,16 +369,15 @@
         terms: (el) => (el.checked ? '' : L('Zaakceptuj regulamin, żeby zarezerwować wizytę.', 'Accept the terms to book a visit.'))
       });
       if (!ok) return;
-      const g = Object.fromEntries(['firstName', 'lastName', 'phone', 'email', 'notes'].map((k) => [k, f.elements[k].value.trim()]));
-      g.marketingSms = f.elements.marketingSms.checked; g.marketingEmail = f.elements.marketingEmail.checked;
-      g.consentAt = new Date().toISOString();
-      finish({ guest: g, notes: g.notes });
+      const g = Object.fromEntries(['firstName', 'lastName', 'phone', 'email'].map((k) => [k, f.elements[k].value.trim()]));
+      g.marketingSms = f.elements.marketingSms.checked; g.marketingEmail = f.elements.marketingEmail.checked; g.terms = f.elements.terms.checked;
+      finish(f, { guest: g, notes: f.elements.notes.value.trim() });
     } else if (f.id === 'login-form') {
       if (!validate(f, { email: emailOk, password: (el) => (el.value ? '' : L('Wpisz hasło.', 'Enter your password.')) })) return;
       try { await S.login(f.elements.email.value, f.elements.password.value); state.error = ''; render(true); ui.toast(L('Zalogowano.', 'Signed in.')); }
       catch (err) { state.error = err.message; render(); }
     } else if (f.id === 'confirm-form') {
-      finish({ notes: f.elements.notes.value.trim(), guest: null });
+      finish(f, { notes: f.elements.notes.value.trim() });
     }
   });
 
@@ -351,7 +385,7 @@
     const start = b.date.replace(/-/g, '') + 'T' + b.time.replace(':', '') + '00';
     const endMin = S.toMin(b.time) + b.duration;
     const end = b.date.replace(/-/g, '') + 'T' + S.toTime(endMin).replace(':', '') + '00';
-    const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//JM Beauty//PL', 'BEGIN:VEVENT', 'UID:' + b.id + '@justynamanka.pl',
+    const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//JM Beauty//PL', 'BEGIN:VEVENT', 'UID:' + b.code + '@justynamanka.pl',
       'DTSTART;TZID=Europe/Warsaw:' + start, 'DTEND;TZID=Europe/Warsaw:' + end,
       'SUMMARY:' + tName(b) + ' – ' + JM.salon.brand, 'LOCATION:' + JM.salon.street + '\\, ' + JM.salon.city,
       'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
@@ -361,11 +395,6 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
 
-  // skok do pierwszego wolnego miesiąca z terminami
-  if (state.step === 2 && !state.date) {
-    const m = state.month;
-    const anyFree = (mm) => { const n = new Date(mm.getFullYear(), mm.getMonth() + 1, 0).getDate(); for (let i = 1; i <= n; i++) { if (dayState(new Date(mm.getFullYear(), mm.getMonth(), i)).ok) return true; } return false; };
-    if (!anyFree(m)) state.month = new Date(m.getFullYear(), m.getMonth() + 1, 1);
-  }
   render();
-})();
+  if (state.treatmentId) loadMonth();
+});

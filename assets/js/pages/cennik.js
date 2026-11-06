@@ -1,4 +1,4 @@
-(function () {
+JM.ready.then(function () {
   const S = JM.store, L = JM.L;
   const all = S.allTreatments();
   const row = (t) => `
@@ -25,4 +25,4 @@
   document.getElementById('prices').innerHTML =
     section(L('Konsultacja', 'Consultation'), 'konsultacja', [JM.consultation]) +
     JM.categories.map((c) => section(c.name, c.id, all.filter((t) => t.category === c.id))).join('');
-})();
+});

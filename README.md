@@ -3,11 +3,13 @@ Website for the love of my lifie
 
 ---
 
-## Prototyp strony gabinetu Justyna Mańka Beauty & Aesthetics
+## Strona i system rezerwacji gabinetu Justyna Mańka Beauty & Aesthetics
 
-Klikalny prototyp strony: wygląda i działa jak gotowa strona, ale wszystko dzieje się w przeglądarce. Nic nie jest wysyłane na serwer, SMS-y są symulowane, a strona ma ustawione `noindex`, więc nie trafi do Google.
+Strona działa na własnym serwerze z bazą danych: konta klientek, rezerwacje, ceny, promocje i wiadomości zapisują się w bazie, a nie w przeglądarce. Na razie strona działa tylko lokalnie (localhost) i ma ustawione `noindex`, więc nie trafi do Google.
 
-### Jak otworzyć
+### Jak uruchomić
+
+Potrzebny jest tylko Node.js w wersji **22.13 lub nowszej** (sprawdzisz: `node -v`; nowszą wersję pobierzesz z nodejs.org, wersja LTS). Nie trzeba nic instalować przez npm.
 
 W terminalu VS Code, w folderze projektu:
 
@@ -15,7 +17,29 @@ W terminalu VS Code, w folderze projektu:
 npm run dev
 ```
 
-Strona działa pod adresem http://localhost:3000 (Ctrl + klik w link w terminalu). Po zapisaniu zmian w plikach odświeża się sama. Nie trzeba nic instalować poza Node.js. Zatrzymanie: Ctrl + C.
+- Strona: http://localhost:3000 (Ctrl + klik w link w terminalu)
+- Panel gabinetu: http://localhost:3000/panel.html, konta z `config.js`, hasło startowe `demo` (zmień je w panelu: Moje konto)
+- Po zapisaniu zmian w plikach strona odświeża się sama, a serwer restartuje się po zmianach w kodzie.
+- Zatrzymanie: Ctrl + C
+
+Testy najważniejszych zasad (podwójne rezerwacje, ceny i zniżki liczone przez serwer, opłaty, logowanie, ochrona panelu):
+
+```bash
+npm test
+```
+
+### SMS-y i e-maile: tryb testowy
+
+Domyślnie nic nie wychodzi do klientek. Każdy SMS i e-mail (potwierdzenie, przypomnienie, odwołanie, reset hasła, kampania) pojawia się w terminalu i w panelu w zakładce **SMS-y i e-maile**, gdzie można też obejrzeć e-maile tak, jak zobaczy je klientka. Link do resetu hasła znajdziesz w terminalu.
+
+Prawdziwa wysyłka włącza się w pliku `.env` (wzór: `.env.example`): SMS przez SMSAPI.pl, e-maile przez Resend. Potrzebne będą konta na firmę właścicielki i zarejestrowana nazwa nadawcy SMS. Klientki i wizyty przykładowe nigdy nie dostają wiadomości.
+
+### Dane
+
+- Baza to jeden plik: `data/jm.db` (SQLite wbudowany w Node.js). Nie trafia do repozytorium (`.gitignore`), bo będą w nim dane osobowe.
+- Przy pierwszym uruchomieniu tworzą się konta panelu, promocje i kilka przykładowych klientek i wizyt. W panelu na Pulpicie jest przycisk **Usuń dane przykładowe**.
+- Żeby zacząć od zera: zatrzymaj serwer i usuń folder `data`.
+- Kopia zapasowa: skopiuj plik `data/jm.db` przy zatrzymanym serwerze.
 
 ### Co jest w środku
 
@@ -25,19 +49,21 @@ Strona działa pod adresem http://localhost:3000 (Ctrl + klik w link w terminalu
 | `zabiegi.html` | Opisy wszystkich zabiegów w rozwijanych zakładkach, przygotowanie, przeciwwskazania, zalecenia |
 | `cennik.html` | Cennik w tabelach + najczęstsze pytania |
 | `rezerwacja.html` | Rezerwacja w 4 krokach: zabieg, kalendarz wolnych terminów, dane (gość / logowanie / rejestracja), potwierdzenie z podglądem SMS i plikiem do kalendarza |
-| `konto.html` | Logowanie, rejestracja ze zgodami, profil: wizyty, odwoływanie, oferty, dane, zgody z historią, usuwanie konta |
+| `konto.html` | Logowanie, rejestracja ze zgodami, reset hasła przez e-mail, profil: wizyty, odwoływanie, oferty, dane, zgody z historią, usuwanie konta |
+| `wizyta.html` | Strona wizyty z linku w SMS-ie i e-mailu: podgląd i odwołanie bez logowania (adres `/w/<klucz>`) |
 | `kontakt.html` | Dane kontaktowe, godziny, formularz, mapa Google wczytywana dopiero po zgodzie |
 | `galeria.html` | Miejsce na zdjęcia efektów (do uzupełnienia) |
-| `panel.html` | Panel gabinetu (hasło demo: `demo`): wizyty, baza klientek z eksportem CSV, edycja cen, promocje, SMS-y, dni wolne |
+| `panel.html` | Panel gabinetu: wizyty (odwołanie, nieobecność, opłaty), klientki z eksportem CSV, ceny z historią, promocje, SMS-y i e-maile, dni wolne, zmiana hasła |
 | `regulamin.html`, `polityka-prywatnosci.html`, `polityka-cookies.html` | Projekty dokumentów |
 
-Zasady działające w prototypie:
+Zasady:
 - 10% zniżki na pierwszy zabieg dla zarejestrowanych, nalicza się sama; rezerwacja jako gość bez zniżki.
 - Promocje dla zarejestrowanych (święta, urodziny); zniżki się nie sumują, wybierana jest najkorzystniejsza.
 - Przy każdej obniżce pokazywana jest najniższa cena z 30 dni przed obniżką (Omnibus).
 - Zgody marketingowe są osobne, dobrowolne i domyślnie odznaczone; wymagana jest tylko akceptacja regulaminu i polityki prywatności.
 - Bezpłatne odwołanie wizyty do 12 h przed terminem; później lub przy nieobecności opłata 50% ceny zabiegu.
-- Automatyczny SMS z przypomnieniem 24 h przed wizytą (w prototypie widoczny w panelu jako harmonogram).
+- Automatyczny SMS z przypomnieniem 24 h przed wizytą (serwer sprawdza co minutę, które przypomnienia wysłać).
+- Nieobecność oznaczona w panelu nalicza opłatę 50%; opłatę można oznaczyć jako zapłaconą albo anulować.
 - Strona ma wersję angielską (przełącznik PL / EN w nagłówku). Domyślnie i przy pierwszej wizycie strona jest po polsku; wybór języka zapamiętuje przeglądarka. Panel gabinetu jest zawsze po polsku, a rezerwacje zapisują polską nazwę zabiegu. Dokumenty prawne mają tłumaczenie z dopiskiem, że wiążąca jest wersja polska.
 
 ### Gdzie co zmieniać
@@ -47,18 +73,28 @@ Zasady działające w prototypie:
 - `assets/js/treatments.en.js`: angielskie nazwy i opisy zabiegów (te same identyfikatory co w `treatments.js`)
 - `assets/js/i18n.js`: przełączanie języka. Teksty w skryptach: `JM.L('po polsku', 'in English')`; w HTML: `<span data-lang="pl">…</span><span data-lang="en">…</span>`
 - `assets/css/style.css`: wygląd (kolory na górze pliku)
-- Ceny można też zmieniać w panelu gabinetu; zapisują się w tej przeglądarce.
+- `server/`: serwer, API, zasady rezerwacji (`booking.js`), SMS-y i e-maile (`messaging.js`)
+- Ceny można też zmieniać w panelu gabinetu; zapisują się w bazie z historią zmian i mają pierwszeństwo przed cenami z `treatments.js`.
 
 ### Role i dostęp
 
-- **Martyna Brodowska: administratorka strony.** Odpowiada za kod, hosting, bazę danych, konfigurację SMS-ów i e-maili. Ma konto w panelu (`martbrod99@gmail.com`, w prototypie hasło `demo`).
-- **Justyna Mańka: właścicielka gabinetu.** Korzysta z panelu na co dzień (wizyty, klientki, ceny, promocje). Konto w prototypie: `kontakt@justynamanka.pl`, hasło `demo`.
+- **Martyna Brodowska: administratorka strony.** Odpowiada za kod, hosting, bazę danych, konfigurację SMS-ów i e-maili. Ma konto w panelu (`martbrod99@gmail.com`).
+- **Justyna Mańka: właścicielka gabinetu.** Korzysta z panelu na co dzień (wizyty, klientki, ceny, promocje). Konto w panelu: `kontakt@justynamanka.pl`.
 
 W sensie RODO administratorem danych klientek jest firma Justyny, a administratorka strony przetwarza je w jej imieniu. Przed startem potrzebna jest między nimi umowa powierzenia przetwarzania danych.
 
-### Baza danych
+### Bezpieczeństwo
 
-Schemat bazy PostgreSQL (Supabase) na wersję produkcyjną jest w folderze `database/`. Opis tabel i instrukcja uruchomienia: `database/README.md`.
+- Hasła zapisane wyłącznie jako skrót scrypt z solą; sesje w ciasteczkach HttpOnly, SameSite=Lax.
+- Limity prób logowania, rejestracji, resetu hasła, rezerwacji i formularza kontaktowego.
+- Ochrona przed wysyłaniem formularzy z innych stron (sprawdzanie nagłówka Origin, tylko JSON).
+- Nagłówki bezpieczeństwa (Content-Security-Policy, X-Frame-Options itp.), czcionki i zdjęcia z własnego serwera, bez Google Fonts.
+- Serwer udostępnia tylko pliki strony; baza, kod serwera i `.env` są niedostępne z przeglądarki.
+- Link do wizyty w SMS-ie zawiera długi losowy klucz, którego nie da się zgadnąć.
+
+### Baza danych na produkcję
+
+Lokalnie i na małym serwerze (VPS) wystarczy SQLite z codzienną kopią pliku. Jeśli zdecydujemy się na Supabase, schemat PostgreSQL z tymi samymi zasadami jest w folderze `database/` (opis: `database/README.md`).
 
 ### Do uzupełnienia przed publikacją
 
@@ -74,10 +110,10 @@ Schemat bazy PostgreSQL (Supabase) na wersję produkcyjną jest w folderze `data
 - [ ] Przegląd dokumentów prawnych przez prawnika, w tym zapisu o opłacie 50% za późne odwołanie (ustawa o prawach konsumenta, klauzule niedozwolone)
 - [ ] Sprawdzenie angielskich tekstów przez właścicielkę
 
-### Wersja produkcyjna (plan)
+### Publikacja (po zgodzie właścicielki)
 
-- Next.js + baza PostgreSQL na serwerach w UE, logowanie z haszowaniem haseł i resetem przez e-mail
-- Bramka SMS (np. SMSAPI) z nazwą nadawcy zarejestrowaną na firmę właścicielki, wysyłka e-maili transakcyjnych
-- Czcionki hostowane lokalnie zamiast z Google Fonts (RODO)
-- Hosting komercyjny (darmowy plan Vercel nie pozwala na użytek komercyjny)
-- Umowy powierzenia danych z dostawcami, ochrona formularzy przed spamem, kopie zapasowe
+1. Domena (np. justynamanka.pl) i serwer z Node.js 22+, np. mały VPS w UE. Darmowy plan Vercel nie pozwala na użytek komercyjny i nie trzyma pliku bazy.
+2. Plik `.env` na serwerze: `PUBLIC_URL`, `ADMIN_INITIAL_PASSWORD`, klucze SMSAPI i Resend.
+3. Uruchomienie: `npm start` (tryb produkcyjny: bez automatycznego odświeżania, z HSTS i pamięcią podręczną zdjęć), za serwerem HTTPS (np. Caddy albo nginx).
+4. Usunięcie `noindex` z podstron i `Disallow: /` z `robots.txt`, mapa strony, wizytówka Google.
+5. Codzienna kopia zapasowa bazy poza serwerem.
