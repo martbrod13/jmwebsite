@@ -112,7 +112,19 @@ svg { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 1
 .mobile-menu-contact { margin-top: 28px; color: var(--taupe); }
 body.menu-open { overflow: hidden; }
 
-@media (max-width: 1080px) {
+/* Na węższych ekranach zakładki zostają widoczne, tylko ciaśniej ułożone */
+@media (max-width: 1180px) and (min-width: 861px) {
+  .header-inner { gap: 20px; }
+  .brand { gap: 10px; }
+  .brand img { height: 38px; }
+  .brand-name { font-size: .8125rem; letter-spacing: .14em; }
+  .brand-sub { font-size: .625rem; letter-spacing: .18em; }
+  .main-nav ul { gap: 18px; }
+  .main-nav a, .nav-account { font-size: .875rem; }
+  .nav-account { padding-left: 18px; gap: 6px; }
+}
+/* Menu w przycisku dopiero na tabletach i telefonach */
+@media (max-width: 860px) {
   .main-nav, .nav-account { display: none; }
   .menu-toggle { display: block; }
 }
@@ -718,3 +730,4 @@ strong { font-weight: 500; }
 .section-intro .section-head { margin-bottom: 0; }
 .hero p:last-child { margin-bottom: 0; }
 .about .creds { margin-bottom: 0; }
+.main-nav a, .nav-account { white-space: nowrap; }
