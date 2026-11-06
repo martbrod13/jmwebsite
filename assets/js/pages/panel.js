@@ -12,7 +12,7 @@ JM.ready.then(function () {
   let data = {};
 
   /* ---------- Na żywo: odświeżanie po rezerwacjach klientek ---------- */
-  const LIVE_VIEWS = ['pulpit', 'kalendarz', 'wizyty'];
+  const LIVE_VIEWS = ['pulpit', 'kalendarz', 'wizyty', 'oczekujace', 'statystyki'];
   const baseTitle = document.title;
   let es = null, pendingRefresh = false, unseen = 0, highlightId = null;
   const canNotify = () => 'Notification' in window && Notification.permission === 'granted';
@@ -43,8 +43,8 @@ JM.ready.then(function () {
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { unseen = 0; document.title = baseTitle; } });
 
   const views = [
-    ['pulpit', 'Pulpit'], ['kalendarz', 'Kalendarz'], ['wizyty', 'Wizyty'], ['klientki', 'Klientki'], ['zabiegi', 'Zabiegi i ceny'],
-    ['promocje', 'Promocje'], ['galeria', 'Galeria'], ['wiadomosci', 'SMS-y i e-maile'], ['godziny', 'Godziny pracy'], ['konto', 'Moje konto']
+    ['pulpit', 'Pulpit'], ['kalendarz', 'Kalendarz'], ['wizyty', 'Wizyty'], ['oczekujace', 'Lista oczekujących'], ['klientki', 'Klientki'], ['statystyki', 'Statystyki'], ['zabiegi', 'Zabiegi i ceny'],
+    ['promocje', 'Promocje'], ['bony', 'Bony podarunkowe'], ['galeria', 'Galeria'], ['wiadomosci', 'SMS-y i e-maile'], ['godziny', 'Godziny pracy'], ['konto', 'Moje konto']
   ];
   const money = (v) => S.formatPrice(v);
   const dt = (iso) => { const d = new Date(iso); return d.toLocaleDateString('pl-PL') + ', ' + S.pad(d.getHours()) + ':' + S.pad(d.getMinutes()); };
@@ -64,7 +64,7 @@ JM.ready.then(function () {
         <td>${esc(b.treatmentName)}${b.notes ? `<br><span class="small muted">${esc(b.notes)}</span>` : ''}${b.lang === 'en' ? ' <span class="badge">EN</span>' : ''}</td>
         <td>${esc(b.client.name)}${b.demo ? ' <span class="badge badge-off">przykład</span>' : ''}</td><td><a href="tel:${esc(b.client.phone)}">${esc(b.client.phone)}</a></td>
         <td><span class="badge">${b.client.type}</span>${b.source && b.source !== 'online' ? `<br><span class="small muted">${SOURCES[b.source] || b.source}</span>` : ''}</td>
-        <td class="num">${money(b.total)}${b.discount ? `<br><span class="small muted">−${b.discount.percent}% ${esc(b.discount.label)}</span>` : ''}</td>
+        <td class="num">${money(b.toPay)}${b.discount ? `<br><span class="small muted">−${b.discount.percent}% ${esc(b.discount.label)}</span>` : ''}${b.voucher ? `<br><span class="small muted">bon −${money(b.voucher.amount)}</span>` : ''}</td>
         ${actions ? `<td class="num">${actions(b)}</td>` : ''}</tr>`).join('')}
     </tbody></table>`;
   }
@@ -231,6 +231,27 @@ JM.ready.then(function () {
         ${data.days.length ? `<table class="table" style="margin-top:20px"><tbody>${data.days.map((d) => `<tr><td>${ui.fmtDate(d.date)}</td><td class="small muted">${esc(d.note || '')}</td><td class="num"><button type="button" class="btn btn-outline btn-small" data-unblock="${d.date}">Odblokuj</button></td></tr>`).join('')}</tbody></table>` : ''}
       </form>`;
   }
+  function icalCard() {
+    const url = location.origin + '/kalendarz/' + data.ical.token + '.ics';
+    const webcal = url.replace(/^https?:/, 'webcal:');
+    return `
+      <div class="panel-card" style="max-width:560px">
+        <h2>Kalendarz w telefonie</h2>
+        <p class="small muted">Wizyty i blokady same pojawią się w kalendarzu w Twoim telefonie, obok prywatnych spraw. W kalendarzu widać zabieg i imię z inicjałem nazwiska; telefon klientki i uwagi zostają w panelu. Link jest prywatny: nie wysyłaj go nikomu.</p>
+        ${local ? '<p class="small panel-inline-note">Kalendarz Google i telefon pobierają wizyty z internetu, więc subskrypcja zadziała po publikacji strony. Teraz możesz pobrać plik i zobaczyć, jak wyglądają wizyty.</p>' : ''}
+        <div class="field"><label for="ical-url">Twój link do kalendarza</label><input id="ical-url" readonly value="${esc(url)}"></div>
+        <div class="btn-row">
+          <button type="button" class="btn btn-primary btn-small" data-copy-ical>Kopiuj link</button>
+          ${local ? `<a class="btn btn-outline btn-small" href="${esc(url)}" download="gabinet.ics">Pobierz plik</a>` : `<a class="btn btn-outline btn-small" href="${esc(webcal)}">Dodaj na iPhonie</a><a class="btn btn-outline btn-small" href="https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcal)}" target="_blank" rel="noopener">Dodaj do Kalendarza Google</a>`}
+        </div>
+        <details class="move-box"><summary>Jak dodać ręcznie</summary>
+          <p class="small"><strong style="font-weight:500">Kalendarz Google:</strong> na komputerze otwórz calendar.google.com → po lewej „Inne kalendarze” → „+” → „Z adresu URL” → wklej link. Kalendarz pojawi się też w aplikacji na telefonie.</p>
+          <p class="small"><strong style="font-weight:500">iPhone:</strong> Ustawienia → Kalendarz → Konta → Dodaj konto → Inne → Dodaj subskrybowany kalendarz → wklej link.</p>
+          <p class="small muted">Google odświeża subskrybowane kalendarze co kilka godzin, iPhone częściej. Nowe rezerwacje od razu widać w panelu.</p>
+        </details>
+        <p class="small" style="margin-top:14px"><button type="button" class="link-button" data-renew-ical>Wygeneruj nowy link</button> <span class="muted">— stary przestanie działać, np. gdy ktoś niepowołany go zobaczył.</span></p>
+      </div>`;
+  }
   function vKonto() {
     return `
       <form class="panel-card" id="pass-form" novalidate style="max-width:560px">
@@ -240,6 +261,7 @@ JM.ready.then(function () {
         <div class="field"><label for="pw-new">Nowe hasło</label><input id="pw-new" name="next" type="password" autocomplete="new-password" minlength="12" required></div>
         <button class="btn btn-primary" type="submit">Zmień hasło</button>
       </form>
+      ${icalCard()}
       <div class="panel-card" style="max-width:560px">
         <h2>Kopie zapasowe</h2>
         <p class="small muted">Serwer robi kopię bazy automatycznie raz dziennie (po 3:00) i trzyma ${14} ostatnich w folderze <code>${esc(data.backup.dir)}</code>, razem ze zdjęciami z galerii. Raz na jakiś czas pobierz kopię i zapisz ją poza serwerem, np. na dysku w chmurze. Plik zawiera dane osobowe klientek: nie wysyłaj go mailem.</p>
@@ -372,6 +394,7 @@ JM.ready.then(function () {
           <div class="field"><label for="nb-dur">Czas (minuty)</label><input id="nb-dur" name="duration" type="number" min="10" max="600" step="5" value="${first.duration}"></div>
           <div class="field"><label for="nb-price">Cena (zł)</label><input id="nb-price" name="price" type="number" min="0" step="10" value="${first.price}"></div>
           <div class="field"><label for="nb-src">Skąd wizyta</label><select id="nb-src" name="source"><option value="telefon">Telefon</option><option value="instagram">Instagram</option><option value="osobiście">Osobiście w gabinecie</option><option value="inne">Inne</option></select></div>
+          <div class="field"><label for="nb-voucher">Kod bonu <span class="opt">(opcjonalnie)</span></label><input id="nb-voucher" name="voucherCode" maxlength="20" placeholder="JM-XXXX-XXXX" autocomplete="off"></div>
           <div class="field span-2"><label for="nb-notes">Uwagi <span class="opt">(opcjonalnie)</span></label><textarea id="nb-notes" name="notes" maxlength="400"></textarea></div>
         </div>
         <label class="check"><input type="checkbox" name="notify" checked><span>Wyślij klientce SMS z potwierdzeniem i linkiem do wizyty<small>Przypomnienie ${JM.booking.reminderHours} h przed wizytą wyśle się tak jak przy rezerwacji online.</small></span></label>
@@ -380,7 +403,7 @@ JM.ready.then(function () {
     async (f, close) => {
       const v = (n) => (f.elements[n] ? f.elements[n].value.trim() : '');
       const picked = f.dataset.clientId;
-      const payload = (force) => ({ treatmentId: v('treatmentId'), date: v('date'), time: v('time'), duration: Number(v('duration')), price: v('price'), source: v('source'), notes: v('notes'), notify: f.elements.notify.checked, force,
+      const payload = (force) => ({ treatmentId: v('treatmentId'), date: v('date'), time: v('time'), duration: Number(v('duration')), price: v('price'), source: v('source'), notes: v('notes'), voucherCode: v('voucherCode'), notify: f.elements.notify.checked, force,
         clientId: picked && f.dataset.clientType === 'konto' ? Number(picked) : undefined,
         guest: picked && f.dataset.clientType === 'konto' ? undefined : { firstName: v('firstName'), lastName: v('lastName'), phone: v('phone'), email: v('email') } });
       await withConfirm((force) => api('POST', '/api/admin/bookings', payload(force)));
@@ -416,7 +439,7 @@ JM.ready.then(function () {
         <dl class="visit-dl">
           <div><dt>Termin</dt><dd>${ui.fmtDate(b.date)}, ${b.time}–${b.end}</dd></div>
           <div><dt>Klientka</dt><dd>${esc(b.client.name)}${b.demo ? ' <span class="badge badge-off">przykład</span>' : ''}<br><a href="tel:${esc(b.client.phone)}">${esc(b.client.phone)}</a>${b.client.email ? ` · <a href="mailto:${esc(b.client.email)}">${esc(b.client.email)}</a>` : ''}</dd></div>
-          <div><dt>Do zapłaty</dt><dd>${money(b.total)}${b.discount ? ` <span class="small muted">(−${b.discount.percent}% ${esc(b.discount.label)})</span>` : ''}</dd></div>
+          <div><dt>Do zapłaty</dt><dd>${money(b.toPay)}${b.discount ? ` <span class="small muted">(−${b.discount.percent}% ${esc(b.discount.label)})</span>` : ''}${b.voucher ? `<br><span class="small muted">bon ${esc(b.voucher.code)}: −${money(b.voucher.amount)} (cena ${money(b.total)})</span>` : ''}</dd></div>
           <div><dt>Skąd</dt><dd>${SOURCES[b.source] || 'strona'} · ${b.client.type}${b.lang === 'en' ? ' · EN' : ''} · kod ${esc(b.code)}</dd></div>
           ${b.notes ? `<div><dt>Uwagi</dt><dd>${esc(b.notes)}</dd></div>` : ''}
           ${b.status !== 'confirmed' || b.fee ? `<div><dt>Status</dt><dd>${statusBadge(b)} ${feeBadge(b)}</dd></div>` : ''}
@@ -573,6 +596,281 @@ JM.ready.then(function () {
     });
   }
 
+  /* ---------- Lista oczekujących ---------- */
+  function vOczekujace() {
+    const all = data.entries; const today = S.isoDate(new Date());
+    const waiting = all.filter((e) => e.status === 'waiting'), closed = all.filter((e) => e.status !== 'waiting');
+    const cats = [{ id: 'konsultacja', name: 'Konsultacja' }].concat(JM.categories.map((c) => ({ id: c.id, name: c.namePl || c.name })));
+    const opts = cats.map((c) => `<optgroup label="${esc(c.name)}">${cache.prices.filter((t) => t.category === c.id).map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}</optgroup>`).join('');
+    const inTwo = new Date(); inTwo.setDate(inTwo.getDate() + 14);
+    const smsInfo = (e) => (e.notices ? `SMS ${e.notices === 1 ? 'wysłany' : `wysłany ${e.notices}×`}, ostatni ${dt(e.notifiedAt)}` : '');
+    const state = (e) => {
+      if (e.status === 'booked') return '<span class="badge badge-ok">zarezerwowała</span>';
+      if (e.status === 'expired') return '<span class="badge badge-off">okres minął</span>';
+      return `<span class="badge">czeka</span>${e.freeNow ? `<br><span class="small muted">wolne dni w okresie: ${e.freeNow}</span>` : ''}`;
+    };
+    const table = (list, actions) => `<div class="table-scroll"><table class="table"><thead><tr><th>Klientka</th><th>Zabieg</th><th>Okres</th><th>Status</th><th>Zapis</th>${actions ? '<th></th>' : ''}</tr></thead><tbody>
+      ${list.map((e) => `<tr>
+        <td>${esc(e.firstName)}${e.lang === 'en' ? ' <span class="badge">EN</span>' : ''}<br><a href="tel:${esc(e.phone)}">${esc(e.phone)}</a></td>
+        <td>${esc(e.treatment)}</td>
+        <td>${ui.fmtShort(e.from)} – ${ui.fmtShort(e.to)}</td>
+        <td>${state(e)}${smsInfo(e) ? `<br><span class="small muted">${smsInfo(e)}</span>` : ''}</td>
+        <td class="small">${dt(e.createdAt)}<br><span class="muted">${e.source === 'telefon' ? 'dodana w panelu' : 'przez stronę'}</span></td>
+        ${actions ? `<td class="num"><button class="link-button small" type="button" data-wl-remove="${e.id}">Usuń</button></td>` : ''}</tr>`).join('')}
+    </tbody></table></div>`;
+    return `
+      <div class="panel-card">
+        <h2>Czekają na termin</h2>
+        <p class="small muted">Klientka wybiera zabieg i okres, w którym nie ma wolnych terminów. Gdy w tym okresie zwolni się miejsce (ktoś odwoła albo przeniesie wizytę, zdejmiesz blokadę lub dzień wolny), dostaje SMS z linkiem do rezerwacji. Kilka osób czekających na ten sam zabieg dostaje SMS jednocześnie, termin ma ta, która pierwsza zarezerwuje. SMS-y wychodzą między 8:00 a 21:00, najwyżej jeden na 6 godzin dla jednej osoby. Gdy klientka zarezerwuje ten zabieg, znika z listy czekających.</p>
+        ${waiting.length ? table(waiting, true) : '<p class="muted">Nikt teraz nie czeka. Formularz zapisu jest na stronie rezerwacji, pod kalendarzem.</p>'}
+      </div>
+      <details class="panel-card wl-add"${waiting.length ? '' : ' open'}>
+        <summary><h2>Dodaj osobę z telefonu</h2></summary>
+        <form id="waitlist-admin-form" novalidate>
+          <div class="form-grid">
+            <div class="field span-2"><label for="wa-t">Zabieg</label><select id="wa-t" name="treatmentId">${opts}</select></div>
+            <div class="field"><label for="wa-from">Od</label><input id="wa-from" name="from" type="date" value="${today}" required></div>
+            <div class="field"><label for="wa-to">Do</label><input id="wa-to" name="to" type="date" value="${S.isoDate(inTwo)}" required></div>
+            <div class="field"><label for="wa-name">Imię</label><input id="wa-name" name="firstName" maxlength="60" autocomplete="off" required></div>
+            <div class="field"><label for="wa-phone">Telefon</label><input id="wa-phone" name="phone" type="tel" maxlength="20" placeholder="+48 600 000 000" autocomplete="off" required></div>
+            <div class="field"><label for="wa-lang">Język SMS-a</label><select id="wa-lang" name="lang"><option value="pl">polski</option><option value="en">angielski</option></select></div>
+          </div>
+          <p class="small muted">Powiedz klientce, że dostanie SMS o zwolnionym terminie i że może się wypisać przez link z wiadomości.</p>
+          <button class="btn btn-primary" type="submit">Dodaj do listy</button>
+        </form>
+      </details>
+      ${closed.length ? `<div class="panel-card"><h2>Zakończone</h2><p class="small muted">Dane znikają same 30 dni po końcu okresu oczekiwania.</p>${table(closed, true)}</div>` : ''}`;
+  }
+
+  /* ---------- Statystyki ---------- */
+  let statsDays = 90;
+  const MONTHS = ['styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec', 'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień'];
+  const MONTHS_IN = ['styczniu', 'lutym', 'marcu', 'kwietniu', 'maju', 'czerwcu', 'lipcu', 'sierpniu', 'wrześniu', 'październiku', 'listopadzie', 'grudniu'];
+  const MONTHS_SHORT = ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'];
+  const mIdx = (m) => Number(m.slice(5, 7)) - 1;
+  const monthName = (m) => MONTHS[mIdx(m)] + ' ' + m.slice(0, 4);
+  const plural = (n, one, few, many) => (n === 1 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? few : many);
+  const nVisits = (n) => `${n} ${plural(n, 'wizyta', 'wizyty', 'wizyt')}`;
+  const zl = (v) => Math.round(v).toLocaleString('pl-PL') + ' zł';
+  const pctOf = (n, all) => (all ? Math.round((n / all) * 100) : 0);
+  const SOURCE_NAMES = { online: 'Rezerwacja na stronie', telefon: 'Telefon', instagram: 'Instagram', 'osobiście': 'Osobiście w gabinecie', inne: 'Inne' };
+  const PERIODS = [[30, '30 dni'], [90, '90 dni'], [365, '12 miesięcy']];
+
+  // podziałka osi: 4–5 równych, okrągłych kroków
+  function niceScale(max) {
+    if (max <= 0) return { step: 500, top: 2000 };
+    const raw = max / 4; const mag = 10 ** Math.floor(Math.log10(raw));
+    const step = [1, 2, 2.5, 5, 10].map((k) => k * mag).find((s) => s >= raw);
+    return { step, top: Math.ceil(max / step) * step };
+  }
+  const tickLabel = (v, top) => (top >= 10000 ? (v ? Math.round(v / 1000) + ' tys.' : '0') : Math.round(v).toLocaleString('pl-PL')) + ' zł';
+
+  function monthChart(st) {
+    const ms = st.months;
+    const { step, top } = niceScale(Math.max(...ms.map((m) => m.doneValue + m.plannedValue)));
+    const ticks = []; for (let v = 0; v <= top + 1e-9; v += step) ticks.push(v);
+    const h = (v) => ((v / top) * 100).toFixed(2) + '%';
+    return `
+      <ul class="chart-legend" aria-hidden="true"><li><i class="key-done"></i>Odbyte</li><li><i class="key-plan"></i>Zaplanowane</li></ul>
+      <div class="cc">
+        <div class="cc-plot">
+          ${ticks.map((v) => `<div class="cc-tick" style="bottom:${h(v)}"><span>${tickLabel(v, top)}</span></div>`).join('')}
+          <div class="cc-cols">
+            ${ms.map((m, i) => {
+              const total = m.doneValue + m.plannedValue; const cur = m.month === st.thisMonth;
+              return `<div class="cc-col${cur ? ' is-current' : ''}" tabindex="0" data-tip="months" data-i="${i}"
+                aria-label="${monthName(m.month)}: odbyte ${zl(m.doneValue)}, zaplanowane ${zl(m.plannedValue)}">
+                <div class="cc-stack" style="height:${h(total)}">
+                  ${m.plannedValue > 0 ? `<i class="cc-plan" style="flex-grow:${m.plannedValue}"></i>` : ''}
+                  ${m.doneValue > 0 ? `<i class="cc-done" style="flex-grow:${m.doneValue}"></i>` : ''}
+                  ${cur && total > 0 ? `<b class="cc-cap">${zl(total)}</b>` : ''}
+                </div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>
+        <div class="cc-x" aria-hidden="true">${ms.map((m) => `<span${m.month === st.thisMonth ? ' class="is-current"' : ''}>${MONTHS_SHORT[mIdx(m.month)]}${mIdx(m.month) === 0 ? `<br>${m.month.slice(0, 4)}` : ''}</span>`).join('')}</div>
+      </div>
+      <details class="chart-table"><summary>Pokaż dane w tabeli</summary><div class="table-scroll"><table class="table">
+        <thead><tr><th>Miesiąc</th><th class="num">Odbyte</th><th class="num">Wartość odbytych</th><th class="num">Zaplanowane</th><th class="num">Wartość zaplanowanych</th><th class="num">Odwołane przez klientkę</th><th class="num">Odwołane przez gabinet</th><th class="num">Nieobecności</th><th class="num">Opłaty za odwołania</th></tr></thead>
+        <tbody>${ms.map((m) => `<tr><td>${monthName(m.month)}</td><td class="num">${m.done}</td><td class="num">${zl(m.doneValue)}</td><td class="num">${m.planned}</td><td class="num">${zl(m.plannedValue)}</td>
+          <td class="num">${m.cancelledClient}</td><td class="num">${m.cancelledSalon}</td><td class="num">${m.noShow}</td><td class="num">${m.fees ? `${zl(m.fees)}${m.feesPaid ? ` <span class="small muted">(zapłacone ${zl(m.feesPaid)})</span>` : ''}` : '–'}</td></tr>`).join('')}</tbody>
+      </table></div></details>`;
+  }
+
+  function barList(rows, kind, valueLabel) {
+    if (!rows.length) return '<p class="muted">Brak danych w tym okresie.</p>';
+    const max = Math.max(...rows.map((r) => r.n), 1);
+    return `<div class="hb">${rows.map((r, i) => `
+      <div class="hb-row" tabindex="0" data-tip="${kind}" data-i="${i}" aria-label="${esc(r.label)}: ${valueLabel(r)}">
+        <span class="hb-name">${esc(r.label)}</span>
+        <span class="hb-track"><i style="width:calc((100% - 52px) * ${(r.n / max).toFixed(4)})"></i><b>${valueLabel(r)}</b></span>
+      </div>`).join('')}</div>`;
+  }
+  function statsRows(st) {
+    const all = st.treatments.reduce((s, t) => s + t.n, 0);
+    const every = st.treatments.map((t) => ({ label: t.name, n: t.n, value: t.value, share: pctOf(t.n, all) }));
+    // wykres pokazuje 8 najczęstszych, reszta jest w tabeli i w podsumowaniu pod wykresem
+    const treat = every.slice(0, 8);
+    const rest = every.slice(8);
+    const made = st.sources.reduce((s, x) => s + x.n, 0);
+    const sources = st.sources.map((x) => ({ label: SOURCE_NAMES[x.source] || x.source, n: x.n, share: pctOf(x.n, made) }));
+    return { treat, every, rest, sources, all, made };
+  }
+
+  function vStatystyki() {
+    const st = data.stats; const m = st.month; const r = st.recent;
+    const { treat, every, rest, sources, all, made } = statsRows(st);
+    const period = PERIODS.find((p) => p[0] === st.days)[1];
+    const lost = r.cancelled + r.noShow;
+    return `
+      ${st.hasDemo ? '<p class="small muted panel-inline-note">Statystyki liczą też dane przykładowe. Po ich usunięciu zostaną tylko prawdziwe wizyty.</p>' : ''}
+      <div class="stat-row">
+        <div class="stat"><b>${zl(m.doneValue)}</b><span>odbyte zabiegi w ${MONTHS_IN[mIdx(st.thisMonth)]}, ${nVisits(m.done)}</span></div>
+        <div class="stat"><b>${zl(m.plannedValue)}</b><span>zaplanowane do końca miesiąca, ${nVisits(m.planned)}</span></div>
+        <div class="stat"><b>${st.newClients}</b><span>${plural(st.newClients, 'nowa klientka', 'nowe klientki', 'nowych klientek')} w ostatnich 30 dniach</span></div>
+        <div class="stat"><b>${r.n ? pctOf(lost, r.n) + '%' : '–'}</b><span>wizyt odwołanych lub nieodbytych w ostatnich 30 dniach (${r.cancelled} odw., ${r.noShow} nieob.)</span></div>
+      </div>
+      <div class="panel-card">
+        <h2>Wartość wizyt miesiąc po miesiącu</h2>
+        <p class="small muted">Ceny po rabatach. Odwołane wizyty i nieobecności nie wchodzą do sumy, znajdziesz je w tabeli.</p>
+        ${monthChart(st)}
+      </div>
+      <div class="stats-filter" role="group" aria-label="Okres dla zestawień poniżej">
+        <span class="small muted">Okres:</span>
+        ${PERIODS.map(([d, label]) => `<button type="button" class="chip" data-stats-days="${d}" aria-pressed="${d === st.days}">${label}</button>`).join('')}
+      </div>
+      <div class="stats-grid">
+        <div class="panel-card">
+          <h2>Najczęstsze zabiegi</h2>
+          <p class="small muted">Wizyty odbyte i zaplanowane na dziś, z ostatnich ${period}, razem ${nVisits(all)}.</p>
+          ${barList(treat, 'treat', (x) => String(x.n))}
+          ${rest.length ? `<p class="small muted hb-rest">Pozostałe ${rest.length} ${plural(rest.length, 'zabieg', 'zabiegi', 'zabiegów')}: razem ${nVisits(rest.reduce((n, t) => n + t.n, 0))}. Wszystkie są w tabeli.</p>` : ''}
+          ${treat.length ? `<details class="chart-table"><summary>Pokaż dane w tabeli</summary><table class="table"><thead><tr><th>Zabieg</th><th class="num">Wizyty</th><th class="num">Udział</th><th class="num">Wartość</th></tr></thead>
+            <tbody>${every.map((t) => `<tr><td>${esc(t.label)}</td><td class="num">${t.n}</td><td class="num">${t.share}%</td><td class="num">${zl(t.value)}</td></tr>`).join('')}</tbody></table></details>` : ''}
+        </div>
+        <div>
+          <div class="panel-card">
+            <h2>Skąd przychodzą rezerwacje</h2>
+            <p class="small muted">Wizyty zapisane w ostatnich ${{ 30: '30 dniach', 90: '90 dniach', 365: '12 miesiącach' }[st.days]}, razem ${made}.</p>
+            ${barList(sources, 'src', (x) => x.share + '%')}
+            ${sources.length ? `<details class="chart-table"><summary>Pokaż dane w tabeli</summary><table class="table"><thead><tr><th>Źródło</th><th class="num">Rezerwacje</th><th class="num">Udział</th></tr></thead>
+              <tbody>${sources.map((x) => `<tr><td>${esc(x.label)}</td><td class="num">${x.n}</td><td class="num">${x.share}%</td></tr>`).join('')}</tbody></table></details>` : ''}
+          </div>
+          <div class="panel-card">
+            <h2>Bony podarunkowe</h2>
+            <dl class="stats-dl">
+              <div><dt>Sprzedane w tym okresie</dt><dd>${zl(st.vouchers.soldValue)} <span class="small muted">(${st.vouchers.sold} ${plural(st.vouchers.sold, 'bon', 'bony', 'bonów')})</span></dd></div>
+              <div><dt>Wykorzystane w tym okresie</dt><dd>${zl(st.vouchers.used)}</dd></div>
+              <div><dt>Do wykorzystania na ważnych bonach</dt><dd>${zl(st.vouchers.open)}</dd></div>
+            </dl>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // dymek z wartościami: ten sam po najechaniu myszą i po przejściu klawiszem Tab
+  let tipEl = null;
+  function tipRow(cls, strong, rest) {
+    const row = document.createElement('div'); row.className = 'tip-row';
+    if (cls) { const k = document.createElement('i'); k.className = cls; row.append(k); }
+    const b = document.createElement('b'); b.textContent = strong; row.append(b, document.createTextNode(' ' + rest));
+    return row;
+  }
+  function showTip(el) {
+    const st = data && data.stats; if (!st) return;
+    const i = Number(el.dataset.i); const kind = el.dataset.tip;
+    if (!tipEl) { tipEl = document.createElement('div'); tipEl.className = 'chart-tip'; tipEl.setAttribute('role', 'tooltip'); document.body.append(tipEl); }
+    tipEl.replaceChildren();
+    const title = document.createElement('p'); title.className = 'tip-title'; tipEl.append(title);
+    if (kind === 'months') {
+      const m = st.months[i]; title.textContent = monthName(m.month);
+      tipEl.append(tipRow('key-done', zl(m.doneValue), `odbyte, ${nVisits(m.done)}`), tipRow('key-plan', zl(m.plannedValue), `zaplanowane, ${nVisits(m.planned)}`));
+      const lostM = m.cancelledClient + m.cancelledSalon;
+      if (lostM || m.noShow) tipEl.append(tipRow('', String(lostM), `${plural(lostM, 'odwołana', 'odwołane', 'odwołanych')}, ${m.noShow} ${plural(m.noShow, 'nieobecność', 'nieobecności', 'nieobecności')}`));
+    } else {
+      const { treat, sources } = statsRows(st);
+      const r = (kind === 'treat' ? treat : sources)[i]; title.textContent = r.label;
+      if (kind === 'treat') tipEl.append(tipRow('', nVisits(r.n), `(${r.share}% wszystkich)`), tipRow('', zl(r.value), 'wartość'));
+      else tipEl.append(tipRow('', r.share + '%', `rezerwacji, ${r.n} ${plural(r.n, 'wizyta', 'wizyty', 'wizyt')}`));
+    }
+    const box = (el.querySelector('.cc-stack, .hb-track i') || el).getBoundingClientRect();
+    tipEl.style.display = 'block';
+    const w = tipEl.offsetWidth, hgt = tipEl.offsetHeight;
+    let left = kind === 'months' ? box.left + box.width / 2 - w / 2 : box.right - w / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - w - 8));
+    let top = box.top - hgt - 10; if (top < 8) top = box.bottom + 10;
+    tipEl.style.left = left + 'px'; tipEl.style.top = top + 'px';
+  }
+  function hideTip() { if (tipEl) tipEl.style.display = 'none'; }
+
+  /* ---------- Bony podarunkowe ---------- */
+  function vBony() {
+    const list = data.vouchers;
+    const inYear = new Date(); inYear.setFullYear(inYear.getFullYear() + 1);
+    const state = (v) => v.status === 'void' ? '<span class="badge badge-off">unieważniony</span>' : !v.valid ? '<span class="badge badge-off">po terminie</span>' : v.balance <= 0 ? '<span class="badge">wykorzystany</span>' : '<span class="badge badge-ok">aktywny</span>';
+    return `
+      <form class="panel-card" id="voucher-form" novalidate>
+        <h2>Wystaw bon</h2>
+        <p class="small muted">Bon dostaje unikalny kod. Klientka wpisuje go przy rezerwacji online albo podaje w gabinecie. Z salda schodzi kwota odbytej wizyty, więc bon można wykorzystać w kilku częściach.</p>
+        <div class="form-grid">
+          <div class="field"><label for="v-amount">Kwota (zł)</label><input id="v-amount" name="amount" type="number" min="10" step="10" value="300" required></div>
+          <div class="field"><label for="v-until">Ważny do</label><input id="v-until" name="validUntil" type="date" value="${S.isoDate(inYear)}" required></div>
+          <div class="field"><label for="v-to">Dla kogo <span class="opt">(na bonie)</span></label><input id="v-to" name="recipient" maxlength="80" placeholder="Np. Anny"></div>
+          <div class="field"><label for="v-from">Od kogo <span class="opt">(na bonie)</span></label><input id="v-from" name="giver" maxlength="80" placeholder="Np. Kasia i Tomek"></div>
+          <div class="field span-2"><label for="v-msg">Dedykacja <span class="opt">(na bonie, opcjonalnie)</span></label><input id="v-msg" name="message" maxlength="240" placeholder="Np. Wszystkiego najlepszego z okazji urodzin!"></div>
+          <div class="field span-2"><label for="v-paid">Płatność <span class="opt">(widzi tylko panel)</span></label><input id="v-paid" name="paidNote" maxlength="120" placeholder="Np. zapłacono kartą w gabinecie 6.11"></div>
+        </div>
+        <button class="btn btn-primary" type="submit">Wystaw bon</button>
+      </form>
+      <div class="panel-card">
+        <h2>Bony (${list.length})</h2>
+        ${list.length ? `<table class="table"><thead><tr><th>Kod</th><th>Dla kogo</th><th class="num">Kwota</th><th class="num">Do wykorzystania</th><th>Ważny do</th><th>Status</th><th></th></tr></thead><tbody>
+          ${list.map((v) => `<tr>
+            <td><strong style="font-weight:500;letter-spacing:.04em">${esc(v.code)}</strong>${v.paidNote ? `<br><span class="small muted">${esc(v.paidNote)}</span>` : ''}</td>
+            <td>${esc(v.recipient || '—')}${v.giver ? `<br><span class="small muted">od: ${esc(v.giver)}</span>` : ''}</td>
+            <td class="num">${money(v.amount)}</td>
+            <td class="num">${money(v.available) === 'bezpłatnie' ? '0 zł' : money(v.available)}${v.available !== v.balance ? `<br><span class="small muted">saldo ${money(v.balance)}, reszta zarezerwowana</span>` : ''}</td>
+            <td>${new Date(v.validUntil + 'T12:00').toLocaleDateString('pl-PL')}</td>
+            <td>${state(v)}</td>
+            <td class="num v-actions">
+              <a class="btn btn-outline btn-small" href="bon.html?id=${v.id}" target="_blank" rel="noopener">Drukuj</a>
+              ${v.valid && v.available > 0 ? `<button type="button" class="btn btn-outline btn-small" data-v-redeem="${v.id}">Rozlicz</button>` : ''}
+              <button type="button" class="link-button small" data-v-history="${v.id}">Historia</button>
+              <button type="button" class="link-button small" data-v-void="${v.id}" data-void="${v.status === 'void' ? 0 : 1}">${v.status === 'void' ? 'Przywróć' : 'Unieważnij'}</button>
+            </td></tr>`).join('')}
+        </tbody></table>` : '<p class="muted">Nie wystawiono jeszcze żadnego bonu.</p>'}
+        <p class="small muted" style="margin-top:14px">„Rozlicz” służy do bonów wykorzystanych w gabinecie bez rezerwacji przez stronę. Wizyty zarezerwowane z kodem bonu rozliczają się same po odbytej wizycie; nieobecność zwraca kwotę na bon.</p>
+      </div>`;
+  }
+  function voucherRedeem(v) {
+    openDialog(`
+      <form class="modal-body" novalidate>
+        <h2>Rozlicz bon ${esc(v.code)}</h2>
+        <p class="small muted">Do wykorzystania: ${money(v.available)}. Kwota zejdzie z salda bonu.</p>
+        <div class="form-grid">
+          <div class="field"><label for="vr-amount">Kwota (zł)</label><input id="vr-amount" name="amount" type="number" min="1" step="1" max="${v.available}" value="${v.available}"></div>
+          <div class="field"><label for="vr-note">Za co <span class="opt">(opcjonalnie)</span></label><input id="vr-note" name="note" maxlength="160" placeholder="Np. mezoterapia 12.11"></div>
+        </div>
+        <div class="modal-actions"><button class="btn btn-primary" type="submit">Rozlicz</button><button class="btn btn-outline" type="button" data-close>Anuluj</button></div>
+      </form>`,
+    async (f, close) => {
+      await api('POST', `/api/admin/vouchers/${v.id}/redeem`, { amount: Number(f.elements.amount.value), note: f.elements.note.value });
+      close(); ui.toast('Bon rozliczony.'); rerender();
+    });
+  }
+  function voucherHistory(v) {
+    const rows = v.uses.map((u) => `<tr><td>${dt(u.at)}</td><td>${u.booking_id ? `wizyta ${u.date ? ui.fmtShort(u.date) + ', ' + u.time : ''} ${esc(u.treatment_name || '')}` : esc(u.note || 'rozliczenie w gabinecie')}</td><td class="num">−${money(u.amount)}</td></tr>`)
+      .concat(v.planned.map((b) => `<tr><td class="muted">zaplanowane</td><td>wizyta ${ui.fmtShort(b.date)}, ${b.time} ${esc(b.treatment_name)}</td><td class="num muted">−${money(b.voucher_amount)}</td></tr>`));
+    openDialog(`
+      <div class="modal-body">
+        <h2>Bon ${esc(v.code)}</h2>
+        <p class="small muted">Wystawiony ${dt(v.createdAt)} przez ${esc(v.createdBy)} na ${money(v.amount)}. Saldo: ${money(v.balance) === 'bezpłatnie' ? '0 zł' : money(v.balance)}.</p>
+        ${rows.length ? `<table class="table"><tbody>${rows.join('')}</tbody></table>` : '<p class="muted">Bon nie był jeszcze używany.</p>'}
+        <div class="modal-actions"><button class="btn btn-outline" type="button" data-close>Zamknij</button></div>
+      </div>`);
+  }
+
   /* ---------- Dane dla widoków ---------- */
   async function loadView() {
     const today = new Date(); const past = new Date(); past.setDate(past.getDate() - 30);
@@ -581,15 +879,18 @@ JM.ready.then(function () {
       kalendarz: async () => ({ calendar: await api('GET', `/api/admin/calendar?from=${S.isoDate(calWeek)}&to=${S.isoDate(addDays(calWeek, 6))}`) }),
       wizyty: async () => (await api('GET', `/api/admin/bookings?from=${S.isoDate(past)}`)),
       klientki: async () => (await api('GET', '/api/admin/clients')),
+      oczekujace: async () => { await ensureLists(); return api('GET', '/api/admin/waitlist'); },
+      statystyki: async () => ({ stats: await api('GET', `/api/admin/stats?days=${statsDays}`) }),
       zabiegi: async () => (await api('GET', '/api/admin/prices')),
       promocje: async () => (await api('GET', '/api/admin/promos')),
       galeria: async () => (await api('GET', '/api/admin/gallery')),
+      bony: async () => (await api('GET', '/api/admin/vouchers')),
       wiadomosci: async () => {
         const [r, m, c] = await Promise.all([api('GET', '/api/admin/reminders'), api('GET', '/api/admin/messages'), api('GET', '/api/admin/clients')]);
         mode = m.mode; return { reminders: r.reminders, messages: m.messages, clients: c.clients };
       },
       godziny: async () => (await api('GET', '/api/admin/days-off')),
-      konto: async () => ({ backup: await api('GET', '/api/admin/backup') })
+      konto: async () => { const [backup, ical] = await Promise.all([api('GET', '/api/admin/backup'), api('GET', '/api/admin/ical')]); return { backup, ical }; }
     };
     data = await loaders[view]();
     void today;
@@ -621,10 +922,11 @@ JM.ready.then(function () {
       </div>`;
   }
   async function render(scroll) {
+    hideTip();
     if (!admin) { root.innerHTML = loginView(); return; }
     try {
       await loadView();
-      const fn = { pulpit: vPulpit, kalendarz: vKalendarz, wizyty: vWizyty, klientki: vKlientki, zabiegi: vZabiegi, promocje: vPromocje, galeria: vGaleria, wiadomosci: vWiadomosci, godziny: vGodziny, konto: vKonto }[view];
+      const fn = { pulpit: vPulpit, kalendarz: vKalendarz, wizyty: vWizyty, oczekujace: vOczekujace, klientki: vKlientki, statystyki: vStatystyki, zabiegi: vZabiegi, promocje: vPromocje, bony: vBony, galeria: vGaleria, wiadomosci: vWiadomosci, godziny: vGodziny, konto: vKonto }[view];
       root.innerHTML = shell(fn());
     } catch (err) {
       if (err.status === 401) { admin = null; root.innerHTML = loginView('Sesja wygasła. Zaloguj się ponownie.'); return; }
@@ -666,9 +968,25 @@ JM.ready.then(function () {
   }
 
   /* ---------- Zdarzenia ---------- */
+  // dymki na wykresach w statystykach
+  root.addEventListener('pointerover', (e) => { const el = e.target.closest('[data-tip]'); if (el) showTip(el); });
+  root.addEventListener('pointerout', (e) => { const el = e.target.closest('[data-tip]'); if (el && !el.contains(e.relatedTarget)) hideTip(); });
+  root.addEventListener('focusin', (e) => { const el = e.target.closest('[data-tip]'); if (el) showTip(el); });
+  root.addEventListener('focusout', (e) => { if (e.target.closest('[data-tip]')) hideTip(); });
+  window.addEventListener('scroll', hideTip, { passive: true });
+
   root.addEventListener('click', async (e) => {
     const el = e.target.closest('button'); if (!el) return;
     if (el.dataset.view) { view = el.dataset.view; render(true); return; }
+    if (el.dataset.wlRemove) {
+      if (!confirmDialog('Usunąć z listy oczekujących?', 'Klientka nie dostanie już SMS-a o wolnym terminie. Jej dane znikną z listy.')) return;
+      return act(() => api('DELETE', `/api/admin/waitlist/${el.dataset.wlRemove}`), 'Usunięto z listy.');
+    }
+    if (el.dataset.statsDays) {
+      statsDays = Number(el.dataset.statsDays);
+      root.querySelectorAll('.stats-grid').forEach((g) => { g.style.opacity = '.45'; });
+      render(); return;
+    }
     if (el.hasAttribute('data-admin-logout')) { await api('POST', '/api/admin/logout', {}); admin = null; stopLive(); render(); return; }
     if (el.hasAttribute('data-clear-demo')) {
       if (!confirmDialog('Usunąć dane przykładowe?', 'Przykładowe klientki i ich wizyty znikną z bazy. Prawdziwe dane zostają.')) return;
@@ -694,7 +1012,23 @@ JM.ready.then(function () {
       Notification.requestPermission().then((p) => { ui.toast(p === 'granted' ? 'Powiadomienia włączone: nowa rezerwacja pokaże się na ekranie, nawet gdy panel jest w tle.' : 'Powiadomienia wyłączone. Nowe rezerwacje i tak pojawią się w panelu.'); rerender(); });
       return;
     }
+    if (el.hasAttribute('data-copy-ical')) {
+      const inp = document.getElementById('ical-url');
+      try { await navigator.clipboard.writeText(inp.value); } catch (err) { inp.select(); document.execCommand && document.execCommand('copy'); }
+      ui.toast('Skopiowano link do kalendarza.'); return;
+    }
+    if (el.hasAttribute('data-renew-ical')) {
+      if (!confirmDialog('Wygenerować nowy link?', 'Stary link przestanie działać. Kalendarz trzeba będzie dodać w telefonie od nowa.')) return;
+      return act(() => api('POST', '/api/admin/ical/renew', {}), 'Nowy link gotowy. Dodaj kalendarz w telefonie ponownie.');
+    }
     if (el.hasAttribute('data-backup-now')) return act(() => api('POST', '/api/admin/backup', {}), 'Kopia zapasowa gotowa.');
+    if (el.dataset.vRedeem) { voucherRedeem(data.vouchers.find((x) => String(x.id) === el.dataset.vRedeem)); return; }
+    if (el.dataset.vHistory) { voucherHistory(data.vouchers.find((x) => String(x.id) === el.dataset.vHistory)); return; }
+    if (el.dataset.vVoid) {
+      const on = el.dataset.void === '1';
+      if (on && !confirmDialog('Unieważnić bon?', 'Bonu nie da się wtedy użyć przy rezerwacji ani w gabinecie. Możesz go później przywrócić.')) return;
+      return act(() => api('POST', `/api/admin/vouchers/${el.dataset.vVoid}/void`, { void: on }), on ? 'Bon unieważniony.' : 'Bon przywrócony.');
+    }
     if (el.dataset.gMove) return act(() => api('POST', `/api/admin/gallery/${el.dataset.gMove}/move`, { dir: Number(el.dataset.dir) }));
     if (el.dataset.gToggle) { const g = data.photos.find((x) => String(x.id) === el.dataset.gToggle); return act(() => api('PATCH', '/api/admin/gallery/' + g.id, { published: !g.published }), g.published ? 'Zdjęcie ukryte na stronie.' : 'Zdjęcie widoczne na stronie.'); }
     if (el.dataset.gEdit) { galleryEdit(data.photos.find((x) => String(x.id) === el.dataset.gEdit)); return; }
@@ -749,6 +1083,23 @@ JM.ready.then(function () {
       return;
     }
     if (f.id === 'gallery-form') return uploadPhotos(f);
+    if (f.id === 'waitlist-admin-form') {
+      const v = (n) => f.elements[n].value.trim();
+      try {
+        await api('POST', '/api/admin/waitlist', { treatmentId: v('treatmentId'), from: v('from'), to: v('to'), firstName: v('firstName'), phone: v('phone'), lang: v('lang') });
+        await rerender(); ui.toast('Dodano do listy oczekujących.');
+      } catch (err) { ui.toast(err.message); }
+      return;
+    }
+    if (f.id === 'voucher-form') {
+      const v = (n) => f.elements[n].value.trim();
+      try {
+        const r = await api('POST', '/api/admin/vouchers', { amount: Number(v('amount')), validUntil: v('validUntil'), recipient: v('recipient'), giver: v('giver'), message: v('message'), paidNote: v('paidNote') });
+        await rerender();
+        ui.toast(`Bon ${r.voucher.code} wystawiony. Kliknij „Drukuj”, żeby przygotować go do wręczenia.`);
+      } catch (err) { ui.toast(err.message); }
+      return;
+    }
     if (f.id === 'prices-form') {
       const prices = {}; f.querySelectorAll('.price-input').forEach((i) => { if (i.value !== '') prices[i.name] = Number(i.value); });
       return act(() => api('PUT', '/api/admin/prices', { prices }), 'Zapisano ceny.');

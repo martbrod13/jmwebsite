@@ -78,7 +78,7 @@ JM.ready.then(function () {
     return `
       <li class="visit-row">
         <div class="visit-date"><strong>${d.getDate()} ${JM.monthGen[d.getMonth()]}</strong><span>${L(JM.dayNames[d.getDay()].toLowerCase(), JM.dayNames[d.getDay()])}, ${b.time}</span></div>
-        <div>${esc(tName(b))}<div class="muted">${b.discount ? `${S.formatPrice(b.total)} (${L('zniżka', 'discount')} ${b.discount.percent}%)` : S.formatPrice(b.total)} ${status}</div></div>
+        <div>${esc(tName(b))}<div class="muted">${S.formatPrice(b.toPay ?? b.total)}${b.discount ? ` (${L('zniżka', 'discount')} ${b.discount.percent}%)` : ''}${b.voucher ? ` (${L('bon', 'voucher')} −${S.formatPrice(b.voucher.amount)})` : ''} ${status}</div></div>
         <div>${action}</div>
       </li>`;
   }
