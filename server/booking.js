@@ -61,7 +61,22 @@ function bookingWindow() {
 }
 function takenRanges(dateStr, ignoreId) {
   return db.prepare("SELECT start_min, end_min FROM bookings WHERE date = ? AND status IN ('confirmed','done') AND id IS NOT ?")
-    .all(dateStr, ignoreId ?? null).map((r) => [r.start_min, r.end_min]);
+    .all(dateStr, ignoreId ?? null).map((r) => [r.start_min, r.end_min])
+    .concat(db.prepare('SELECT start_min, end_min FROM blocks WHERE date = ?').all(dateStr).map((r) => [r.start_min, r.end_min]));
+}
+// Co koliduje z danym czasem: inne wizyty i blokady (dla panelu, z opisem)
+function conflicts(dateStr, start, end, ignoreId) {
+  const out = [];
+  db.prepare("SELECT id, time, end_min, treatment_name FROM bookings WHERE date = ? AND status IN ('confirmed','done') AND id IS NOT ? AND start_min < ? AND end_min > ?")
+    .all(dateStr, ignoreId ?? null, end, start).forEach((b) => out.push(`wizyta ${b.time}–${toTime(b.end_min)} (${b.treatment_name})`));
+  db.prepare('SELECT start_min, end_min, note FROM blocks WHERE date = ? AND start_min < ? AND end_min > ?')
+    .all(dateStr, end, start).forEach((x) => out.push(`blokada ${toTime(x.start_min)}–${toTime(x.end_min)}${x.note ? ' (' + x.note + ')' : ''}`));
+  return out;
+}
+// Czy czas mieści się w godzinach pracy (święta i dni wolne = poza godzinami)
+function withinHours(dateStr, start, end) {
+  const h = dayHours(dateStr);
+  return !!h && start >= h[0] * 60 && end <= h[1] * 60;
 }
 function slotsFor(dateStr, duration, ignoreId) {
   const w = bookingWindow();
@@ -142,6 +157,75 @@ function createBooking({ treatmentId, date, time, notes, lang, client, guest }) 
   });
 }
 
+/* ---------- Wizyty dodawane i przenoszone w panelu ---------- */
+// Sprawdza termin dla panelu. Kolizje zawsze blokują (jedna osoba w gabinecie),
+// a czas poza godzinami pracy albo w przeszłości wymaga potwierdzenia (force).
+function checkManualSlot({ date, time, duration, ignoreId, force }) {
+  if (!DATE_RE.test(date || '') || !TIME_RE.test(time || '')) throw new BookingError('slot', 'Podaj poprawną datę i godzinę.');
+  const start = toMin(time); const end = start + duration;
+  if (start % 5 || end > 24 * 60) throw new BookingError('slot', 'Godzina musi być pełna co 5 minut i kończyć się przed północą.');
+  const c = conflicts(date, start, end, ignoreId);
+  if (c.length) throw new BookingError('conflict', 'Ten czas koliduje z: ' + c.join(', ') + '.');
+  if (!force) {
+    const warn = [];
+    if (!withinHours(date, start, end)) warn.push(dayHours(date) ? 'jest poza godzinami pracy' : 'gabinet jest tego dnia nieczynny');
+    if (new Date(date + 'T' + time + ':00') < new Date()) warn.push('jest w przeszłości');
+    if (warn.length) throw new BookingError('confirm', 'Ten termin ' + warn.join(' i ') + '. Zapisać mimo to?');
+  }
+  return { start, end };
+}
+
+function createManualBooking({ treatmentId, date, time, duration, price, notes, source, client, guest, force }) {
+  const t = treatment(treatmentId);
+  if (!t) throw new BookingError('treatment', 'Wybierz zabieg.');
+  const dur = Number(duration) || t.duration;
+  if (dur < 10 || dur > 600) throw new BookingError('duration', 'Czas wizyty musi mieć od 10 minut do 10 godzin.');
+  const p = price === '' || price == null ? currentPrice(t.id) : Number(price);
+  if (!Number.isFinite(p) || p < 0) throw new BookingError('price', 'Podaj poprawną cenę.');
+  return tx(() => {
+    const { start, end } = checkManualSlot({ date, time, duration: dur, force });
+    let code; do { code = shortCode(6); } while (db.prepare('SELECT 1 FROM bookings WHERE code = ?').get(code));
+    const r = db.prepare(`INSERT INTO bookings (code, token, treatment_id, treatment_name, duration, date, time, start_min, end_min,
+        client_id, guest_first, guest_last, guest_phone, guest_email, lang, notes, price, total, created_at, source, demo)
+      VALUES (?,?,?,?,?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?,?,?)`).run(
+      code, randomToken(24), t.id, t.name, dur, date, time, start, end,
+      client ? client.id : null, guest ? guest.firstName : null, guest ? guest.lastName : null, guest ? guest.phone : null, guest ? guest.email || null : null,
+      client ? client.language : 'pl', notes || null, p, p, nowIso(), source, client && client.demo ? 1 : 0);
+    return getBooking(Number(r.lastInsertRowid));
+  });
+}
+
+// Przeniesienie wizyty. Klientka: tylko na wolny termin z kalendarza i najpóźniej X godzin przed wizytą.
+function moveBooking(b, { date, time, by, force }) {
+  if (b.status !== 'confirmed') throw new BookingError('move', 'Można przenieść tylko zaplanowaną wizytę.');
+  return tx(() => {
+    if (by === 'client') {
+      if (!canCancel(b) || isLateCancel(b)) throw new BookingError('late', `Termin można zmienić online najpóźniej ${C.booking.cancelHours} godzin przed wizytą. Zadzwoń do gabinetu.`);
+      if (!DATE_RE.test(date || '') || !TIME_RE.test(time || '') || !slotsFor(date, b.duration, b.id).includes(time)) throw new BookingError('taken', 'Ten termin jest już zajęty. Wybierz inny.');
+    } else {
+      checkManualSlot({ date, time, duration: b.duration, ignoreId: b.id, force });
+    }
+    const start = toMin(time);
+    db.prepare('UPDATE bookings SET date = ?, time = ?, start_min = ?, end_min = ? WHERE id = ?').run(date, time, start, start + b.duration, b.id);
+    // przypomnienie dla starego terminu zostaje w historii, a nowe wyśle się o czasie
+    db.prepare("UPDATE messages SET kind = 'reminder_prev' WHERE booking_id = ? AND kind = 'reminder'").run(b.id);
+    return getBooking(b.id);
+  });
+}
+
+/* ---------- Blokady czasu ---------- */
+function blocksBetween(from, to) {
+  return db.prepare('SELECT * FROM blocks WHERE date BETWEEN ? AND ? ORDER BY date, start_min').all(from, to)
+    .map((x) => ({ id: x.id, date: x.date, start: toTime(x.start_min), end: toTime(x.end_min), note: x.note }));
+}
+function addBlock({ date, start, end, note }) {
+  if (!DATE_RE.test(date || '') || !TIME_RE.test(start || '') || !TIME_RE.test(end || '')) throw new BookingError('block', 'Podaj dzień i godziny blokady.');
+  const s = toMin(start), e = toMin(end);
+  if (e <= s) throw new BookingError('block', 'Koniec blokady musi być po jej początku.');
+  db.prepare('INSERT INTO blocks (date, start_min, end_min, note, created_at) VALUES (?,?,?,?,?)').run(date, s, e, note || null, nowIso());
+  return db.prepare("SELECT count(*) AS n FROM bookings WHERE date = ? AND status = 'confirmed' AND start_min < ? AND end_min > ?").get(date, e, s).n;
+}
+
 const getBooking = (id) => db.prepare('SELECT * FROM bookings WHERE id = ?').get(id);
 const getBookingByToken = (token) => (token ? db.prepare('SELECT * FROM bookings WHERE token = ?').get(String(token)) : null);
 
@@ -192,8 +276,9 @@ function publicBooking(b) {
     duration: b.duration, date: b.date, time: b.time, price: b.price, total: b.total,
     discount: b.discount_percent ? { id: b.discount_id, label: b.discount_label, percent: b.discount_percent } : null,
     lowest30: b.lowest30, notes: b.notes, lang: b.lang, createdAt: b.created_at,
-    cancelledBy: b.cancelled_by, fee: b.fee, feeStatus: b.fee_status,
-    canCancel: canCancel(b), lateCancel: canCancel(b) && isLateCancel(b), lateFee: lateFee(b)
+    cancelledBy: b.cancelled_by, fee: b.fee, feeStatus: b.fee_status, source: b.source,
+    canCancel: canCancel(b), lateCancel: canCancel(b) && isLateCancel(b), lateFee: lateFee(b),
+    canMove: canCancel(b) && !isLateCancel(b), end: toTime(b.end_min)
   };
 }
 
@@ -202,6 +287,6 @@ module.exports = {
   treatment, allTreatments, currentPrice, priceMap, lowest30, setPrice,
   dayHours, bookingWindow, slotsFor, availability,
   promotions, visitCount, bestDiscount,
-  BookingError, createBooking, getBooking, getBookingByToken, cancelBooking, markNoShow, setFeeStatus, completePast,
+  BookingError, createBooking, createManualBooking, moveBooking, checkManualSlot, conflicts, withinHours, blocksBetween, addBlock, getBooking, getBookingByToken, cancelBooking, markNoShow, setFeeStatus, completePast,
   canCancel, isLateCancel, lateFee, contactOf, publicBooking
 };

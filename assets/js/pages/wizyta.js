@@ -31,8 +31,8 @@ JM.ready.then(async function () {
           <p class="small muted">${b.lateCancel
             ? L(`Do wizyty zostało mniej niż ${JM.booking.cancelHours} godzin. Zgodnie z regulaminem odwołanie oznacza opłatę ${JM.booking.lateCancelFeePercent}% ceny zabiegu: <strong>${S.formatPrice(b.lateFee)}</strong>.`, `Your visit is less than ${JM.booking.cancelHours} hours away. Under our terms, cancelling now means a fee of ${JM.booking.lateCancelFeePercent}% of the treatment price: <strong>${S.formatPrice(b.lateFee)}</strong>.`)
             : L(`Bezpłatnie odwołasz wizytę do ${JM.booking.cancelHours} godzin przed terminem.`, `You can cancel free of charge up to ${JM.booking.cancelHours} hours before the visit.`)}
-            ${L('Chcesz przenieść wizytę? Odwołaj ją i zarezerwuj nowy termin albo zadzwoń:', 'Want to move the visit? Cancel it and book a new time, or call us:')} <a href="tel:${JM.salon.phoneHref}">${JM.salon.phone}</a>.</p>
-          <div class="btn-row"><button class="btn btn-outline" type="button" data-cancel>${L('Odwołaj wizytę', 'Cancel visit')}</button><a class="btn btn-primary" href="rezerwacja.html">${L('Zarezerwuj inny termin', 'Book another time')}</a></div>`
+            ${b.canMove ? '' : L('Termin możesz już zmienić tylko telefonicznie:', 'You can now change the time only by phone:') + ` <a href="tel:${JM.salon.phoneHref}">${JM.salon.phone}</a>.`}</p>
+          <div class="btn-row">${b.canMove ? `<button class="btn btn-primary" type="button" data-move>${L('Zmień termin', 'Change time')}</button>` : ''}<button class="btn btn-outline" type="button" data-cancel>${L('Odwołaj wizytę', 'Cancel visit')}</button></div>`
         : `<div class="btn-row"><a class="btn btn-primary" href="rezerwacja.html">${L('Zarezerwuj wizytę', 'Book a visit')}</a></div>`}
       </div>`;
   }
@@ -41,14 +41,19 @@ JM.ready.then(async function () {
     if (!token) { root.innerHTML = `<p>${L('Brakuje kodu wizyty. Otwórz link z SMS-a albo e-maila.', 'The visit code is missing. Open the link from your text message or email.')}</p>`; return; }
     try {
       const d = await S.visitByToken(token);
-      root.innerHTML = view(d.booking, d.firstName);
+      current = d.booking; root.innerHTML = view(d.booking, d.firstName);
       root.dataset.first = d.firstName || '';
     } catch (err) {
       root.innerHTML = `<p class="form-msg" role="alert">${esc(err.message)}</p><p><a href="tel:${JM.salon.phoneHref}">${JM.salon.phone}</a></p>`;
     }
   }
 
+  let current = null;
   root.addEventListener('click', (e) => {
+    if (e.target.closest('[data-move]') && current) {
+      JM.moveDialog(current, async (date, time) => { const nb = await S.moveByToken(token, date, time); current = nb; root.innerHTML = view(nb, root.dataset.first); return nb; });
+      return;
+    }
     if (!e.target.closest('[data-cancel]')) return;
     const dlg = ui.h(`<dialog class="modal"><form method="dialog" class="modal-body"><h2>${L('Odwołać wizytę?', 'Cancel this visit?')}</h2><p>${L('Termin wróci do kalendarza dla innych klientek.', 'The time will become available to other clients.')}</p>
       <div class="modal-actions"><button class="btn btn-primary" value="ok">${L('Odwołaj wizytę', 'Cancel visit')}</button><button class="btn btn-outline" value="cancel">${L('Zostaw wizytę', 'Keep visit')}</button></div></form></dialog>`);

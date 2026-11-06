@@ -113,6 +113,8 @@ window.JM = window.JM || {};
   const myBookings = () => api('GET', '/api/me/bookings').then((d) => d.bookings);
   const cancelMyBooking = (id) => api('POST', '/api/me/bookings/' + id + '/cancel', {}).then((d) => d.booking);
   const visitByToken = (token) => api('GET', '/api/visit/' + encodeURIComponent(token));
+  const moveMyBooking = (id, date, time) => api('POST', '/api/me/bookings/' + id + '/move', { date, time }).then((d) => { availCache.clear(); return d.booking; });
+  const moveByToken = (token, date, time) => api('POST', '/api/visit/' + encodeURIComponent(token) + '/move', { date, time }).then((d) => { availCache.clear(); return d.booking; });
   const cancelByToken = (token) => api('POST', '/api/visit/' + encodeURIComponent(token) + '/cancel', {}).then((d) => d.booking);
   async function createBooking(payload) {
     const d = await api('POST', '/api/bookings', payload);
@@ -140,7 +142,7 @@ window.JM = window.JM || {};
     allTreatments, treatment, categoryName, formatPrice, formatDuration,
     promos, discountLabel, bestDiscount, priceSummary,
     currentUser, register, login, logout, updateUser, setConsent, deleteUser, forgotPassword, resetPassword,
-    myBookings, cancelMyBooking, visitByToken, cancelByToken, createBooking, availability, sendContact,
+    myBookings, cancelMyBooking, moveMyBooking, visitByToken, cancelByToken, moveByToken, createBooking, availability, sendContact,
     cookieConsent, setCookieConsent,
     get window() { return cache.window; }, get offline() { return cache.offline; }
   };

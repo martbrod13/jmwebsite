@@ -250,7 +250,7 @@ JM.ready.then(function () {
           <button class="btn btn-outline" type="button" data-ics>${L('Dodaj do kalendarza', 'Add to calendar')}</button>
           ${u ? `<a class="btn btn-primary" href="konto.html">${L('Moje wizyty', 'My visits')}</a>` : `<a class="btn btn-primary" href="konto.html#rejestracja">${L('Załóż konto na kolejne wizyty', 'Create an account for future visits')}</a>`}
         </div>
-        <p class="small muted" style="margin-top:28px">${L('Kod rezerwacji', 'Booking code')}: <strong>${b.code}</strong>. ${u ? '' : L('Wizytę zobaczysz i odwołasz przez link z SMS-a i e-maila. ', 'You can view and cancel the visit using the link in the text message and email. ')}${L(`Bezpłatnie odwołasz wizytę do ${JM.booking.cancelHours} godzin przed terminem, później obowiązuje opłata ${JM.booking.lateCancelFeePercent}% ceny zabiegu.`, `You can cancel free of charge up to ${JM.booking.cancelHours} hours before the visit; after that a fee of ${JM.booking.lateCancelFeePercent}% of the treatment price applies.`)}</p>
+        <p class="small muted" style="margin-top:28px">${L('Kod rezerwacji', 'Booking code')}: <strong>${b.code}</strong>. ${u ? '' : L('Termin zmienisz albo odwołasz przez link z SMS-a i e-maila. ', 'You can change or cancel the visit using the link in the text message and email. ')}${L(`Bezpłatnie odwołasz wizytę do ${JM.booking.cancelHours} godzin przed terminem, później obowiązuje opłata ${JM.booking.lateCancelFeePercent}% ceny zabiegu.`, `You can cancel free of charge up to ${JM.booking.cancelHours} hours before the visit; after that a fee of ${JM.booking.lateCancelFeePercent}% of the treatment price applies.`)}</p>
       </div>`;
   }
 
