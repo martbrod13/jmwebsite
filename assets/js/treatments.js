@@ -88,7 +88,7 @@ JM.categories = [
   },
   {
     id: 'peelingi',
-    name: 'Peelingi chemiczne',
+    name: 'Kwasy (peelingi chemiczne)',
     lead: 'Zabiegi kwasami na przebarwienia, trądzik, pory i szarą skórę.',
     about: 'Kontrolowane złuszczanie naskórka za pomocą kwasów. Rodzaj i stężenie kwasu dobieramy do problemu i wrażliwości skóry. Najlepszy czas na serię to jesień i zima, gdy słońce jest słabsze.',
     prep: [
@@ -284,7 +284,19 @@ JM.treatments = [
     series: '2 zabiegi co 4 tygodnie, potem zabieg podtrzymujący co ok. 6 miesięcy.'
   },
   {
-    id: 'stym-pn', category: 'stymulatory', name: 'Polinukleotydy (np. Nucleofill)', duration: 45, price: 1250, from: true,
+    id: 'stym-kolagen', category: 'stymulatory', name: 'Stymulator z kolagenem i kwasem hialuronowym (np. Karisma)', duration: 40, price: 950, from: true,
+    short: 'Kolagen i kwas hialuronowy: gęstsza, bardziej sprężysta skóra.',
+    what: 'Stymulator łączący kolagen z kwasem hialuronowym. Wspiera odbudowę skóry, która z wiekiem traci gęstość i sprężystość.',
+    how: 'Kolagen w preparacie działa jak rusztowanie, na którym skóra odbudowuje własne włókna, a kwas hialuronowy wiąże wodę i nawilża. Preparat podajemy mikroiniekcjami w okolice, które tego potrzebują.',
+    helps: ['utrata gęstości i sprężystości skóry', 'drobne zmarszczki i bruzdy', 'wiotka skóra policzków i szyi', 'skóra zmęczona i odwodniona'],
+    when: 'Gdy skóra traci napięcie, zwykle po 35. roku życia, albo jako uzupełnienie innych zabiegów odmładzających.',
+    benefits: ['wyraźnie gęstsza i bardziej sprężysta skóra', 'naturalny efekt bez zmiany rysów', 'nawilżenie i odbudowa w jednym zabiegu'],
+    steps: 'Konsultacja, dezynfekcja, krem znieczulający, podanie preparatu.',
+    results: 'Napięcie i jakość skóry poprawiają się stopniowo przez kilka tygodni po serii.',
+    series: '2–3 zabiegi co 3–4 tygodnie.'
+  },
+  {
+    id: 'stym-pn', category: 'stymulatory', name: 'Polinukleotydy (np. Nucleofill, Plinest)', duration: 45, price: 1250, from: true,
     short: 'Regeneracja i odbudowa cienkiej, osłabionej skóry.',
     what: 'Stymulator tkankowy z polinukleotydami, czyli oczyszczonymi fragmentami DNA pochodzenia naturalnego. Działa przede wszystkim regenerująco.',
     how: 'Polinukleotydy dostarczają skórze materiału do odnowy komórek i pobudzają fibroblasty, czyli komórki produkujące kolagen. Wspierają też nawilżenie i łagodzą stany zapalne, dlatego dobrze sprawdzają się przy skórze cienkiej i osłabionej.',
@@ -296,7 +308,7 @@ JM.treatments = [
     series: '3 zabiegi co 2–3 tygodnie.'
   },
   {
-    id: 'stym-amino', category: 'stymulatory', name: 'Biostymulator z aminokwasami (np. Sunekos)', duration: 45, price: 900, from: true,
+    id: 'stym-amino', category: 'stymulatory', name: 'Biostymulator z aminokwasami (np. Sunekos, Jalupro)', duration: 45, price: 900, from: true,
     short: 'Kwas hialuronowy i aminokwasy, z których skóra buduje kolagen.',
     what: 'Biostymulator łączący kwas hialuronowy z kompleksem aminokwasów, czyli cegiełek, z których skóra buduje kolagen i elastynę.',
     how: 'Kwas hialuronowy nawilża i tworzy w skórze środowisko sprzyjające odbudowie, a aminokwasy dostarczają składników do produkcji nowych włókien. Skóra odzyskuje elastyczność i równiejszy koloryt.',
@@ -308,6 +320,30 @@ JM.treatments = [
     series: '4 zabiegi co 7–10 dni.'
   },
 
+  {
+    id: 'stym-ejal', category: 'stymulatory', name: 'Biorewitalizacja kwasem hialuronowym (np. Ejal 40)', duration: 40, price: 800, from: true,
+    short: 'Głębokie nawilżenie i odświeżenie zmęczonej skóry.',
+    what: 'Biorewitalizacja preparatem z wysokim stężeniem niesieciowanego kwasu hialuronowego. To zabieg dla odwodnionej, zmęczonej skóry, która straciła blask.',
+    how: 'Kwas hialuronowy podajemy mikroiniekcjami w całą okolicę zabiegową. Wiąże wodę w skórze, przywraca jej nawilżenie i pobudza fibroblasty do pracy. Nie wypełnia i nie zmienia rysów twarzy.',
+    helps: ['odwodniona, szara skóra', 'drobne zmarszczki z przesuszenia', 'utrata blasku i elastyczności', 'skóra szyi, dekoltu i dłoni'],
+    when: 'Po lecie i po zimie, przed ważnym wydarzeniem albo jako regularna pielęgnacja skóry, która łatwo się odwadnia.',
+    benefits: ['szybko widoczne nawilżenie', 'świeży, wypoczęty wygląd skóry', 'dobry pierwszy krok, jeśli nie znasz jeszcze stymulatorów'],
+    steps: 'Dezynfekcja, krem znieczulający, mikroiniekcje preparatu.',
+    results: 'Skóra jest nawilżona i promienna po kilku dniach. Po serii efekt utrzymuje się kilka miesięcy.',
+    series: '3 zabiegi co 2–3 tygodnie.'
+  },
+  {
+    id: 'stym-oczy', category: 'stymulatory', name: 'Stymulator okolicy oczu (np. Jalupro Young Eye, Sunekos Eye)', duration: 30, price: 550, from: true,
+    short: 'Rozjaśnienie cieni i wygładzenie cienkiej skóry pod oczami.',
+    what: 'Stymulator tkankowy stworzony specjalnie dla cienkiej i delikatnej skóry wokół oczu.',
+    how: 'Preparat z kwasem hialuronowym, aminokwasami lub peptydami podajemy delikatnie pod oczy i w okolicę kurzych łapek. Wzmacnia cienką skórę, pobudza ją do produkcji kolagenu i poprawia nawilżenie, dzięki czemu cienie są mniej widoczne.',
+    helps: ['cienie i zasinienia pod oczami', 'cienka, pomarszczona skóra pod oczami', 'kurze łapki', 'zmęczone spojrzenie'],
+    when: 'Gdy kremy pod oczy przestają wystarczać, a cienie i drobne zmarszczki są widoczne nawet po wypoczynku.',
+    benefits: ['wypoczęte, rozjaśnione spojrzenie', 'preparat przeznaczony do delikatnej okolicy oka', 'krótki zabieg'],
+    steps: 'Dezynfekcja, krem znieczulający, delikatne podanie preparatu, okłady chłodzące.',
+    results: 'Skóra pod oczami jest gładsza i jaśniejsza po serii. Przez kilka dni mogą być widoczne drobne siniaki.',
+    series: '3–4 zabiegi co 1–3 tygodnie, zależnie od preparatu.'
+  },
   // ---------- Peelingi chemiczne ----------
   {
     id: 'kwas-migdalowy', category: 'peelingi', name: 'Peeling kwasem migdałowym', duration: 45, price: 230,
@@ -320,6 +356,54 @@ JM.treatments = [
     steps: 'Demakijaż i oczyszczenie, nałożenie kwasu, neutralizacja, maska kojąca i krem z filtrem.',
     results: 'Gładsza, jaśniejsza i oczyszczona skóra, wyraźnie po kilku zabiegach.',
     series: '4–6 zabiegów co 7–14 dni.'
+  },
+  {
+    id: 'kwas-mlekowy', category: 'peelingi', name: 'Peeling kwasem mlekowym', duration: 45, price: 270,
+    short: 'Delikatne złuszczanie połączone z nawilżeniem, także dla skóry suchej.',
+    what: 'Peeling kwasem mlekowym, jednym z najłagodniejszych kwasów AHA. Kwas mlekowy występuje naturalnie w skórze jako składnik jej warstwy nawilżającej.',
+    how: 'Kwas złuszcza martwe komórki naskórka i jednocześnie wiąże wodę w skórze. Dzięki temu wygładza i rozjaśnia, nie przesuszając. Wspiera też odbudowę bariery ochronnej skóry.',
+    helps: ['skóra sucha i odwodniona', 'szorstkość i nierówna faktura', 'drobne przebarwienia', 'szara, zmęczona skóra'],
+    when: 'Od jesieni do wiosny, szczególnie przy skórze suchej i wrażliwej, która źle znosi mocniejsze kwasy.',
+    benefits: ['łagodny dla skóry suchej i wrażliwej', 'złuszczanie połączone z nawilżeniem', 'gładka, promienna skóra od razu po zabiegu'],
+    steps: 'Demakijaż i oczyszczenie, nałożenie kwasu, neutralizacja, maska kojąca i krem z filtrem.',
+    results: 'Gładka, nawilżona i rozjaśniona skóra, wyraźnie po kilku zabiegach.',
+    series: '4–6 zabiegów co 7–14 dni.'
+  },
+  {
+    id: 'kwas-glikolowy', category: 'peelingi', name: 'Peeling kwasem glikolowym', duration: 45, price: 270,
+    short: 'Klasyczny kwas na wygładzenie, rozjaśnienie i drobne zmarszczki.',
+    what: 'Peeling kwasem glikolowym, najmniejszym z kwasów AHA. To jeden z najczęściej stosowanych kwasów w kosmetologii.',
+    how: 'Dzięki małej cząsteczce kwas szybko i głęboko wnika w naskórek. Złuszcza martwe komórki, wyrównuje koloryt i pobudza skórę do produkcji kolagenu. Stężenie i czas działania dobieramy do tolerancji skóry.',
+    helps: ['nierówna faktura i koloryt', 'przebarwienia', 'drobne zmarszczki', 'zaskórniki i rozszerzone pory'],
+    when: 'Od jesieni do wiosny, przy skórze normalnej, tłustej i dojrzałej. Przy skórze bardzo wrażliwej wybieramy łagodniejszy kwas.',
+    benefits: ['wyraźne wygładzenie skóry', 'działanie przeciwstarzeniowe dzięki pobudzeniu kolagenu', 'stężenie dopasowane do skóry'],
+    steps: 'Demakijaż i oczyszczenie, nałożenie kwasu, neutralizacja, maska kojąca i krem z filtrem.',
+    results: 'Gładsza i jaśniejsza skóra oraz mniej widoczne drobne zmarszczki po serii. Możliwe delikatne łuszczenie.',
+    series: '4–6 zabiegów co 2 tygodnie.'
+  },
+  {
+    id: 'kwas-azelainowy', category: 'peelingi', name: 'Peeling kwasem azelainowym', duration: 45, price: 280,
+    short: 'Kwas na trądzik, zaczerwienienia i przebarwienia, łagodny dla skóry naczynkowej.',
+    what: 'Peeling kwasem azelainowym, który działa przeciwbakteryjnie, przeciwzapalnie i rozjaśniająco.',
+    how: 'Kwas azelainowy ogranicza namnażanie bakterii odpowiedzialnych za trądzik, wycisza stany zapalne i hamuje nadmierną produkcję barwnika w skórze. Złuszcza delikatnie, dlatego dobrze sprawdza się przy skórze wrażliwej.',
+    helps: ['trądzik i zmiany zapalne', 'zaczerwienienia i skóra naczynkowa', 'przebarwienia, także potrądzikowe', 'cera ze skłonnością do trądziku różowatego (po konsultacji)'],
+    when: 'Od jesieni do wiosny, gdy skóra jest jednocześnie trądzikowa i wrażliwa albo naczynkowa.',
+    benefits: ['działanie przeciwzapalne i rozjaśniające', 'odpowiedni dla skóry wrażliwej i naczynkowej', 'małe ryzyko podrażnień'],
+    steps: 'Demakijaż i oczyszczenie, nałożenie kwasu, neutralizacja, maska kojąca i krem z filtrem.',
+    results: 'Mniej zmian zapalnych i zaczerwienień oraz wyrównany koloryt po serii.',
+    series: '4–6 zabiegów co 7–14 dni.'
+  },
+  {
+    id: 'kwas-salicylowy', category: 'peelingi', name: 'Peeling kwasem salicylowym', duration: 40, price: 280,
+    short: 'Kwas BHA, który oczyszcza pory od środka i wycisza stany zapalne.',
+    what: 'Peeling kwasem salicylowym, czyli kwasem BHA. W przeciwieństwie do kwasów AHA rozpuszcza się w tłuszczu, dlatego wnika w ujścia porów.',
+    how: 'Kwas salicylowy przenika do wnętrza porów, rozpuszcza zalegający w nich łój i martwe komórki, a do tego działa przeciwzapalnie. Skóra jest oczyszczona, matowa i mniej skłonna do wyprysków.',
+    helps: ['zaskórniki i zatkane pory', 'trądzik', 'nadmierne przetłuszczanie się skóry', 'rozszerzone pory'],
+    when: 'Od jesieni do wiosny, przy cerze tłustej, mieszanej i trądzikowej. Nie stosujemy go przy uczuleniu na salicylany.',
+    benefits: ['głębokie oczyszczenie porów', 'matowa skóra na dłużej', 'działanie przeciwzapalne'],
+    steps: 'Demakijaż i oczyszczenie, nałożenie kwasu, neutralizacja, maska kojąca i krem z filtrem.',
+    results: 'Oczyszczone pory i mniej wyprysków po kilku zabiegach. Możliwe delikatne łuszczenie.',
+    series: '4–6 zabiegów co 2 tygodnie.'
   },
   {
     id: 'kwas-pirogronowy', category: 'peelingi', name: 'Peeling kwasem pirogronowym', duration: 45, price: 260,
@@ -344,6 +428,18 @@ JM.treatments = [
     steps: 'Demakijaż i oczyszczenie, nałożenie peelingu, neutralizacja, maska i krem z filtrem.',
     results: 'Rozjaśniona, odświeżona skóra, wyraźny efekt po serii.',
     series: '3–6 zabiegów co 2–3 tygodnie.'
+  },
+  {
+    id: 'peeling-retinolowy', category: 'peelingi', name: 'Peeling retinolowy (yellow peel)', duration: 30, price: 400, from: true,
+    short: 'Odnowa skóry z retinolem: przebarwienia, zmarszczki i nierówny koloryt.',
+    what: 'Peeling z wysokim stężeniem retinolu, nazywany żółtym od koloru preparatu. To jeden z najskuteczniejszych zabiegów odmładzających i rozjaśniających.',
+    how: 'Preparat nakładamy w gabinecie, a zmywasz go w domu po kilku godzinach, zgodnie z naszymi zaleceniami. Retinol przyspiesza odnowę komórek, pobudza produkcję kolagenu i rozjaśnia przebarwienia. Przez kilka dni po zabiegu skóra złuszcza się drobnymi płatkami.',
+    helps: ['przebarwienia i melasma', 'zmarszczki i utrata jędrności', 'nierówny koloryt i faktura skóry', 'blizny potrądzikowe i rozszerzone pory'],
+    when: 'Od jesieni do wczesnej wiosny, gdy słońce jest słabe. Warto zaplanować kilka spokojniejszych dni, bo łuszczenie jest widoczne. Nie wykonujemy go w ciąży ani podczas karmienia piersią.',
+    benefits: ['silne działanie odmładzające i rozjaśniające', 'krótka wizyta w gabinecie', 'efekt widoczny już po jednym zabiegu'],
+    steps: 'Oczyszczenie i odtłuszczenie skóry, nałożenie preparatu, zalecenia do zmycia w domu.',
+    results: 'Po zakończeniu łuszczenia skóra jest gładsza, jaśniejsza i bardziej jednolita. Efekt pogłębia się z każdym zabiegiem.',
+    series: '2–4 zabiegi co 3–4 tygodnie.'
   },
   {
     id: 'prx-twarz', category: 'peelingi', name: 'Peeling PRX-T33 — twarz', duration: 40, price: 400,
