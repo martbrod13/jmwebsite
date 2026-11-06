@@ -7,9 +7,12 @@ const seed = require('./seed');
 const G = require('./gallery');
 const Events = require('./events');
 const V = require('./vouchers');
+const W = require('./waitlist');
 // krótki opis wizyty do powiadomienia w panelu (bez e-maila i telefonu)
 function live(type, b, by) {
   const c = B.contactOf(b);
+  // nowa wizyta kończy czekanie na ten zabieg; odwołanie albo przeniesienie może zwolnić termin dla listy oczekujących
+  if (type === 'booked') { if (c) W.markBooked(c.phone, b.treatment_id); } else W.scanSoon();
   Events.emit(type, { by, id: b.id, date: b.date, time: b.time, treatment: b.treatment_name, client: c ? (c.firstName + ' ' + (c.lastName ? c.lastName[0] + '.' : '')).trim() : '', source: b.source });
 }
 const C = B.C;
@@ -368,6 +371,50 @@ route('GET', '/api/admin/overview', (req) => {
     contact: db.prepare('SELECT * FROM contact_messages ORDER BY id DESC LIMIT 5').all()
   };
 });
+// Statystyki: 12 miesięcy (odbyte i zaplanowane), bieżący miesiąc, zabiegi i źródła w wybranym okresie
+route('GET', '/api/admin/stats', (req, { query }) => {
+  requireAdmin(req); B.completePast();
+  const days = [30, 90, 365].includes(Number(query.get('days'))) ? Number(query.get('days')) : 90;
+  const now = new Date(); const today = B.isoDate(now); const thisMonth = today.slice(0, 7);
+  const monthKey = (offset) => { const d = new Date(now.getFullYear(), now.getMonth() + offset, 1); return B.isoDate(d).slice(0, 7); };
+  const keys = []; for (let i = -10; i <= 1; i++) keys.push(monthKey(i));
+  const months = new Map(keys.map((m) => [m, { month: m, done: 0, doneValue: 0, planned: 0, plannedValue: 0, cancelledClient: 0, cancelledSalon: 0, noShow: 0, fees: 0, feesPaid: 0 }]));
+  db.prepare(`SELECT substr(date, 1, 7) AS m, status, cancelled_by AS by, count(*) AS n, coalesce(sum(total), 0) AS v,
+      coalesce(sum(fee), 0) AS fee, coalesce(sum(CASE WHEN fee_status = 'paid' THEN fee ELSE 0 END), 0) AS paid
+    FROM bookings WHERE date >= ? AND date < ? GROUP BY m, status, by`).all(keys[0] + '-01', monthKey(2) + '-01').forEach((r) => {
+    const m = months.get(r.m); if (!m) return;
+    if (r.status === 'done') { m.done += r.n; m.doneValue += r.v; }
+    else if (r.status === 'confirmed') { m.planned += r.n; m.plannedValue += r.v; }
+    else if (r.status === 'no_show') m.noShow += r.n;
+    else if (r.by === 'salon') m.cancelledSalon += r.n; else m.cancelledClient += r.n;
+    m.fees += r.fee; m.feesPaid += r.paid;
+  });
+  const from = new Date(now); from.setDate(from.getDate() - days); const fromDate = B.isoDate(from);
+  const last30 = new Date(now); last30.setDate(last30.getDate() - 30);
+  const recent = db.prepare(`SELECT count(*) AS n, coalesce(sum(status = 'cancelled'), 0) AS cancelled, coalesce(sum(status = 'no_show'), 0) AS noShow
+    FROM bookings WHERE date BETWEEN ? AND ?`).get(B.isoDate(last30), today);
+  const treatments = db.prepare(`SELECT treatment_id AS id, treatment_name AS name, count(*) AS n, coalesce(sum(total), 0) AS value
+    FROM bookings WHERE status IN ('done', 'confirmed') AND date BETWEEN ? AND ? GROUP BY treatment_id ORDER BY n DESC, value DESC`).all(fromDate, today);
+  const sources = db.prepare(`SELECT source, count(*) AS n FROM bookings WHERE substr(created_at, 1, 10) >= ? GROUP BY source ORDER BY n DESC`).all(fromDate);
+  const fromIso = from.toISOString();
+  const vouchers = {
+    sold: db.prepare("SELECT count(*) AS n, coalesce(sum(amount), 0) AS v FROM vouchers WHERE status = 'active' AND created_at >= ?").get(fromIso),
+    used: db.prepare('SELECT coalesce(sum(amount), 0) AS v FROM voucher_uses WHERE at >= ?').get(fromIso).v,
+    open: db.prepare("SELECT coalesce(sum(balance), 0) AS v FROM vouchers WHERE status = 'active' AND valid_until >= ?").get(today).v
+  };
+  const cur = months.get(thisMonth);
+  return {
+    days, thisMonth, today,
+    month: { done: cur.done, doneValue: cur.doneValue, planned: cur.planned, plannedValue: cur.plannedValue },
+    newClients: allClients().filter((c) => c.createdAt >= last30.toISOString()).length,
+    recent,
+    months: [...months.values()],
+    treatments: treatments.map((t) => ({ ...t, name: (B.treatment(t.id) || {}).name || t.name })),
+    sources,
+    vouchers: { sold: vouchers.sold.n, soldValue: vouchers.sold.v, used: vouchers.used, open: vouchers.open },
+    hasDemo: !!db.prepare('SELECT 1 FROM bookings WHERE demo = 1').get()
+  };
+});
 const adminAction = (fn) => (req, { params, body }) => {
   requireAdmin(req);
   const b = B.getBooking(Number(params.id)); if (!b) throw new HttpError(404, 'Nie znaleziono wizyty.');
@@ -434,7 +481,7 @@ route('POST', '/api/admin/blocks', (req, { body }) => {
 route('DELETE', '/api/admin/blocks/:id', (req, { params }) => {
   requireAdmin(req);
   db.prepare('DELETE FROM blocks WHERE id = ?').run(Number(params.id));
-  Events.emit('blocks', { by: 'salon' });
+  Events.emit('blocks', { by: 'salon' }); W.scanSoon();
   return { ok: true };
 });
 
@@ -554,6 +601,7 @@ route('POST', '/api/admin/days-off', (req, { body }) => {
 route('DELETE', '/api/admin/days-off/:date', (req, { params }) => {
   requireAdmin(req);
   db.prepare('DELETE FROM days_off WHERE date = ?').run(params.date);
+  W.scanSoon();
   return { days: db.prepare('SELECT * FROM days_off ORDER BY date').all() };
 });
 /* ---------- Galeria ---------- */
@@ -588,6 +636,55 @@ route('POST', '/api/admin/vouchers/:id/redeem', voucherAction(({ params, body },
 route('POST', '/api/admin/vouchers/:id/void', voucherAction(({ params, body }) => { V.setVoid(Number(params.id), body.void !== false); return V.byId(Number(params.id)); }));
 
 /* ---------- Kalendarz w telefonie ---------- */
+/* ---------- Lista oczekujących ---------- */
+const waitlistErr = (e) => (e instanceof W.WaitlistError ? new HttpError(e.field === 'free' ? 409 : 400, e.message, e.field) : e);
+function validWaiter(req, firstName, phone) {
+  need(firstName, req, 'firstName', 'Wpisz imię.', 'Enter your first name.');
+  need(RE.phone.test(phone) && phone.replace(/\D/g, '').length >= 9, req, 'phone', 'Wpisz numer telefonu, np. +48 600 000 000.', 'Enter a phone number, e.g. +48 600 000 000.');
+}
+route('POST', '/api/waitlist', (req, { body, ip }) => {
+  if (!Sec.rateLimit('waitlist:' + ip, 10, 36e5)) throw new HttpError(429, T(req, 'Zbyt wiele zapisów w krótkim czasie. Zadzwoń do gabinetu.', 'Too many sign-ups in a short time. Please call the studio.'));
+  const client = currentClient(req);
+  const firstName = str(body.firstName, 60) || (client ? client.first_name : '');
+  const phone = str(body.phone, 20) || (client ? client.phone : '');
+  validWaiter(req, firstName, phone);
+  try {
+    const e = W.add({ treatmentId: body.treatmentId, from: body.from, to: body.to, firstName, phone, lang: langOf(req), clientId: client ? client.id : null });
+    Events.emit('waitlist', { by: 'client' });
+    return { entry: W.publicView(e, langOf(req)) };
+  } catch (e) { throw waitlistErr(e); }
+});
+const waiterByToken = (req, ip, token) => {
+  if (!Sec.rateLimit('waitlist-link:' + ip, 60, 36e5)) throw new HttpError(429, T(req, 'Spróbuj później.', 'Please try again later.'));
+  const e = W.byToken(token);
+  if (!e) throw new HttpError(404, T(req, 'Nie ma takiego zapisu. Okres oczekiwania mógł się skończyć albo zapis został usunięty.', 'We could not find this sign-up. The waiting period may have ended or the sign-up was removed.'));
+  return e;
+};
+route('GET', '/api/waitlist/:token', (req, { params, ip }) => ({ entry: W.publicView(waiterByToken(req, ip, params.token), langOf(req)) }));
+route('POST', '/api/waitlist/:token/remove', (req, { params, ip }) => {
+  W.remove(waiterByToken(req, ip, params.token).id);
+  Events.emit('waitlist', { by: 'client' });
+  return { ok: true };
+});
+route('GET', '/api/admin/waitlist', (req) => { requireAdmin(req); return { entries: W.adminList() }; });
+route('POST', '/api/admin/waitlist', (req, { body }) => {
+  requireAdmin(req);
+  const firstName = str(body.firstName, 60), phone = str(body.phone, 20);
+  if (!firstName) throw new HttpError(400, 'Wpisz imię klientki.', 'firstName');
+  if (!(RE.phone.test(phone) && phone.replace(/\D/g, '').length >= 9)) throw new HttpError(400, 'Wpisz numer telefonu klientki.', 'phone');
+  try {
+    W.add({ treatmentId: body.treatmentId, from: body.from, to: body.to, firstName, phone, lang: body.lang === 'en' ? 'en' : 'pl', source: 'telefon' });
+  } catch (e) {
+    if (e instanceof W.WaitlistError && e.field === 'free') throw new HttpError(409, `W tym okresie są wolne terminy (${e.free.slice(0, 4).map((d) => d.slice(8, 10) + '.' + d.slice(5, 7)).join(', ')}). Zapisz klientkę od razu w kalendarzu.`, 'free');
+    throw waitlistErr(e);
+  }
+  return { entries: W.adminList() };
+});
+route('DELETE', '/api/admin/waitlist/:id', (req, { params }) => {
+  requireAdmin(req); W.remove(Number(params.id));
+  return { entries: W.adminList() };
+});
+
 const ICal = require('./ical');
 route('GET', '/api/admin/ical', (req) => { const a = requireAdmin(req); return { token: ICal.tokenFor(a.id, false) }; });
 route('POST', '/api/admin/ical/renew', (req) => { const a = requireAdmin(req); return { token: ICal.tokenFor(a.id, true) }; });

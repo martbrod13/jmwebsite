@@ -917,3 +917,84 @@ html[lang="en"] [data-lang="pl"] { display: none !important; }
 .voucher-box .field { margin-top: 14px; }
 .voucher-row { display: flex; gap: 10px; }
 .voucher-row input { flex: 1; text-transform: uppercase; letter-spacing: .06em; }
+
+/* ---------- Panel: statystyki ---------- */
+.stats-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 0 20px; align-items: start; }
+.stats-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 32px 0 16px; }
+.stats-filter .chip { min-height: 34px; padding: 4px 14px; font-size: .875rem; }
+.stats-grid { transition: opacity .15s; }
+.chart-legend { display: flex; gap: 20px; list-style: none; padding: 0; margin: 16px 0 8px; font-size: .875rem; color: var(--ink-2); }
+.chart-legend li { display: inline-flex; align-items: center; gap: 8px; }
+.chart-legend i { width: 12px; height: 12px; border-radius: 2px; }
+.key-done { background: #1f2536; }
+.key-plan { background: #8a92a8; }
+/* kolumny: wartość wizyt w miesiącu */
+.cc { --gutter: 76px; margin-top: 8px; }
+.cc-plot { position: relative; height: 232px; margin: 28px 0 0 var(--gutter); border-bottom: 1px solid var(--taupe); }
+.cc-tick { position: absolute; left: 0; right: 0; border-top: 1px solid var(--sand-deep); }
+.cc-tick:first-child { border-top: 0; }
+.cc-tick span { position: absolute; right: calc(100% + 10px); top: 0; transform: translateY(-50%); font-size: .75rem; color: var(--taupe); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cc-cols { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); }
+.cc-col { position: relative; display: flex; align-items: flex-end; justify-content: center; outline: none; }
+.cc-col:hover, .cc-col:focus-visible { background: rgba(233, 223, 209, .45); }
+.cc-col:focus-visible { box-shadow: inset 0 0 0 2px var(--ink); }
+.cc-stack { position: relative; width: min(24px, 56%); display: flex; flex-direction: column; gap: 2px; }
+.cc-stack i { display: block; flex-basis: 0; min-height: 2px; }
+.cc-stack i:first-of-type { border-radius: 4px 4px 0 0; }
+.cc-done { background: #1f2536; }
+.cc-plan { background: #8a92a8; }
+.cc-col:hover .cc-done, .cc-col:focus-visible .cc-done { background: #353d52; }
+.cc-col:hover .cc-plan, .cc-col:focus-visible .cc-plan { background: #9aa1b3; }
+.cc-cap { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); font-size: .8125rem; font-weight: 500; color: var(--ink); white-space: nowrap; }
+.cc-x { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); margin-left: var(--gutter); padding-top: 8px; font-size: .75rem; line-height: 1.3; color: var(--taupe); text-align: center; }
+.cc-x .is-current { color: var(--ink); font-weight: 500; }
+/* poziome słupki: zabiegi i źródła */
+.hb { display: grid; gap: 4px; margin-top: 16px; }
+.hb-row { display: grid; grid-template-columns: minmax(120px, 42%) 1fr; align-items: center; gap: 12px; padding: 6px 8px; margin: 0 -8px; outline: none; }
+.hb-row:hover, .hb-row:focus-visible { background: rgba(233, 223, 209, .45); }
+.hb-row:focus-visible { box-shadow: inset 0 0 0 2px var(--ink); }
+.hb-name { font-size: .9375rem; line-height: 1.3; }
+.hb-track { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.hb-track i { display: block; height: 12px; min-width: 2px; background: #1f2536; border-radius: 0 4px 4px 0; }
+.hb-row:hover .hb-track i, .hb-row:focus-visible .hb-track i { background: #353d52; }
+.hb-track b { font-weight: 500; font-size: .875rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.chart-table { margin-top: 18px; font-size: .875rem; }
+.chart-table summary { cursor: pointer; color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--linen); width: max-content; }
+.chart-table table { margin-top: 10px; font-size: .875rem; }
+.table-scroll { overflow-x: auto; }
+.stats-dl { display: grid; gap: 14px; margin: 14px 0 0; }
+.stats-dl div { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; border-bottom: 1px solid var(--sand-deep); padding-bottom: 10px; }
+.stats-dl div:last-child { border-bottom: 0; padding-bottom: 0; }
+.stats-dl dt { color: var(--ink-2); font-size: .9375rem; }
+.stats-dl dd { margin: 0; font-weight: 500; text-align: right; white-space: nowrap; }
+/* dymek */
+.chart-tip { position: fixed; z-index: 300; display: none; min-width: 160px; max-width: 280px; padding: 10px 12px; background: var(--paper); border: 1px solid var(--linen); box-shadow: 0 6px 20px rgba(31, 37, 54, .12); font-size: .8125rem; color: var(--ink-2); pointer-events: none; }
+.chart-tip .tip-title { margin: 0 0 6px; font-weight: 500; color: var(--ink); }
+.chart-tip .tip-row { display: flex; align-items: center; gap: 6px; line-height: 1.6; }
+.chart-tip .tip-row b { color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
+.chart-tip .tip-row i { width: 12px; height: 2px; flex-shrink: 0; }
+@media (max-width: 900px) { .stats-grid { grid-template-columns: 1fr; } }
+@media (max-width: 560px) {
+  .cc { --gutter: 52px; }
+  .cc-tick span { font-size: .6875rem; }
+  .hb-row { grid-template-columns: 1fr; gap: 4px; }
+}
+@media (forced-colors: active) {
+  .cc-done, .hb-track i, .key-done { forced-color-adjust: none; background: CanvasText; }
+  .cc-plan, .key-plan { forced-color-adjust: none; background: GrayText; }
+}
+.hb-rest { margin: 12px 0 0; }
+/* lista oczekujących: rezerwacja i strona z linku w SMS-ie */
+.waitlist-box { margin-top: 28px; border-top: 1px solid var(--hair-soft); padding-top: 18px; }
+.waitlist-box summary { cursor: pointer; color: var(--ink); font-size: .9375rem; width: fit-content; }
+.waitlist-box form { margin-top: 14px; }
+.waitlist-box form > .btn { margin-top: 4px; }
+.waitlist-box.is-done { background: var(--sand); border-top: 0; border-left: 2px solid var(--gold-deep); padding: 14px 18px; }
+.waitlist-box.is-done p { margin: 0; }
+.waitlist-box.is-done strong { font-weight: 500; }
+.wl-free { list-style: none; padding: 0; margin: 18px 0 0; display: grid; gap: 8px; }
+.wl-day { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; padding: 14px 18px; border: 1px solid var(--linen); text-decoration: none; color: var(--ink); transition: border-color .2s; }
+.wl-day:hover, .wl-day:focus-visible { border-color: var(--ink); }
+.wl-add summary { cursor: pointer; }
+.wl-add summary h2 { display: inline; margin: 0; }
+.wl-add[open] summary { margin-bottom: 18px; }

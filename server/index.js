@@ -21,6 +21,7 @@ const B = require('./booking');
 const G = require('./gallery');
 const Events = require('./events');
 const ICal = require('./ical');
+const W = require('./waitlist');
 const Sec = require('./security');
 
 const ROOT = path.join(__dirname, '..');
@@ -79,7 +80,7 @@ function seoTags(html, page) {
 }
 function robots() {
   if (!env.indexing) return 'User-agent: *\nDisallow: /\n';
-  return ['User-agent: *', 'Allow: /', 'Disallow: /panel.html', 'Disallow: /konto.html', 'Disallow: /wizyta.html', 'Disallow: /api/', 'Disallow: /w/',
+  return ['User-agent: *', 'Allow: /', 'Disallow: /panel.html', 'Disallow: /konto.html', 'Disallow: /wizyta.html', 'Disallow: /api/', 'Disallow: /w/', 'Disallow: /l/', 'Disallow: /lista-oczekujacych.html',
     env.publicUrl ? `Sitemap: ${env.publicUrl}/sitemap.xml` : ''].filter(Boolean).join('\n') + '\n';
 }
 function sitemap() {
@@ -149,6 +150,9 @@ const server = http.createServer((req, res) => {
   // link z SMS-a: /w/<klucz> → strona wizyty (klucz w # nie trafia do logów ani nagłówka Referer)
   const w = p.match(/^\/w\/([A-Za-z0-9_-]{16,64})$/);
   if (w) { res.writeHead(302, { Location: '/wizyta.html#' + w[1] }); return res.end(); }
+  // link z SMS-a listy oczekujących: /l/<klucz> → strona zapisu
+  const wl = p.match(/^\/l\/([A-Za-z0-9_-]{16,64})$/);
+  if (wl) { res.writeHead(302, { Location: '/lista-oczekujacych.html#' + wl[1] }); return res.end(); }
   if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); return res.end(); }
   // zdjęcia z galerii (z folderu data); ukryte zdjęcia widzi tylko zalogowany panel
   const up = p.match(/^\/uploads\/gallery\/([^/]+)$/);
@@ -176,7 +180,7 @@ const initialPassword = seed.run();
 
 // Harmonogram: co minutę przypomnienia 24 h przed wizytą, wysyłka kolejki, zamykanie odbytych wizyt
 function tick() {
-  try { api.queueReminders(); M.processQueue(); Backup.dailyBackup(); } catch (e) { console.error('Harmonogram:', e.message); }
+  try { api.queueReminders(); W.scan(); M.processQueue(); Backup.dailyBackup(); } catch (e) { console.error('Harmonogram:', e.message); }
 }
 setInterval(tick, 60 * 1000).unref();
 

@@ -224,6 +224,35 @@ CREATE TABLE IF NOT EXISTS voucher_uses (
 );
 `);
 
+// Lista oczekujących: klientka czeka na wolny termin zabiegu w wybranym okresie
+db.exec(`
+CREATE TABLE IF NOT EXISTS waitlist (
+  id            INTEGER PRIMARY KEY,
+  token         TEXT NOT NULL UNIQUE,       -- link z SMS-a do podglądu i wypisania się
+  treatment_id  TEXT NOT NULL,
+  date_from     TEXT NOT NULL,
+  date_to       TEXT NOT NULL,
+  first_name    TEXT NOT NULL,
+  phone         TEXT NOT NULL,
+  phone_key     TEXT NOT NULL,              -- ostatnie 9 cyfr, do porównań
+  lang          TEXT NOT NULL DEFAULT 'pl',
+  client_id     INTEGER REFERENCES clients(id) ON DELETE SET NULL,
+  source        TEXT NOT NULL DEFAULT 'online',
+  status        TEXT NOT NULL DEFAULT 'waiting' CHECK (status IN ('waiting','booked','expired')),
+  notices       INTEGER NOT NULL DEFAULT 0,
+  notified_at   TEXT,
+  created_at    TEXT NOT NULL,
+  CHECK (date_to >= date_from)
+);
+CREATE INDEX IF NOT EXISTS waitlist_status ON waitlist(status, date_to);
+CREATE TABLE IF NOT EXISTS waitlist_notices (
+  waitlist_id INTEGER NOT NULL REFERENCES waitlist(id) ON DELETE CASCADE,
+  date        TEXT NOT NULL,
+  at          TEXT NOT NULL,
+  PRIMARY KEY (waitlist_id, date)
+);
+`);
+
 // Migracje: nowe kolumny dodajemy do istniejącej bazy bez utraty danych
 function addColumn(table, column, definition) {
   if (!db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);

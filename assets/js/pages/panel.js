@@ -12,7 +12,7 @@ JM.ready.then(function () {
   let data = {};
 
   /* ---------- Na żywo: odświeżanie po rezerwacjach klientek ---------- */
-  const LIVE_VIEWS = ['pulpit', 'kalendarz', 'wizyty'];
+  const LIVE_VIEWS = ['pulpit', 'kalendarz', 'wizyty', 'oczekujace', 'statystyki'];
   const baseTitle = document.title;
   let es = null, pendingRefresh = false, unseen = 0, highlightId = null;
   const canNotify = () => 'Notification' in window && Notification.permission === 'granted';
@@ -43,7 +43,7 @@ JM.ready.then(function () {
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { unseen = 0; document.title = baseTitle; } });
 
   const views = [
-    ['pulpit', 'Pulpit'], ['kalendarz', 'Kalendarz'], ['wizyty', 'Wizyty'], ['klientki', 'Klientki'], ['zabiegi', 'Zabiegi i ceny'],
+    ['pulpit', 'Pulpit'], ['kalendarz', 'Kalendarz'], ['wizyty', 'Wizyty'], ['oczekujace', 'Lista oczekujących'], ['klientki', 'Klientki'], ['statystyki', 'Statystyki'], ['zabiegi', 'Zabiegi i ceny'],
     ['promocje', 'Promocje'], ['bony', 'Bony podarunkowe'], ['galeria', 'Galeria'], ['wiadomosci', 'SMS-y i e-maile'], ['godziny', 'Godziny pracy'], ['konto', 'Moje konto']
   ];
   const money = (v) => S.formatPrice(v);
@@ -596,6 +596,214 @@ JM.ready.then(function () {
     });
   }
 
+  /* ---------- Lista oczekujących ---------- */
+  function vOczekujace() {
+    const all = data.entries; const today = S.isoDate(new Date());
+    const waiting = all.filter((e) => e.status === 'waiting'), closed = all.filter((e) => e.status !== 'waiting');
+    const cats = [{ id: 'konsultacja', name: 'Konsultacja' }].concat(JM.categories.map((c) => ({ id: c.id, name: c.namePl || c.name })));
+    const opts = cats.map((c) => `<optgroup label="${esc(c.name)}">${cache.prices.filter((t) => t.category === c.id).map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}</optgroup>`).join('');
+    const inTwo = new Date(); inTwo.setDate(inTwo.getDate() + 14);
+    const smsInfo = (e) => (e.notices ? `SMS ${e.notices === 1 ? 'wysłany' : `wysłany ${e.notices}×`}, ostatni ${dt(e.notifiedAt)}` : '');
+    const state = (e) => {
+      if (e.status === 'booked') return '<span class="badge badge-ok">zarezerwowała</span>';
+      if (e.status === 'expired') return '<span class="badge badge-off">okres minął</span>';
+      return `<span class="badge">czeka</span>${e.freeNow ? `<br><span class="small muted">wolne dni w okresie: ${e.freeNow}</span>` : ''}`;
+    };
+    const table = (list, actions) => `<div class="table-scroll"><table class="table"><thead><tr><th>Klientka</th><th>Zabieg</th><th>Okres</th><th>Status</th><th>Zapis</th>${actions ? '<th></th>' : ''}</tr></thead><tbody>
+      ${list.map((e) => `<tr>
+        <td>${esc(e.firstName)}${e.lang === 'en' ? ' <span class="badge">EN</span>' : ''}<br><a href="tel:${esc(e.phone)}">${esc(e.phone)}</a></td>
+        <td>${esc(e.treatment)}</td>
+        <td>${ui.fmtShort(e.from)} – ${ui.fmtShort(e.to)}</td>
+        <td>${state(e)}${smsInfo(e) ? `<br><span class="small muted">${smsInfo(e)}</span>` : ''}</td>
+        <td class="small">${dt(e.createdAt)}<br><span class="muted">${e.source === 'telefon' ? 'dodana w panelu' : 'przez stronę'}</span></td>
+        ${actions ? `<td class="num"><button class="link-button small" type="button" data-wl-remove="${e.id}">Usuń</button></td>` : ''}</tr>`).join('')}
+    </tbody></table></div>`;
+    return `
+      <div class="panel-card">
+        <h2>Czekają na termin</h2>
+        <p class="small muted">Klientka wybiera zabieg i okres, w którym nie ma wolnych terminów. Gdy w tym okresie zwolni się miejsce (ktoś odwoła albo przeniesie wizytę, zdejmiesz blokadę lub dzień wolny), dostaje SMS z linkiem do rezerwacji. Kilka osób czekających na ten sam zabieg dostaje SMS jednocześnie, termin ma ta, która pierwsza zarezerwuje. SMS-y wychodzą między 8:00 a 21:00, najwyżej jeden na 6 godzin dla jednej osoby. Gdy klientka zarezerwuje ten zabieg, znika z listy czekających.</p>
+        ${waiting.length ? table(waiting, true) : '<p class="muted">Nikt teraz nie czeka. Formularz zapisu jest na stronie rezerwacji, pod kalendarzem.</p>'}
+      </div>
+      <details class="panel-card wl-add"${waiting.length ? '' : ' open'}>
+        <summary><h2>Dodaj osobę z telefonu</h2></summary>
+        <form id="waitlist-admin-form" novalidate>
+          <div class="form-grid">
+            <div class="field span-2"><label for="wa-t">Zabieg</label><select id="wa-t" name="treatmentId">${opts}</select></div>
+            <div class="field"><label for="wa-from">Od</label><input id="wa-from" name="from" type="date" value="${today}" required></div>
+            <div class="field"><label for="wa-to">Do</label><input id="wa-to" name="to" type="date" value="${S.isoDate(inTwo)}" required></div>
+            <div class="field"><label for="wa-name">Imię</label><input id="wa-name" name="firstName" maxlength="60" autocomplete="off" required></div>
+            <div class="field"><label for="wa-phone">Telefon</label><input id="wa-phone" name="phone" type="tel" maxlength="20" placeholder="+48 600 000 000" autocomplete="off" required></div>
+            <div class="field"><label for="wa-lang">Język SMS-a</label><select id="wa-lang" name="lang"><option value="pl">polski</option><option value="en">angielski</option></select></div>
+          </div>
+          <p class="small muted">Powiedz klientce, że dostanie SMS o zwolnionym terminie i że może się wypisać przez link z wiadomości.</p>
+          <button class="btn btn-primary" type="submit">Dodaj do listy</button>
+        </form>
+      </details>
+      ${closed.length ? `<div class="panel-card"><h2>Zakończone</h2><p class="small muted">Dane znikają same 30 dni po końcu okresu oczekiwania.</p>${table(closed, true)}</div>` : ''}`;
+  }
+
+  /* ---------- Statystyki ---------- */
+  let statsDays = 90;
+  const MONTHS = ['styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec', 'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień'];
+  const MONTHS_IN = ['styczniu', 'lutym', 'marcu', 'kwietniu', 'maju', 'czerwcu', 'lipcu', 'sierpniu', 'wrześniu', 'październiku', 'listopadzie', 'grudniu'];
+  const MONTHS_SHORT = ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'];
+  const mIdx = (m) => Number(m.slice(5, 7)) - 1;
+  const monthName = (m) => MONTHS[mIdx(m)] + ' ' + m.slice(0, 4);
+  const plural = (n, one, few, many) => (n === 1 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? few : many);
+  const nVisits = (n) => `${n} ${plural(n, 'wizyta', 'wizyty', 'wizyt')}`;
+  const zl = (v) => Math.round(v).toLocaleString('pl-PL') + ' zł';
+  const pctOf = (n, all) => (all ? Math.round((n / all) * 100) : 0);
+  const SOURCE_NAMES = { online: 'Rezerwacja na stronie', telefon: 'Telefon', instagram: 'Instagram', 'osobiście': 'Osobiście w gabinecie', inne: 'Inne' };
+  const PERIODS = [[30, '30 dni'], [90, '90 dni'], [365, '12 miesięcy']];
+
+  // podziałka osi: 4–5 równych, okrągłych kroków
+  function niceScale(max) {
+    if (max <= 0) return { step: 500, top: 2000 };
+    const raw = max / 4; const mag = 10 ** Math.floor(Math.log10(raw));
+    const step = [1, 2, 2.5, 5, 10].map((k) => k * mag).find((s) => s >= raw);
+    return { step, top: Math.ceil(max / step) * step };
+  }
+  const tickLabel = (v, top) => (top >= 10000 ? (v ? Math.round(v / 1000) + ' tys.' : '0') : Math.round(v).toLocaleString('pl-PL')) + ' zł';
+
+  function monthChart(st) {
+    const ms = st.months;
+    const { step, top } = niceScale(Math.max(...ms.map((m) => m.doneValue + m.plannedValue)));
+    const ticks = []; for (let v = 0; v <= top + 1e-9; v += step) ticks.push(v);
+    const h = (v) => ((v / top) * 100).toFixed(2) + '%';
+    return `
+      <ul class="chart-legend" aria-hidden="true"><li><i class="key-done"></i>Odbyte</li><li><i class="key-plan"></i>Zaplanowane</li></ul>
+      <div class="cc">
+        <div class="cc-plot">
+          ${ticks.map((v) => `<div class="cc-tick" style="bottom:${h(v)}"><span>${tickLabel(v, top)}</span></div>`).join('')}
+          <div class="cc-cols">
+            ${ms.map((m, i) => {
+              const total = m.doneValue + m.plannedValue; const cur = m.month === st.thisMonth;
+              return `<div class="cc-col${cur ? ' is-current' : ''}" tabindex="0" data-tip="months" data-i="${i}"
+                aria-label="${monthName(m.month)}: odbyte ${zl(m.doneValue)}, zaplanowane ${zl(m.plannedValue)}">
+                <div class="cc-stack" style="height:${h(total)}">
+                  ${m.plannedValue > 0 ? `<i class="cc-plan" style="flex-grow:${m.plannedValue}"></i>` : ''}
+                  ${m.doneValue > 0 ? `<i class="cc-done" style="flex-grow:${m.doneValue}"></i>` : ''}
+                  ${cur && total > 0 ? `<b class="cc-cap">${zl(total)}</b>` : ''}
+                </div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>
+        <div class="cc-x" aria-hidden="true">${ms.map((m) => `<span${m.month === st.thisMonth ? ' class="is-current"' : ''}>${MONTHS_SHORT[mIdx(m.month)]}${mIdx(m.month) === 0 ? `<br>${m.month.slice(0, 4)}` : ''}</span>`).join('')}</div>
+      </div>
+      <details class="chart-table"><summary>Pokaż dane w tabeli</summary><div class="table-scroll"><table class="table">
+        <thead><tr><th>Miesiąc</th><th class="num">Odbyte</th><th class="num">Wartość odbytych</th><th class="num">Zaplanowane</th><th class="num">Wartość zaplanowanych</th><th class="num">Odwołane przez klientkę</th><th class="num">Odwołane przez gabinet</th><th class="num">Nieobecności</th><th class="num">Opłaty za odwołania</th></tr></thead>
+        <tbody>${ms.map((m) => `<tr><td>${monthName(m.month)}</td><td class="num">${m.done}</td><td class="num">${zl(m.doneValue)}</td><td class="num">${m.planned}</td><td class="num">${zl(m.plannedValue)}</td>
+          <td class="num">${m.cancelledClient}</td><td class="num">${m.cancelledSalon}</td><td class="num">${m.noShow}</td><td class="num">${m.fees ? `${zl(m.fees)}${m.feesPaid ? ` <span class="small muted">(zapłacone ${zl(m.feesPaid)})</span>` : ''}` : '–'}</td></tr>`).join('')}</tbody>
+      </table></div></details>`;
+  }
+
+  function barList(rows, kind, valueLabel) {
+    if (!rows.length) return '<p class="muted">Brak danych w tym okresie.</p>';
+    const max = Math.max(...rows.map((r) => r.n), 1);
+    return `<div class="hb">${rows.map((r, i) => `
+      <div class="hb-row" tabindex="0" data-tip="${kind}" data-i="${i}" aria-label="${esc(r.label)}: ${valueLabel(r)}">
+        <span class="hb-name">${esc(r.label)}</span>
+        <span class="hb-track"><i style="width:calc((100% - 52px) * ${(r.n / max).toFixed(4)})"></i><b>${valueLabel(r)}</b></span>
+      </div>`).join('')}</div>`;
+  }
+  function statsRows(st) {
+    const all = st.treatments.reduce((s, t) => s + t.n, 0);
+    const every = st.treatments.map((t) => ({ label: t.name, n: t.n, value: t.value, share: pctOf(t.n, all) }));
+    // wykres pokazuje 8 najczęstszych, reszta jest w tabeli i w podsumowaniu pod wykresem
+    const treat = every.slice(0, 8);
+    const rest = every.slice(8);
+    const made = st.sources.reduce((s, x) => s + x.n, 0);
+    const sources = st.sources.map((x) => ({ label: SOURCE_NAMES[x.source] || x.source, n: x.n, share: pctOf(x.n, made) }));
+    return { treat, every, rest, sources, all, made };
+  }
+
+  function vStatystyki() {
+    const st = data.stats; const m = st.month; const r = st.recent;
+    const { treat, every, rest, sources, all, made } = statsRows(st);
+    const period = PERIODS.find((p) => p[0] === st.days)[1];
+    const lost = r.cancelled + r.noShow;
+    return `
+      ${st.hasDemo ? '<p class="small muted panel-inline-note">Statystyki liczą też dane przykładowe. Po ich usunięciu zostaną tylko prawdziwe wizyty.</p>' : ''}
+      <div class="stat-row">
+        <div class="stat"><b>${zl(m.doneValue)}</b><span>odbyte zabiegi w ${MONTHS_IN[mIdx(st.thisMonth)]}, ${nVisits(m.done)}</span></div>
+        <div class="stat"><b>${zl(m.plannedValue)}</b><span>zaplanowane do końca miesiąca, ${nVisits(m.planned)}</span></div>
+        <div class="stat"><b>${st.newClients}</b><span>${plural(st.newClients, 'nowa klientka', 'nowe klientki', 'nowych klientek')} w ostatnich 30 dniach</span></div>
+        <div class="stat"><b>${r.n ? pctOf(lost, r.n) + '%' : '–'}</b><span>wizyt odwołanych lub nieodbytych w ostatnich 30 dniach (${r.cancelled} odw., ${r.noShow} nieob.)</span></div>
+      </div>
+      <div class="panel-card">
+        <h2>Wartość wizyt miesiąc po miesiącu</h2>
+        <p class="small muted">Ceny po rabatach. Odwołane wizyty i nieobecności nie wchodzą do sumy, znajdziesz je w tabeli.</p>
+        ${monthChart(st)}
+      </div>
+      <div class="stats-filter" role="group" aria-label="Okres dla zestawień poniżej">
+        <span class="small muted">Okres:</span>
+        ${PERIODS.map(([d, label]) => `<button type="button" class="chip" data-stats-days="${d}" aria-pressed="${d === st.days}">${label}</button>`).join('')}
+      </div>
+      <div class="stats-grid">
+        <div class="panel-card">
+          <h2>Najczęstsze zabiegi</h2>
+          <p class="small muted">Wizyty odbyte i zaplanowane na dziś, z ostatnich ${period}, razem ${nVisits(all)}.</p>
+          ${barList(treat, 'treat', (x) => String(x.n))}
+          ${rest.length ? `<p class="small muted hb-rest">Pozostałe ${rest.length} ${plural(rest.length, 'zabieg', 'zabiegi', 'zabiegów')}: razem ${nVisits(rest.reduce((n, t) => n + t.n, 0))}. Wszystkie są w tabeli.</p>` : ''}
+          ${treat.length ? `<details class="chart-table"><summary>Pokaż dane w tabeli</summary><table class="table"><thead><tr><th>Zabieg</th><th class="num">Wizyty</th><th class="num">Udział</th><th class="num">Wartość</th></tr></thead>
+            <tbody>${every.map((t) => `<tr><td>${esc(t.label)}</td><td class="num">${t.n}</td><td class="num">${t.share}%</td><td class="num">${zl(t.value)}</td></tr>`).join('')}</tbody></table></details>` : ''}
+        </div>
+        <div>
+          <div class="panel-card">
+            <h2>Skąd przychodzą rezerwacje</h2>
+            <p class="small muted">Wizyty zapisane w ostatnich ${{ 30: '30 dniach', 90: '90 dniach', 365: '12 miesiącach' }[st.days]}, razem ${made}.</p>
+            ${barList(sources, 'src', (x) => x.share + '%')}
+            ${sources.length ? `<details class="chart-table"><summary>Pokaż dane w tabeli</summary><table class="table"><thead><tr><th>Źródło</th><th class="num">Rezerwacje</th><th class="num">Udział</th></tr></thead>
+              <tbody>${sources.map((x) => `<tr><td>${esc(x.label)}</td><td class="num">${x.n}</td><td class="num">${x.share}%</td></tr>`).join('')}</tbody></table></details>` : ''}
+          </div>
+          <div class="panel-card">
+            <h2>Bony podarunkowe</h2>
+            <dl class="stats-dl">
+              <div><dt>Sprzedane w tym okresie</dt><dd>${zl(st.vouchers.soldValue)} <span class="small muted">(${st.vouchers.sold} ${plural(st.vouchers.sold, 'bon', 'bony', 'bonów')})</span></dd></div>
+              <div><dt>Wykorzystane w tym okresie</dt><dd>${zl(st.vouchers.used)}</dd></div>
+              <div><dt>Do wykorzystania na ważnych bonach</dt><dd>${zl(st.vouchers.open)}</dd></div>
+            </dl>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // dymek z wartościami: ten sam po najechaniu myszą i po przejściu klawiszem Tab
+  let tipEl = null;
+  function tipRow(cls, strong, rest) {
+    const row = document.createElement('div'); row.className = 'tip-row';
+    if (cls) { const k = document.createElement('i'); k.className = cls; row.append(k); }
+    const b = document.createElement('b'); b.textContent = strong; row.append(b, document.createTextNode(' ' + rest));
+    return row;
+  }
+  function showTip(el) {
+    const st = data && data.stats; if (!st) return;
+    const i = Number(el.dataset.i); const kind = el.dataset.tip;
+    if (!tipEl) { tipEl = document.createElement('div'); tipEl.className = 'chart-tip'; tipEl.setAttribute('role', 'tooltip'); document.body.append(tipEl); }
+    tipEl.replaceChildren();
+    const title = document.createElement('p'); title.className = 'tip-title'; tipEl.append(title);
+    if (kind === 'months') {
+      const m = st.months[i]; title.textContent = monthName(m.month);
+      tipEl.append(tipRow('key-done', zl(m.doneValue), `odbyte, ${nVisits(m.done)}`), tipRow('key-plan', zl(m.plannedValue), `zaplanowane, ${nVisits(m.planned)}`));
+      const lostM = m.cancelledClient + m.cancelledSalon;
+      if (lostM || m.noShow) tipEl.append(tipRow('', String(lostM), `${plural(lostM, 'odwołana', 'odwołane', 'odwołanych')}, ${m.noShow} ${plural(m.noShow, 'nieobecność', 'nieobecności', 'nieobecności')}`));
+    } else {
+      const { treat, sources } = statsRows(st);
+      const r = (kind === 'treat' ? treat : sources)[i]; title.textContent = r.label;
+      if (kind === 'treat') tipEl.append(tipRow('', nVisits(r.n), `(${r.share}% wszystkich)`), tipRow('', zl(r.value), 'wartość'));
+      else tipEl.append(tipRow('', r.share + '%', `rezerwacji, ${r.n} ${plural(r.n, 'wizyta', 'wizyty', 'wizyt')}`));
+    }
+    const box = (el.querySelector('.cc-stack, .hb-track i') || el).getBoundingClientRect();
+    tipEl.style.display = 'block';
+    const w = tipEl.offsetWidth, hgt = tipEl.offsetHeight;
+    let left = kind === 'months' ? box.left + box.width / 2 - w / 2 : box.right - w / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - w - 8));
+    let top = box.top - hgt - 10; if (top < 8) top = box.bottom + 10;
+    tipEl.style.left = left + 'px'; tipEl.style.top = top + 'px';
+  }
+  function hideTip() { if (tipEl) tipEl.style.display = 'none'; }
+
   /* ---------- Bony podarunkowe ---------- */
   function vBony() {
     const list = data.vouchers;
@@ -671,6 +879,8 @@ JM.ready.then(function () {
       kalendarz: async () => ({ calendar: await api('GET', `/api/admin/calendar?from=${S.isoDate(calWeek)}&to=${S.isoDate(addDays(calWeek, 6))}`) }),
       wizyty: async () => (await api('GET', `/api/admin/bookings?from=${S.isoDate(past)}`)),
       klientki: async () => (await api('GET', '/api/admin/clients')),
+      oczekujace: async () => { await ensureLists(); return api('GET', '/api/admin/waitlist'); },
+      statystyki: async () => ({ stats: await api('GET', `/api/admin/stats?days=${statsDays}`) }),
       zabiegi: async () => (await api('GET', '/api/admin/prices')),
       promocje: async () => (await api('GET', '/api/admin/promos')),
       galeria: async () => (await api('GET', '/api/admin/gallery')),
@@ -712,10 +922,11 @@ JM.ready.then(function () {
       </div>`;
   }
   async function render(scroll) {
+    hideTip();
     if (!admin) { root.innerHTML = loginView(); return; }
     try {
       await loadView();
-      const fn = { pulpit: vPulpit, kalendarz: vKalendarz, wizyty: vWizyty, klientki: vKlientki, zabiegi: vZabiegi, promocje: vPromocje, bony: vBony, galeria: vGaleria, wiadomosci: vWiadomosci, godziny: vGodziny, konto: vKonto }[view];
+      const fn = { pulpit: vPulpit, kalendarz: vKalendarz, wizyty: vWizyty, oczekujace: vOczekujace, klientki: vKlientki, statystyki: vStatystyki, zabiegi: vZabiegi, promocje: vPromocje, bony: vBony, galeria: vGaleria, wiadomosci: vWiadomosci, godziny: vGodziny, konto: vKonto }[view];
       root.innerHTML = shell(fn());
     } catch (err) {
       if (err.status === 401) { admin = null; root.innerHTML = loginView('Sesja wygasła. Zaloguj się ponownie.'); return; }
@@ -757,9 +968,25 @@ JM.ready.then(function () {
   }
 
   /* ---------- Zdarzenia ---------- */
+  // dymki na wykresach w statystykach
+  root.addEventListener('pointerover', (e) => { const el = e.target.closest('[data-tip]'); if (el) showTip(el); });
+  root.addEventListener('pointerout', (e) => { const el = e.target.closest('[data-tip]'); if (el && !el.contains(e.relatedTarget)) hideTip(); });
+  root.addEventListener('focusin', (e) => { const el = e.target.closest('[data-tip]'); if (el) showTip(el); });
+  root.addEventListener('focusout', (e) => { if (e.target.closest('[data-tip]')) hideTip(); });
+  window.addEventListener('scroll', hideTip, { passive: true });
+
   root.addEventListener('click', async (e) => {
     const el = e.target.closest('button'); if (!el) return;
     if (el.dataset.view) { view = el.dataset.view; render(true); return; }
+    if (el.dataset.wlRemove) {
+      if (!confirmDialog('Usunąć z listy oczekujących?', 'Klientka nie dostanie już SMS-a o wolnym terminie. Jej dane znikną z listy.')) return;
+      return act(() => api('DELETE', `/api/admin/waitlist/${el.dataset.wlRemove}`), 'Usunięto z listy.');
+    }
+    if (el.dataset.statsDays) {
+      statsDays = Number(el.dataset.statsDays);
+      root.querySelectorAll('.stats-grid').forEach((g) => { g.style.opacity = '.45'; });
+      render(); return;
+    }
     if (el.hasAttribute('data-admin-logout')) { await api('POST', '/api/admin/logout', {}); admin = null; stopLive(); render(); return; }
     if (el.hasAttribute('data-clear-demo')) {
       if (!confirmDialog('Usunąć dane przykładowe?', 'Przykładowe klientki i ich wizyty znikną z bazy. Prawdziwe dane zostają.')) return;
@@ -856,6 +1083,14 @@ JM.ready.then(function () {
       return;
     }
     if (f.id === 'gallery-form') return uploadPhotos(f);
+    if (f.id === 'waitlist-admin-form') {
+      const v = (n) => f.elements[n].value.trim();
+      try {
+        await api('POST', '/api/admin/waitlist', { treatmentId: v('treatmentId'), from: v('from'), to: v('to'), firstName: v('firstName'), phone: v('phone'), lang: v('lang') });
+        await rerender(); ui.toast('Dodano do listy oczekujących.');
+      } catch (err) { ui.toast(err.message); }
+      return;
+    }
     if (f.id === 'voucher-form') {
       const v = (n) => f.elements[n].value.trim();
       try {

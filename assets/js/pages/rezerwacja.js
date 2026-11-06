@@ -18,7 +18,8 @@ JM.ready.then(function () {
     month: new Date(today.getFullYear(), today.getMonth(), 1),
     who: 'guest', guest: { firstName: '', lastName: '', phone: '', email: '', notes: '', marketingSms: false, marketingEmail: false },
     notes: '', booking: null, error: '', phone: '', autoMonth: true,
-    voucher: null // { code, available } po sprawdzeniu kodu bonu
+    voucher: null, // { code, available } po sprawdzeniu kodu bonu
+    waitlist: null // formularz listy oczekujących dla wybranego zabiegu
   };
   // pole na kod bonu podarunkowego (krok 3)
   function voucherBox() {
@@ -41,7 +42,14 @@ JM.ready.then(function () {
     }
   } catch (e) { /* ignore */ }
   const q = new URLSearchParams(location.search).get('zabieg');
-  if (q && S.treatment(q) && !state.treatmentId) { state.treatmentId = q; state.step = 2; }
+  if (q && S.treatment(q) && !state.treatmentId) {
+    state.treatmentId = q; state.step = 2;
+    // link z SMS-a listy oczekujących: od razu wybrany dzień
+    const qd = new URLSearchParams(location.search).get('data');
+    if (qd && /^\d{4}-\d{2}-\d{2}$/.test(qd) && qd >= S.isoDate(today) && new Date(qd + 'T00:00:00') <= lastDay) {
+      state.date = qd; state.month = new Date(Number(qd.slice(0, 4)), Number(qd.slice(5, 7)) - 1, 1); state.autoMonth = false;
+    }
+  }
 
   const t = () => (state.treatmentId ? S.treatment(state.treatmentId) : null);
   const user = () => S.currentUser();
@@ -151,10 +159,57 @@ JM.ready.then(function () {
       <h2 class="step-title">${L('Wybierz termin', 'Choose a date')}</h2>
       ${state.error ? `<p class="form-msg" role="alert">${esc(state.error)}</p>` : ''}
       <div class="cal-wrap">${calendar()}${slotsView()}</div>
+      ${waitlistBox()}
       <div class="step-actions">
         <button class="btn btn-outline" type="button" data-go="1">${L('Wstecz', 'Back')}</button>
         <button class="btn btn-primary" type="button" data-go="3" ${state.date && state.time ? '' : 'disabled'}>${L('Dalej: Twoje dane', 'Next: your details')}</button>
       </div>`;
+  }
+
+  /* ---------- Lista oczekujących ---------- */
+  function waitlistBox() {
+    const tr = t(); const u = user();
+    let w = state.waitlist && state.waitlist.treatmentId === tr.id ? state.waitlist : null;
+    if (w && w.done) {
+      return `<div class="waitlist-box is-done" role="status"><p><strong>${L('Jesteś na liście oczekujących.', 'You are on the waiting list.')}</strong>
+        ${L(`Gdy między ${ui.fmtShort(w.from)} a ${ui.fmtShort(w.to)} zwolni się termin, wyślemy SMS z linkiem do rezerwacji.`, `If a time opens up between ${ui.fmtShort(w.from)} and ${ui.fmtShort(w.to)}, we will text you a booking link.`)}</p></div>`;
+    }
+    const min = S.isoDate(today), max = S.isoDate(lastDay);
+    const monthStart = S.isoDate(new Date(Math.max(state.month, today)));
+    const from = (w && w.from) || state.date || monthStart;
+    const to = (w && w.to) || (() => { const d = new Date(from + 'T12:00:00'); d.setDate(d.getDate() + 14); return S.isoDate(new Date(Math.min(d, lastDay))); })();
+    return `<details class="waitlist-box"${w && w.open ? ' open' : ''}>
+      <summary>${L('Nie ma pasującego terminu? Zapisz się na listę oczekujących', 'No suitable time? Join the waiting list')}</summary>
+      <form id="waitlist-form" novalidate>
+        <p class="small muted">${L(`Gdy w wybranym okresie zwolni się termin na ten zabieg, wyślemy SMS z linkiem. Termin dostaje osoba, która pierwsza go zarezerwuje.`, `If a time for this treatment opens up in the period you choose, we will text you a link. The time goes to whoever books it first.`)}</p>
+        <div class="form-grid">
+          <div class="field"><label for="wl-from">${L('Od', 'From')}</label><input id="wl-from" name="from" type="date" min="${min}" max="${max}" value="${from}" required></div>
+          <div class="field"><label for="wl-to">${L('Do', 'To')}</label><input id="wl-to" name="to" type="date" min="${min}" max="${max}" value="${to}" required></div>
+          ${u ? '' : `
+          <div class="field"><label for="wl-name">${L('Imię', 'First name')}</label><input id="wl-name" name="firstName" autocomplete="given-name" maxlength="60" value="${esc((w && w.firstName) || state.guest.firstName)}" required></div>
+          <div class="field"><label for="wl-phone">${L('Telefon', 'Phone')}</label><input id="wl-phone" name="phone" type="tel" autocomplete="tel" maxlength="20" value="${esc((w && w.phone) || state.guest.phone)}" required></div>`}
+        </div>
+        ${w && w.error ? `<p class="form-msg" role="alert">${esc(w.error)}</p>` : ''}
+        <p class="small muted">${u ? L(`SMS wyślemy na numer ${esc(u.phone)}. `, `We will text ${esc(u.phone)}. `) : ''}${L('Imię i numer wykorzystamy tylko do tej wiadomości i usuniemy 30 dni po końcu okresu. Szczegóły w <a href="polityka-prywatnosci.html#lista">polityce prywatności</a>.', 'We will use your name and number only for this message and delete them 30 days after the period ends. Details in our <a href="polityka-prywatnosci.html#lista-en">privacy policy</a>.')}</p>
+        <button class="btn btn-outline" type="submit">${L('Zapisz mnie na listę', 'Add me to the list')}</button>
+      </form>
+    </details>`;
+  }
+  async function joinWaitlist(f) {
+    const tr = t(); const u = user();
+    const dateOk = (el) => (el.value ? '' : L('Wybierz datę.', 'Choose a date.'));
+    const rules = { from: dateOk, to: (el) => (!el.value ? L('Wybierz datę.', 'Choose a date.') : el.value < f.elements.from.value ? L('Data „do” musi być późniejsza niż „od”.', 'The “to” date must be after the “from” date.') : '') };
+    if (!u) Object.assign(rules, { firstName: req(L('Wpisz imię.', 'Enter your first name.')), phone: phoneOk });
+    if (!validate(f, rules)) return;
+    const w = { treatmentId: tr.id, open: true, from: f.elements.from.value, to: f.elements.to.value, firstName: u ? '' : f.elements.firstName.value.trim(), phone: u ? '' : f.elements.phone.value.trim() };
+    const btn = f.querySelector('[type=submit]'); btn.disabled = true;
+    try {
+      const d = await S.api('POST', '/api/waitlist', { treatmentId: tr.id, from: w.from, to: w.to, firstName: w.firstName, phone: w.phone });
+      state.waitlist = Object.assign(w, { done: true, from: d.entry.from, to: d.entry.to });
+      if (!u) Object.assign(state.guest, { firstName: state.guest.firstName || w.firstName, phone: state.guest.phone || w.phone });
+    } catch (err) { state.waitlist = Object.assign(w, { error: err.message }); }
+    render();
+    flow.querySelector('.waitlist-box')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 
   /* ---------- Krok 3: dane ---------- */
@@ -389,11 +444,18 @@ JM.ready.then(function () {
     }
   });
   flow.addEventListener('input', (e) => {
-    const f = e.target.form; if (!f || f.id !== 'guest-form') return;
+    const f = e.target.form;
+    if (f && f.id === 'waitlist-form') {
+      // wpisane dane zostają, gdy kalendarz się odświeży
+      const w = state.waitlist && state.waitlist.treatmentId === state.treatmentId && !state.waitlist.done ? state.waitlist : (state.waitlist = { treatmentId: state.treatmentId });
+      w.open = true; w[e.target.name] = e.target.value; return;
+    }
+    if (!f || f.id !== 'guest-form') return;
     const el = e.target; state.guest[el.name] = el.type === 'checkbox' ? el.checked : el.value;
   });
   flow.addEventListener('submit', async (e) => {
     e.preventDefault(); const f = e.target;
+    if (f.id === 'waitlist-form') { joinWaitlist(f); return; }
     if (f.id === 'guest-form') {
       const ok = validate(f, {
         firstName: req(L('Wpisz imię.', 'Enter your first name.')), lastName: req(L('Wpisz nazwisko.', 'Enter your last name.')), phone: phoneOk, email: emailOk,
