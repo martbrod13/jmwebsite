@@ -41,10 +41,10 @@ const sms = {
 
 function emailLayout(lang, title, inner) {
   return `<!DOCTYPE html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${esc(title)}</title></head>
-<body style="margin:0;background:#f3ece2;font-family:Helvetica,Arial,sans-serif;color:#1f2536">
+<body style="margin:0;background:#f3ece2;font-family:Helvetica,Arial,sans-serif;color:#462a1f">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3ece2;padding:32px 12px"><tr><td align="center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#fffdf9;border:1px solid #e9dfd1">
-<tr><td style="background:#1f2536;padding:28px 32px;text-align:center">
+<tr><td style="background:#462a1f;padding:28px 32px;text-align:center">
   <div style="font-family:Georgia,serif;font-size:20px;letter-spacing:4px;color:#d6b97f">JUSTYNA MAŃKA</div>
   <div style="font-size:10px;letter-spacing:4px;color:#ecd9aa;margin-top:6px">BEAUTY &amp; AESTHETICS</div>
 </td></tr>
@@ -57,7 +57,7 @@ function emailLayout(lang, title, inner) {
   ${esc(S.phone)} · <a href="mailto:${esc(S.email)}" style="color:#9c7d52">${esc(S.email)}</a>
 </td></tr></table></td></tr></table></body></html>`;
 }
-const button = (href, label) => `<p style="margin:28px 0"><a href="${esc(href)}" style="display:inline-block;background:#1f2536;color:#ecd9aa;text-decoration:none;padding:14px 26px;letter-spacing:1px">${esc(label)}</a></p>`;
+const button = (href, label) => `<p style="margin:28px 0"><a href="${esc(href)}" style="display:inline-block;background:#462a1f;color:#ecd9aa;text-decoration:none;padding:14px 26px;letter-spacing:1px">${esc(label)}</a></p>`;
 const row = (k, v) => `<tr><td style="padding:6px 16px 6px 0;color:#6f6155;vertical-align:top">${esc(k)}</td><td style="padding:6px 0">${v}</td></tr>`;
 
 function fmtLongDate(dateStr, lang) {

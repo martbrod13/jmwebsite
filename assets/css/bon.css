@@ -1,11 +1,11 @@
-/* Bon podarunkowy: A5 poziomo, granat ze złotem i beż */
+/* Bon podarunkowy: A5 poziomo, czekoladowy brąz ze złotem i beż */
 .bon-body { background: var(--sand); min-height: 100vh; }
 .bon-toolbar { max-width: 210mm; margin: 32px auto 20px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; font-size: .875rem; color: var(--taupe); }
 .bon-toolbar p { margin: 0; flex: 1 1 300px; }
 .bon-toolbar .btn-row { margin: 0; }
 .voucher {
   width: 210mm; height: 148mm; margin: 0 auto 48px; display: grid; grid-template-columns: 62mm 1fr;
-  background: var(--paper); box-shadow: 0 18px 50px rgba(31, 37, 54, .14); overflow: hidden;
+  background: var(--paper); box-shadow: 0 18px 50px rgba(70, 42, 31, .14); overflow: hidden;
   -webkit-print-color-adjust: exact; print-color-adjust: exact;
 }
 .v-side { background: var(--ink); display: grid; place-items: center; position: relative; }

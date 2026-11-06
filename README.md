@@ -49,12 +49,14 @@ Prawdziwa wysyłka włącza się w pliku `.env` (wzór: `.env.example`): SMS prz
 | `index.html` | Strona główna: baner z logo, kategorie zabiegów, korzyści z konta, jak umówić wizytę, sekcja „O mnie” |
 | `zabiegi.html` | Opisy wszystkich zabiegów w rozwijanych zakładkach, przygotowanie, przeciwwskazania, zalecenia |
 | `cennik.html` | Cennik w tabelach + najczęstsze pytania |
-| `rezerwacja.html` | Rezerwacja w 4 krokach: zabieg, kalendarz wolnych terminów, dane (gość / logowanie / rejestracja), potwierdzenie z podglądem SMS i plikiem do kalendarza |
+| `rezerwacja.html` | Rezerwacja w 4 krokach: zabieg, kalendarz wolnych terminów, dane (gość / logowanie / rejestracja), potwierdzenie z podglądem SMS i plikiem do kalendarza. Pole na kod bonu podarunkowego i zapis na listę oczekujących pod kalendarzem |
 | `konto.html` | Logowanie, rejestracja ze zgodami, reset hasła przez e-mail, profil: wizyty, odwoływanie, oferty, dane, zgody z historią, usuwanie konta |
 | `galeria.html` | Galeria efektów ze zdjęciami dodanymi w panelu: filtr kategorii, powiększenie (strzałki, przesuwanie palcem). Bez zdjęć pokazuje odnośnik do Instagrama |
 | `wizyta.html` | Strona wizyty z linku w SMS-ie i e-mailu: podgląd, zmiana terminu i odwołanie bez logowania (adres `/w/<klucz>`) |
+| `lista-oczekujacych.html` | Strona z linku w SMS-ie listy oczekujących: wolne terminy z przyciskiem rezerwacji i wypisanie się z listy (adres `/l/<klucz>`) |
+| `bon.html` | Bon podarunkowy do druku albo zapisania jako PDF (A5 poziomo), otwierany z panelu |
 | `kontakt.html` | Dane kontaktowe, godziny, formularz, mapa Google wczytywana dopiero po zgodzie |
-| `panel.html` | Panel gabinetu: kalendarz tygodnia (wizyty z telefonu i Instagrama, blokowanie godzin, przenoszenie), wizyty (odwołanie, nieobecność, opłaty), klientki z eksportem CSV, ceny z historią, promocje, galeria (zdjęcia ze zgodą klientki, opis PL/EN, ukrywanie, kolejność), SMS-y i e-maile, dni wolne, zmiana hasła |
+| `panel.html` | Panel gabinetu: kalendarz tygodnia (wizyty z telefonu i Instagrama, blokowanie godzin, przenoszenie), wizyty (odwołanie, nieobecność, opłaty), lista oczekujących, klientki z eksportem CSV, statystyki, ceny z historią, promocje, bony podarunkowe, galeria (zdjęcia ze zgodą klientki, opis PL/EN, ukrywanie, kolejność), SMS-y i e-maile, dni wolne, zmiana hasła, kalendarz w telefonie, kopie zapasowe |
 | `regulamin.html`, `polityka-prywatnosci.html`, `polityka-cookies.html` | Projekty dokumentów |
 
 Zasady:
@@ -68,6 +70,10 @@ Zasady:
 - Panel odświeża się sam (kalendarz, pulpit, wizyty), gdy klientka zarezerwuje, przeniesie albo odwoła wizytę; pokazuje powiadomienie, licznik w tytule karty i opcjonalnie powiadomienie systemowe.
 - Wizyty umówione telefonicznie, przez Instagram albo w gabinecie wpisuje się w panelu (Kalendarz). Od razu znikają z rezerwacji online, tak samo jak zablokowane godziny (przerwa, wyjście). Dwie wizyty nie mogą na siebie nachodzić; wizytę poza godzinami pracy panel zapisze po potwierdzeniu.
 - Klientka może sama zmienić termin (w profilu albo przez link z SMS-a) najpóźniej 12 h przed wizytą, tylko na wolny termin. Dostaje SMS z nowym terminem, a przypomnienie wyśle się do nowej godziny.
+- **Kalendarz w telefonie:** w panelu (Moje konto) jest prywatny link do kalendarza. Po dodaniu go w iPhonie (Ustawienia → Kalendarz → Konta → Dodaj konto → Inne → Dodaj subskrybowany kalendarz) albo w Kalendarzu Google („Inne kalendarze” → „+” → „Z adresu URL”) wizyty i blokady pokazują się w telefonie i aktualizują same: iPhone sprawdza zmiany częściej, Google co kilka godzin. Działa po publikacji strony; lokalnie można pobrać plik .ics. W kalendarzu jest tylko zabieg i imię z inicjałem, bez telefonów. Link można w każdej chwili unieważnić i wygenerować nowy.
+- **Bony podarunkowe:** wystawiasz je w panelu (kwota, ważność, dla kogo, od kogo, dedykacja) i drukujesz albo zapisujesz jako PDF. Klientka wpisuje kod przy rezerwacji online albo podaje go w gabinecie. Kwota bonu jest rezerwowana przy rezerwacji i schodzi z salda dopiero po odbytej wizycie; odwołanie wizyty zwalnia rezerwację. Bon można wykorzystać w kilku częściach, rozliczyć ręcznie w panelu albo unieważnić. Zasady są w regulaminie (§ 7a).
+- **Statystyki:** wartość wizyt miesiąc po miesiącu (odbyte i zaplanowane), wizyty i nowe klientki w bieżącym miesiącu, odwołania i nieobecności, najczęstsze zabiegi, skąd przychodzą rezerwacje i bony. Każdy wykres ma podgląd po najechaniu i tabelę z danymi.
+- **Lista oczekujących:** gdy na wybrany zabieg nie ma wolnego terminu, klientka zapisuje się na okres (np. dwa tygodnie). Gdy w tym okresie zwolni się miejsce (odwołanie, przeniesienie, zdjęta blokada albo dzień wolny), dostaje SMS z linkiem; termin ma ta osoba, która pierwsza zarezerwuje. SMS-y wychodzą między 8:00 a 21:00, najwyżej jeden na 6 godzin dla jednej osoby i jeden o danym dniu. Rezerwacja tego zabiegu kończy czekanie, a dane znikają 30 dni po końcu okresu. Osobę, która dzwoni, można dopisać w panelu.
 - Strona ma wersję angielską (przełącznik PL / EN w nagłówku). Domyślnie i przy pierwszej wizycie strona jest po polsku; wybór języka zapamiętuje przeglądarka. Panel gabinetu jest zawsze po polsku, a rezerwacje zapisują polską nazwę zabiegu. Dokumenty prawne mają tłumaczenie z dopiskiem, że wiążąca jest wersja polska.
 
 ### Gdzie co zmieniać
@@ -76,7 +82,7 @@ Zasady:
 - `assets/js/treatments.js`: zabiegi, opisy, czas trwania, ceny
 - `assets/js/treatments.en.js`: angielskie nazwy i opisy zabiegów (te same identyfikatory co w `treatments.js`)
 - `assets/js/i18n.js`: przełączanie języka. Teksty w skryptach: `JM.L('po polsku', 'in English')`; w HTML: `<span data-lang="pl">…</span><span data-lang="en">…</span>`
-- `assets/css/style.css`: wygląd (kolory na górze pliku)
+- `assets/css/style.css`: wygląd (kolory na górze pliku: ciepła biel, piasek, czekoladowy brąz `--ink` i złoto)
 - `server/`: serwer, API, zasady rezerwacji (`booking.js`), SMS-y i e-maile (`messaging.js`)
 - Ceny można też zmieniać w panelu gabinetu; zapisują się w bazie z historią zmian i mają pierwszeństwo przed cenami z `treatments.js`.
 
