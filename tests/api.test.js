@@ -436,9 +436,13 @@ test('SMS-y po wizycie: ustawienia w panelu i krótki link do rezerwacji', async
   const a = await adminClient();
   const st = (await a('GET', '/api/admin/aftercare')).body;
   assert.ok(st.rules.some((r) => r.treatmentId === 'pmu-brwi' && r.nextId === 'pmu-korekta' && r.weeks === 6), 'domyślnie: brwi → korekta po 6 tygodniach');
-  assert.strictEqual((await a('PUT', '/api/admin/aftercare/review', { on: true, url: 'http://bez-https.pl' })).status, 400);
-  assert.strictEqual((await a('PUT', '/api/admin/aftercare/review', { on: true, url: '' })).status, 400);
-  assert.strictEqual((await a('PUT', '/api/admin/aftercare/review', { on: true, url: 'https://g.page/r/test/review' })).body.reviewOn, true);
+  assert.strictEqual((await a('PUT', '/api/admin/aftercare/review', { on: true })).body.reviewOn, true, 'prośba o opinię prowadzi na stronę opinii, link do Google nie jest wymagany');
+  assert.strictEqual((await a('PUT', '/api/admin/review-links', { google: 'http://bez-https.pl' })).status, 400);
+  const links = (await a('PUT', '/api/admin/review-links', { google: 'https://g.page/r/test/review', booksy: 'https://booksy.com/pl-pl/123_jm' })).body.links;
+  assert.deepStrictEqual(links, { google: 'https://g.page/r/test/review', booksy: 'https://booksy.com/pl-pl/123_jm', facebook: '' });
+  assert.strictEqual((await client()('GET', '/api/reviews')).body.links.booksy, 'https://booksy.com/pl-pl/123_jm');
+  assert.strictEqual((await client()('POST', '/api/review-find', { code: 'ZZZZZZ', phone: '600000001' })).status, 404);
+  assert.strictEqual((await client()('GET', '/api/review/zly-klucz-1234567890')).status, 404);
   assert.strictEqual((await a('PUT', '/api/admin/aftercare/rules', { treatmentId: 'mezo-twarz', weeks: 0, nextId: 'mezo-twarz' })).status, 400);
   assert.ok((await a('PUT', '/api/admin/aftercare/rules', { treatmentId: 'mezo-twarz', weeks: 3, nextId: 'mezo-twarz' })).body.rules.some((r) => r.treatmentId === 'mezo-twarz' && r.days === 21));
   assert.ok(!(await a('DELETE', '/api/admin/aftercare/rules/mezo-twarz', {})).body.rules.some((r) => r.treatmentId === 'mezo-twarz'));

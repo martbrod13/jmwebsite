@@ -53,7 +53,13 @@ JM.ready.then(async function () {
           <p class="small muted">${b.afterSms ? L('Włączony: po wizycie poprosimy o opinię, a gdy przyjdzie czas, przypomnimy o korekcie lub kolejnym zabiegu.', 'On: after the visit we will ask for your feedback and, when it is time, remind you about a touch-up or the next treatment.') : L('Wyłączony. Włącz, jeśli chcesz dostać przypomnienie o korekcie lub kolejnym zabiegu.', 'Off. Turn it on if you would like a reminder about a touch-up or the next treatment.')}</p></div>
         <button class="btn btn-outline btn-small" type="button" data-after-sms="${b.afterSms ? 'off' : 'on'}">${b.afterSms ? L('Wyłącz', 'Turn off') : L('Włącz', 'Turn on')}</button>
       </div>` : '';
-    return qRow || sRow ? `<div class="card visit-card visit-extras">${qRow}${sRow}</div>` : '';
+    const rRow = b.status === 'done' && b.review ? `
+      <div class="extra-row">
+        <div><h3>${L('Jak było?', 'How was it?')}</h3>
+          <p class="small muted">${b.review.sent ? L('Dziękujemy, Twoja opinia do nas dotarła.', 'Thank you, we have received your review.') : L('Napisz kilka słów o wizycie: na stronie gabinetu, w Google albo na Booksy.', 'Write a few words about your visit: on the studio website, on Google or on Booksy.')}</p></div>
+        <a class="btn btn-outline btn-small" href="${b.review.link}">${b.review.sent ? L('Zobacz opinię', 'View review') : L('Wystaw opinię', 'Leave a review')}</a>
+      </div>` : '';
+    return qRow || sRow || rRow ? `<div class="card visit-card visit-extras">${rRow}${qRow}${sRow}</div>` : '';
   }
 
   async function load() {

@@ -78,12 +78,13 @@ JM.ready.then(function () {
     const action = upcoming && b.canCancel ? `<div class="btn-row visit-actions">${b.canMove ? `<button class="btn btn-outline btn-small" type="button" data-move="${b.id}">${L('Zmień termin', 'Change time')}</button>` : ''}<button class="btn btn-outline btn-small" type="button" data-cancel="${b.id}">${L('Odwołaj', 'Cancel')}</button></div>` : '';
     // ankieta przed zabiegiem (nieobowiązkowa) i SMS po wizycie
     const q = b.questionnaire || {};
+    const reviewLink = !upcoming && b.status === 'done' && b.review ? `<p class="small visit-extra"><a href="${b.review.link}">${b.review.sent ? L('Twoja opinia', 'Your review') : L('Wystaw opinię', 'Leave a review')}</a></p>` : '';
     const extra = upcoming && b.status === 'confirmed' ? `<p class="small visit-extra">${q.editable || q.filled ? `<a href="ankieta.html?wizyta=${b.id}">${q.filled ? L('Ankieta przed zabiegiem: wysłana', 'Pre-treatment questionnaire: sent') : L('Ankieta przed zabiegiem (nieobowiązkowa)', 'Pre-treatment questionnaire (optional)')}</a>` : ''}
       <span class="muted">${L('SMS po wizycie', 'Text after the visit')}: ${b.afterSms ? L('włączony', 'on') : L('wyłączony', 'off')}</span> <button type="button" class="link-button small" data-after-sms="${b.id}" data-on="${b.afterSms ? 'off' : 'on'}">${b.afterSms ? L('wyłącz', 'turn off') : L('włącz', 'turn on')}</button></p>` : '';
     return `
       <li class="visit-row">
         <div class="visit-date"><strong>${d.getDate()} ${JM.monthGen[d.getMonth()]}</strong><span>${L(JM.dayNames[d.getDay()].toLowerCase(), JM.dayNames[d.getDay()])}, ${b.time}</span></div>
-        <div>${esc(tName(b))}<div class="muted">${b.package ? L('z pakietu', 'from package') : S.formatPrice(b.toPay ?? b.total)}${b.discount ? ` (${L('zniżka', 'discount')} ${b.discount.percent}%)` : ''}${b.voucher ? ` (${L('bon', 'voucher')} −${S.formatPrice(b.voucher.amount)})` : ''} ${status}</div>${extra}</div>
+        <div>${esc(tName(b))}<div class="muted">${b.package ? L('z pakietu', 'from package') : S.formatPrice(b.toPay ?? b.total)}${b.discount ? ` (${L('zniżka', 'discount')} ${b.discount.percent}%)` : ''}${b.voucher ? ` (${L('bon', 'voucher')} −${S.formatPrice(b.voucher.amount)})` : ''} ${status}</div>${extra}${reviewLink}</div>
         <div>${action}</div>
       </li>`;
   }

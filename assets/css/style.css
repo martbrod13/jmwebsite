@@ -1102,3 +1102,18 @@ html[lang="en"] [data-lang="pl"] { display: none !important; }
 .reviews-more { grid-column: 1 / -1; text-align: center; }
 .reviews-note { max-width: 62ch; margin: clamp(36px, 5vw, 56px) auto 0; text-align: center; font-size: .8125rem; color: var(--taupe); }
 @media (max-width: 860px) { .reviews-list { grid-template-columns: 1fr; } }
+
+/* ---------- Opinia od klientki ---------- */
+.stars-input { border: 0; padding: 0; margin: 0 0 20px; }
+.stars-input legend { font-size: .875rem; font-weight: 500; margin-bottom: 4px; padding: 0; }
+.stars-row { display: inline-flex; flex-direction: row-reverse; gap: 2px; }
+.stars-row input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.stars-row label { font-size: 2rem; line-height: 1; color: var(--linen); cursor: pointer; padding: 4px 3px; transition: color .12s; }
+.stars-row input:checked ~ label, .stars-row label:hover, .stars-row label:hover ~ label { color: var(--gold-deep); }
+.stars-row input:focus-visible + label { outline: 2px solid var(--ink); outline-offset: 2px; }
+.rv-links { margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--hair-soft); }
+.rv-links p { margin: 0 0 12px; font-size: .9375rem; color: var(--ink-2); }
+.reviews-cta { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px 16px; margin-top: clamp(36px, 5vw, 56px); }
+.reviews-cta p { margin: 0; width: 100%; text-align: center; color: var(--ink-2); }
+.rv-stars { color: var(--gold-deep); letter-spacing: .15em; font-size: .875rem; } .rv-stars span { color: var(--linen); }
+.rv-fresh { border-color: var(--gold-deep); }
