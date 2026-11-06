@@ -140,6 +140,11 @@ const server = http.createServer((req, res) => {
     return Events.subscribe(req, res);
   }
   if (p.startsWith('/api/')) return api.handle(req, res, url);
+  // panel jako aplikacja na telefonie: manifest i service worker
+  if (p === '/panel.webmanifest' || p === '/panel-sw.js') {
+    res.writeHead(200, { 'Content-Type': p.endsWith('.js') ? 'text/javascript; charset=utf-8' : 'application/manifest+json; charset=utf-8', 'Cache-Control': 'no-cache' });
+    return res.end(fs.readFileSync(path.join(ROOT, p.slice(1))));
+  }
   if (p === '/robots.txt') { res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end(robots()); }
   if (p === '/sitemap.xml') {
     if (!env.indexing || !env.publicUrl) return notFound(res);

@@ -21,6 +21,9 @@ function load() {
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'assets', 'js', 'treatments.en.js'), 'utf8'), ctx, { filename: 'treatments.en.js' });
   out.namesEn = {};
   [ctx.JM.consultation].concat(ctx.JM.treatments).forEach((t) => { out.namesEn[t.id] = t.name; });
+  // zalecenia po zabiegu po angielsku (e-mail po wizycie dla klientek z wersji EN)
+  out.afterEn = {};
+  ctx.JM.categories.forEach((c) => { out.afterEn[c.id] = JSON.parse(JSON.stringify(c.after || [])); });
   return out;
 }
 

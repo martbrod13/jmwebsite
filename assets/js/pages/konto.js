@@ -14,6 +14,7 @@ JM.ready.then(function () {
   let tab = location.hash === '#rejestracja' ? 'register' : 'login';
   let msg = '';
   let myBookings = null; // wizyty zalogowanej klientki z serwera
+  let myPackages = null; // pakiety zabiegów kupione w gabinecie
   const resetToken = params.get('reset');
 
   const months = ['', ...JM.monthNames];
@@ -82,7 +83,7 @@ JM.ready.then(function () {
     return `
       <li class="visit-row">
         <div class="visit-date"><strong>${d.getDate()} ${JM.monthGen[d.getMonth()]}</strong><span>${L(JM.dayNames[d.getDay()].toLowerCase(), JM.dayNames[d.getDay()])}, ${b.time}</span></div>
-        <div>${esc(tName(b))}<div class="muted">${S.formatPrice(b.toPay ?? b.total)}${b.discount ? ` (${L('zniżka', 'discount')} ${b.discount.percent}%)` : ''}${b.voucher ? ` (${L('bon', 'voucher')} −${S.formatPrice(b.voucher.amount)})` : ''} ${status}</div>${extra}</div>
+        <div>${esc(tName(b))}<div class="muted">${b.package ? L('z pakietu', 'from package') : S.formatPrice(b.toPay ?? b.total)}${b.discount ? ` (${L('zniżka', 'discount')} ${b.discount.percent}%)` : ''}${b.voucher ? ` (${L('bon', 'voucher')} −${S.formatPrice(b.voucher.amount)})` : ''} ${status}</div>${extra}</div>
         <div>${action}</div>
       </li>`;
   }
@@ -125,6 +126,15 @@ JM.ready.then(function () {
           <p class="small muted" style="margin-top:14px">${L(`Wizytę odwołasz bezpłatnie do ${JM.booking.cancelHours} godzin przed terminem. Przy późniejszym odwołaniu albo nieobecności obowiązuje opłata ${JM.booking.lateCancelFeePercent}% ceny zabiegu. Przypomnienie SMS wysyłamy automatycznie ${JM.booking.reminderHours} godziny przed wizytą.`,
             `You can cancel free of charge up to ${JM.booking.cancelHours} hours before the visit. If you cancel later or do not show up, a fee of ${JM.booking.lateCancelFeePercent}% of the treatment price applies. We text you a reminder automatically ${JM.booking.reminderHours} hours before the visit.`)}</p>
         </section>
+
+        ${myPackages && myPackages.length ? `<section class="profile-section" aria-labelledby="pk-title">
+          <h2 id="pk-title">${L('Moje pakiety', 'My packages')}</h2>
+          <ul class="visit-list">${myPackages.map((p) => `<li class="visit-row pk-row">
+            <div class="visit-date"><strong>${p.left}</strong><span>${L(`z ${p.sessions} zostało`, `of ${p.sessions} left`)}</span></div>
+            <div>${esc(L(p.name, p.nameEn))}<div class="muted">${p.status === 'void' ? L('unieważniony', 'cancelled') : p.valid ? L(`ważny do ${ui.fmtDate(p.validUntil)}`, `valid until ${ui.fmtDate(p.validUntil)}`) : L('po terminie ważności', 'expired')}${p.planned ? L(`, zaplanowane wizyty: ${p.planned}`, `, booked visits: ${p.planned}`) : ''}</div></div>
+            <div>${p.valid && p.left > 0 ? `<a class="btn btn-outline btn-small" href="rezerwacja.html?zabieg=${encodeURIComponent(p.treatmentId)}">${L('Zarezerwuj z pakietu', 'Book from package')}</a>` : ''}</div>
+          </li>`).join('')}</ul>
+        </section>` : ''}
 
         <section class="profile-section" aria-labelledby="hist-title">
           <h2 id="hist-title">${L('Historia wizyt', 'Visit history')}</h2>
@@ -200,6 +210,7 @@ JM.ready.then(function () {
   }
   async function loadBookings() {
     try { myBookings = await S.myBookings(); } catch (e) { myBookings = []; ui.toast(e.message); }
+    try { myPackages = (await S.api('GET', '/api/me/packages')).packages; } catch (e) { myPackages = []; }
     if (S.currentUser()) root.innerHTML = profileView(S.currentUser());
   }
   const setNavName = (text) => document.querySelectorAll('.nav-account span').forEach((s) => (s.textContent = text));

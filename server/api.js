@@ -10,6 +10,8 @@ const V = require('./vouchers');
 const W = require('./waitlist');
 const R = require('./records');
 const A = require('./aftercare');
+const Rv = require('./reviews');
+const P = require('./packages');
 // krótki opis wizyty do powiadomienia w panelu (bez e-maila i telefonu)
 function live(type, b, by) {
   const c = B.contactOf(b);
@@ -109,11 +111,12 @@ function requireAdmin(req) {
   if (!a) throw new HttpError(401, 'Zaloguj się do panelu.');
   return a;
 }
+const clientKeyOf = (b) => R.keyOfBooking(b, new Map(b.client_id ? db.prepare('SELECT id, email FROM clients WHERE id = ?').all(b.client_id).map((c) => [c.id, c.email.toLowerCase()]) : []));
 function adminBooking(b) {
-  const c = B.contactOf(b);
+  const c = B.contactOf(b); const key = clientKeyOf(b);
   return Object.assign(B.publicBooking(b), {
-    clientId: b.client_id, cancelledAt: b.cancelled_at, demo: !!b.demo, record: R.summary(b.id),
-    clientKey: R.keyOfBooking(b, new Map(b.client_id ? db.prepare('SELECT id, email FROM clients WHERE id = ?').all(b.client_id).map((c) => [c.id, c.email.toLowerCase()]) : [])),
+    clientId: b.client_id, cancelledAt: b.cancelled_at, demo: !!b.demo, record: R.summary(b.id), clientKey: key,
+    packageOffers: !b.package_id && !b.voucher_id && ['confirmed', 'done'].includes(b.status) ? P.usableFor(key, b.treatment_id, b.date).map((p) => ({ id: p.id, name: p.name, left: p.left, sessions: p.sessions })) : [],
     client: c ? { name: c.firstName + ' ' + c.lastName, phone: c.phone, email: c.email, type: c.account ? 'konto' : 'gość' } : { name: 'Konto usunięte', phone: '—', email: '', type: '—' }
   });
 }
@@ -189,6 +192,12 @@ route('POST', '/api/bookings', (req, { body, ip }) => {
     need(g.terms === true, req, 'terms', 'Zaakceptuj regulamin, żeby zarezerwować wizytę.', 'Accept the terms to book a visit.');
     guest = { firstName: str(g.firstName, 60), lastName: str(g.lastName, 60), phone: str(g.phone, 20), email: str(g.email, 120).toLowerCase(), marketingSms: !!g.marketingSms, marketingEmail: !!g.marketingEmail };
   }
+  // wizyta z pakietu: tylko zalogowana klientka i tylko jej pakiet na ten zabieg, ważny w dniu wizyty
+  const packageId = client && body.packageId ? Number(body.packageId) : null;
+  if (packageId) {
+    if (body.voucherCode) throw new HttpError(400, T(req, 'Wybierz pakiet albo bon podarunkowy.', 'Choose either the package or a gift voucher.'), 'voucherCode');
+    if (!P.usableFor(client.email.toLowerCase(), str(body.treatmentId, 60), str(body.date, 10)).some((p) => p.id === packageId)) throw new HttpError(400, T(req, 'Tego pakietu nie można użyć do tej wizyty.', 'This package cannot be used for this visit.'), 'packageId');
+  }
   const voucherCode = str(body.voucherCode, 20);
   if (voucherCode) {
     if (!Sec.rateLimit('voucher:' + ip, 20, 36e5)) throw new HttpError(429, T(req, 'Zbyt wiele prób. Spróbuj później.', 'Too many attempts. Try again later.'));
@@ -198,6 +207,7 @@ route('POST', '/api/bookings', (req, { body, ip }) => {
     let b = B.createBooking({ treatmentId: body.treatmentId, date: body.date, time: body.time, notes: str(body.notes, 400), lang: langOf(req), client, guest });
     if (body.afterSms === true) { db.prepare('UPDATE bookings SET after_sms = 1 WHERE id = ?').run(b.id); b = B.getBooking(b.id); }
     if (voucherCode) { const plan = V.planFor(voucherCode, b.total, langOf(req)); V.attach(b.id, plan.voucher.id, plan.amount); b = B.getBooking(b.id); }
+    if (packageId) { P.attach(b, packageId, client.email.toLowerCase(), langOf(req)); b = B.getBooking(b.id); }
     notify(b, 'confirmation'); live('booked', b, 'client');
     return { booking: Object.assign(B.publicBooking(b), { token: b.token }) };
   } catch (e) {
@@ -403,6 +413,7 @@ route('GET', '/api/admin/stats', (req, { query }) => {
     FROM bookings WHERE status IN ('done', 'confirmed') AND date BETWEEN ? AND ? GROUP BY treatment_id ORDER BY n DESC, value DESC`).all(fromDate, today);
   const sources = db.prepare(`SELECT source, count(*) AS n FROM bookings WHERE substr(created_at, 1, 10) >= ? GROUP BY source ORDER BY n DESC`).all(fromDate);
   const fromIso = from.toISOString();
+  const pk = P.soldSince(fromIso);
   const vouchers = {
     sold: db.prepare("SELECT count(*) AS n, coalesce(sum(amount), 0) AS v FROM vouchers WHERE status = 'active' AND created_at >= ?").get(fromIso),
     used: db.prepare('SELECT coalesce(sum(amount), 0) AS v FROM voucher_uses WHERE at >= ?').get(fromIso).v,
@@ -418,6 +429,7 @@ route('GET', '/api/admin/stats', (req, { query }) => {
     treatments: treatments.map((t) => ({ ...t, name: (B.treatment(t.id) || {}).name || t.name })),
     sources,
     vouchers: { sold: vouchers.sold.n, soldValue: vouchers.sold.v, used: vouchers.used, open: vouchers.open },
+    packages: { sold: pk.n, soldValue: pk.v },
     hasDemo: !!db.prepare('SELECT 1 FROM bookings WHERE demo = 1').get()
   };
 });
@@ -700,7 +712,7 @@ route('GET', '/api/admin/client-card', (req, { query }) => {
   const key = str(query.get('key'), 200).toLowerCase();
   const client = allClients().find((c) => c.key === key);
   if (!client) throw new HttpError(404, 'Nie znaleziono klientki.');
-  return { client, visits: R.card(key) };
+  return { client, visits: R.card(key), packages: P.forClient(key, true), packageTypes: P.listTypes(true) };
 });
 route('PUT', '/api/admin/bookings/:id/note', (req, { params, body }) => {
   const a = requireAdmin(req);
@@ -730,9 +742,54 @@ const aftercareAction = (fn) => (req, ctx) => {
   return A.settings();
 };
 route('GET', '/api/admin/aftercare', aftercareAction(() => {}));
+route('PUT', '/api/admin/aftercare/care', aftercareAction(({ body }) => A.setCare(body.on === true)));
 route('PUT', '/api/admin/aftercare/review', aftercareAction(({ body }) => A.setReview({ on: body.on === true, url: body.url })));
 route('PUT', '/api/admin/aftercare/rules', aftercareAction(({ body }) => A.setRule({ treatmentId: str(body.treatmentId, 60), weeks: body.weeks, nextId: str(body.nextId, 60) })));
 route('DELETE', '/api/admin/aftercare/rules/:id', aftercareAction(({ params }) => A.removeRule(params.id)));
+
+/* ---------- Opinie klientek ---------- */
+route('GET', '/api/reviews', () => ({ reviews: Rv.list(false) }));
+const reviewAction = (fn) => (req, ctx) => {
+  const a = requireAdmin(req);
+  try { fn(ctx, a); } catch (e) { if (e instanceof Rv.ReviewError) throw new HttpError(400, e.message); throw e; }
+  return { reviews: Rv.list(true) };
+};
+route('GET', '/api/admin/reviews', reviewAction(() => {}));
+route('POST', '/api/admin/reviews', reviewAction(({ body }, a) => Rv.add(body, a.email)));
+route('PATCH', '/api/admin/reviews/:id', reviewAction(({ params, body }) => Rv.update(Number(params.id), body)));
+route('POST', '/api/admin/reviews/:id/move', reviewAction(({ params, body }) => Rv.move(Number(params.id), Number(body.dir))));
+route('DELETE', '/api/admin/reviews/:id', reviewAction(({ params }) => Rv.remove(Number(params.id))));
+
+/* ---------- Pakiety zabiegów ---------- */
+route('GET', '/api/packages', () => ({ types: P.listTypes(true) }));
+route('GET', '/api/me/packages', (req) => { const c = requireClient(req); return { packages: P.forClient(c.email.toLowerCase(), false) }; });
+const packageAction = (fn) => (req, ctx) => {
+  const a = requireAdmin(req);
+  let out;
+  try { out = fn(ctx, a); } catch (e) { if (e instanceof P.PackageError) throw new HttpError(400, e.message); throw e; }
+  return out || { types: P.listTypes(false), sold: P.listSold() };
+};
+route('GET', '/api/admin/packages', packageAction(() => {}));
+route('POST', '/api/admin/package-types', packageAction(({ body }) => { P.addType(body); }));
+route('PATCH', '/api/admin/package-types/:id', packageAction(({ params, body }) => { P.setTypeActive(Number(params.id), body.active === true); }));
+route('DELETE', '/api/admin/package-types/:id', packageAction(({ params }) => { P.removeType(Number(params.id)); }));
+route('POST', '/api/admin/packages', packageAction(({ body }, a) => {
+  const key = str(body.key, 200).toLowerCase();
+  const c = allClients().find((x) => x.key === key);
+  if (!c) throw new P.PackageError('Nie znaleziono klientki.');
+  return { package: P.sell({ typeId: body.typeId, key, clientName: c.name, note: str(body.note, 200) }, a.email) };
+}));
+route('POST', '/api/admin/packages/:id/void', packageAction(({ params, body }) => { P.setVoid(Number(params.id), body.void !== false); }));
+route('POST', '/api/admin/bookings/:id/package', packageAction(({ params, body }) => {
+  const b = B.getBooking(Number(params.id)); if (!b) throw new P.PackageError('Nie znaleziono wizyty.');
+  P.attach(b, body.packageId, clientKeyOf(b), 'pl'); live('changed', B.getBooking(b.id), 'salon');
+  return { booking: adminBooking(B.getBooking(b.id)) };
+}));
+route('DELETE', '/api/admin/bookings/:id/package', packageAction(({ params }) => {
+  const b = B.getBooking(Number(params.id)); if (!b) throw new P.PackageError('Nie znaleziono wizyty.');
+  P.detach(b); live('changed', B.getBooking(b.id), 'salon');
+  return { booking: adminBooking(B.getBooking(b.id)) };
+}));
 
 /* ---------- Lista oczekujących ---------- */
 const waitlistErr = (e) => (e instanceof W.WaitlistError ? new HttpError(e.field === 'free' ? 409 : 400, e.message, e.field) : e);

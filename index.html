@@ -19,6 +19,7 @@
   <script src="assets/js/treatments.en.js" defer></script>
   <script src="assets/js/store.js" defer></script>
   <script src="assets/js/layout.js" defer></script>
+  <script src="assets/js/pages/home.js" defer></script>
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -120,6 +121,17 @@
     </div>
   </section>
 
+  <!-- Opinie klientek: pojawiają się dopiero, gdy gabinet doda je w panelu -->
+  <section class="section reviews" id="opinie" aria-labelledby="opinie-title" hidden>
+    <div class="container">
+      <div class="section-head center">
+        <h2 class="h2" id="opinie-title"><span data-lang="pl">Opinie klientek</span><span data-lang="en">What clients say</span></h2>
+        <span class="ornament" aria-hidden="true"></span>
+      </div>
+      <div class="reviews-list" id="reviews-list"></div>
+      <p class="reviews-note"><span data-lang="pl">Publikujemy wyłącznie opinie klientek, które były u nas na zabiegu. Przed publikacją sprawdzamy to w historii wizyt i prosimy autorkę o zgodę. Nie zmieniamy treści opinii.</span><span data-lang="en">We only publish reviews from clients who have had a treatment with us. Before publishing, we check this in our visit records and ask the author for consent. We do not change the content of reviews.</span></p>
+    </div>
+  </section>
 </main>
 </body>
 </html>
