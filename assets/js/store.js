@@ -56,13 +56,13 @@ window.JM = window.JM || {};
   }
   function resetPrices() { remove('prices'); }
   function categoryName(id) {
-    if (id === 'konsultacja') return 'Konsultacja';
+    if (id === 'konsultacja') return JM.L('Konsultacja', 'Consultation');
     const c = JM.categories.find((x) => x.id === id); return c ? c.name : '';
   }
   function formatPrice(v, from) {
-    if (v === 0) return 'bezpłatnie';
-    const s = v.toLocaleString('pl-PL', { minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2 }) + ' zł';
-    return from ? 'od ' + s : s;
+    if (v === 0) return JM.L('bezpłatnie', 'free');
+    const s = v.toLocaleString(JM.L('pl-PL', 'en-GB'), { minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2 }) + JM.L(' zł', ' PLN');
+    return from ? JM.L('od ', 'from ') + s : s;
   }
   function formatDuration(min) {
     const h = Math.floor(min / 60), m = min % 60;
@@ -71,7 +71,11 @@ window.JM = window.JM || {};
   }
 
   /* ---------- Promocje ---------- */
-  function promos() { return read('promos', JM.defaultPromos); }
+  function promos() {
+    const list = read('promos', JM.defaultPromos);
+    // w wersji angielskiej podmieniamy nazwy i opisy znanych promocji
+    return JM.promoEn ? list.map((p) => Object.assign({}, p, JM.promoEn[p.id] || {})) : list;
+  }
   function savePromos(list) { write('promos', list); }
 
   /* ---------- Użytkowniczki ---------- */
@@ -84,7 +88,7 @@ window.JM = window.JM || {};
   async function register(data) {
     const list = users();
     const email = data.email.trim().toLowerCase();
-    if (list.some((u) => u.email === email)) throw new Error('Konto z tym adresem e-mail już istnieje. Zaloguj się albo zresetuj hasło.');
+    if (list.some((u) => u.email === email)) throw new Error(JM.L('Konto z tym adresem e-mail już istnieje. Zaloguj się albo zresetuj hasło.', 'An account with this email address already exists. Sign in or reset your password.'));
     const at = nowIso();
     const user = {
       id: uid('u'), createdAt: at,
@@ -109,7 +113,7 @@ window.JM = window.JM || {};
   }
   async function login(email, password) {
     const u = users().find((x) => x.email === email.trim().toLowerCase());
-    if (!u || u.password !== (await hash(password))) throw new Error('Nieprawidłowy e-mail lub hasło.');
+    if (!u || u.password !== (await hash(password))) throw new Error(JM.L('Nieprawidłowy e-mail lub hasło.', 'Incorrect email or password.'));
     write('session', { userId: u.id, at: nowIso() });
     return u;
   }
@@ -201,7 +205,7 @@ window.JM = window.JM || {};
     if (!user || !t.price) return null;
     const options = [];
     if (visitCount(user.id) === 0) {
-      options.push({ id: 'first', label: 'Pierwsza wizyta z kontem', percent: JM.discounts.firstVisitPercent });
+      options.push({ id: 'first', label: JM.L('Pierwsza wizyta z kontem', 'First visit with an account'), percent: JM.discounts.firstVisitPercent });
     }
     promos().filter((p) => p.active).forEach((p) => {
       if (dateStr < p.from || dateStr > p.to) return;

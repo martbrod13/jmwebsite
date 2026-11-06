@@ -72,6 +72,7 @@ CREATE TABLE clients (
   email          citext NOT NULL CHECK (email ~ '^[^@\s]+@[^@\s]+\.[^@\s]{2,}$'),
   phone          text   NOT NULL CHECK (phone ~ '^\+?[0-9 ]{9,16}$'),
   birth_month    smallint CHECK (birth_month BETWEEN 1 AND 12),
+  language       text NOT NULL DEFAULT 'pl' CHECK (language IN ('pl', 'en')),  -- język SMS-ów i e-maili (wersja strony przy rezerwacji)
   has_account    boolean NOT NULL DEFAULT false,
   password_hash  text,                     -- tylko gdy logowanie bez Supabase Auth
   salon_notes    text,                     -- notatki gabinetu; NIE zapisywać tu danych o zdrowiu
@@ -414,7 +415,7 @@ SELECT c.id, c.first_name, c.phone
 -- Wizyty, do których nadszedł czas przypomnienia (24 h przed wizytą), a SMS jeszcze nie powstał.
 -- Wizyty umówione później niż 24 h przed terminem dostają tylko SMS z potwierdzeniem.
 CREATE VIEW v_reminders_due AS
-SELECT b.id AS booking_id, b.client_id, c.phone, b.starts_at, b.code, t.name AS treatment
+SELECT b.id AS booking_id, b.client_id, c.phone, c.language, b.starts_at, b.code, t.name AS treatment
   FROM bookings b
   JOIN clients c    ON c.id = b.client_id
   JOIN treatments t ON t.id = b.treatment_id
@@ -437,9 +438,15 @@ BEGIN
   SELECT * INTO s FROM settings WHERE id = 1;
   INSERT INTO sms_log (client_id, booking_id, type, phone, body)
   SELECT r.client_id, r.booking_id, 'reminder', r.phone,
-         s.sms_sender || ': Przypominamy o wizycie ' || to_char(r.starts_at AT TIME ZONE 'Europe/Warsaw', 'DD.MM') ||
-         ' o ' || to_char(r.starts_at AT TIME ZONE 'Europe/Warsaw', 'HH24:MI') || ' (' || r.treatment || '). ' ||
-         'Bezpłatne odwołanie do ' || s.free_cancellation_hours || ' h przed wizytą: ' || s.booking_link_base || r.code
+         CASE WHEN r.language = 'en' THEN
+           s.sms_sender || ': A reminder about your visit on ' || to_char(r.starts_at AT TIME ZONE 'Europe/Warsaw', 'DD.MM') ||
+           ' at ' || to_char(r.starts_at AT TIME ZONE 'Europe/Warsaw', 'HH24:MI') || '. ' ||
+           'Free cancellation up to ' || s.free_cancellation_hours || ' h before: ' || s.booking_link_base || r.code
+         ELSE
+           s.sms_sender || ': Przypominamy o wizycie ' || to_char(r.starts_at AT TIME ZONE 'Europe/Warsaw', 'DD.MM') ||
+           ' o ' || to_char(r.starts_at AT TIME ZONE 'Europe/Warsaw', 'HH24:MI') || ' (' || r.treatment || '). ' ||
+           'Bezpłatne odwołanie do ' || s.free_cancellation_hours || ' h przed wizytą: ' || s.booking_link_base || r.code
+         END
     FROM v_reminders_due r
   ON CONFLICT (booking_id) WHERE type = 'reminder' DO NOTHING;
   GET DIAGNOSTICS n = ROW_COUNT;

@@ -160,10 +160,10 @@
       </div>
       <div class="panel-card">
         <h2>Zaplanowane przypomnienia</h2>
-        <p class="small muted">Wysyłane automatycznie ${JM.booking.reminderHours} godziny przed każdą wizytą, bez klikania.</p>
+        <p class="small muted">Wysyłane automatycznie ${JM.booking.reminderHours} godziny przed każdą wizytą, bez klikania. Klientki, które rezerwowały w angielskiej wersji strony, dostają SMS po angielsku (oznaczenie EN).</p>
         ${upcoming().length ? `<table class="table"><thead><tr><th>Wysyłka</th><th>Wizyta</th><th>Klientka</th><th>Telefon</th><th>Status</th></tr></thead><tbody>
           ${upcoming().map((b) => { const at = S.reminderAt(b); const c = clientOf(b); const sent = at <= new Date();
-            return `<tr><td>${S.pad(at.getDate())}.${S.pad(at.getMonth() + 1)}, ${S.pad(at.getHours())}:${S.pad(at.getMinutes())}</td><td>${ui.fmtShort(b.date)}, ${b.time} · ${esc(b.treatmentName)}</td><td>${esc(c.name)}</td><td>${esc(c.phone)}</td><td>${sent ? '<span class="badge badge-ok">wysłane</span>' : '<span class="badge">zaplanowane</span>'}</td></tr>`; }).join('')}
+            return `<tr><td>${S.pad(at.getDate())}.${S.pad(at.getMonth() + 1)}, ${S.pad(at.getHours())}:${S.pad(at.getMinutes())}</td><td>${ui.fmtShort(b.date)}, ${b.time} · ${esc(b.treatmentName)}</td><td>${esc(c.name)}${b.lang === 'en' ? ' <span class="badge">EN</span>' : ''}</td><td>${esc(c.phone)}</td><td>${sent ? '<span class="badge badge-ok">wysłane</span>' : '<span class="badge">zaplanowane</span>'}</td></tr>`; }).join('')}
         </tbody></table>` : '<p class="muted">Brak zaplanowanych wizyt.</p>'}
       </div>
       <form class="panel-card" id="campaign-form" novalidate>

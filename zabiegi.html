@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Zabiegi | Justyna Mańka Beauty & Aesthetics</title>
+  <meta name="title-en" content="Treatments | Justyna Mańka Beauty & Aesthetics">
+  <script>try{if(localStorage.getItem('jm_lang')==='en')document.documentElement.lang='en'}catch(e){}</script>
   <meta name="description" content="Makijaż permanentny, mezoterapia igłowa i mikroigłowa, stymulatory tkankowe, zabiegi kwasami (peelingi chemiczne) i inne zabiegi w Krakowie. Opisy zabiegów, przeciwwskazania i zalecenia.">
   <meta name="robots" content="noindex, nofollow">
   <link rel="icon" href="assets/img/favicon-32.png" sizes="32x32">
@@ -13,7 +15,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,500;1,6..96,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/style.css">
   <script src="assets/js/config.js" defer></script>
+  <script src="assets/js/i18n.js" defer></script>
   <script src="assets/js/treatments.js" defer></script>
+  <script src="assets/js/treatments.en.js" defer></script>
   <script src="assets/js/store.js" defer></script>
   <script src="assets/js/layout.js" defer></script>
   <script src="assets/js/pages/zabiegi.js" defer></script>
@@ -21,9 +25,9 @@
 <body data-page="zabiegi">
 <main id="main">
   <div class="container page-head">
-    <p class="crumbs"><a href="index.html">Strona główna</a> / Zabiegi</p>
-    <h1>Zabiegi</h1>
-    <p class="lead">Czym są poszczególne zabiegi, na czym polegają, na co pomagają i kiedy warto je wykonać. Kliknij nazwę, żeby rozwinąć opis. Ceny znajdziesz w zakładce <a href="cennik.html">Cennik</a>.</p>
+    <p class="crumbs"><a href="index.html"><span data-lang="pl">Strona główna</span><span data-lang="en">Home</span></a> / <span data-lang="pl">Zabiegi</span><span data-lang="en">Treatments</span></p>
+    <h1><span data-lang="pl">Zabiegi</span><span data-lang="en">Treatments</span></h1>
+    <p class="lead"><span data-lang="pl">Czym są poszczególne zabiegi, na czym polegają, na co pomagają i kiedy warto je wykonać. Kliknij nazwę, żeby rozwinąć opis. Ceny znajdziesz w zakładce <a href="cennik.html">Cennik</a>.</span><span data-lang="en">What each treatment is, how it works, what it helps with and when it is worth having. Click a name to open the description. You will find the prices on the <a href="cennik.html">Prices</a> page.</span></p>
   </div>
   <div class="chip-nav-sticky">
     <div class="container"><ul class="chip-nav" id="chip-nav"></ul></div>
@@ -31,10 +35,10 @@
   <div class="container" id="categories"></div>
   <section class="section section-sand" id="konsultacja" aria-labelledby="kons-title">
     <div class="container band-grid">
-      <h2 class="h2" id="kons-title">Nie wiesz, który zabieg wybrać?</h2>
+      <h2 class="h2" id="kons-title"><span data-lang="pl">Nie wiesz, który zabieg wybrać?</span><span data-lang="en">Not sure which treatment to choose?</span></h2>
       <div>
-        <p class="lead">Umów bezpłatną konsultację. Ocenimy stan skóry, sprawdzimy przeciwwskazania i ułożymy plan zabiegów.</p>
-        <a class="btn btn-primary" href="rezerwacja.html?zabieg=konsultacja">Umów konsultację</a>
+        <p class="lead"><span data-lang="pl">Umów bezpłatną konsultację. Ocenimy stan skóry, sprawdzimy przeciwwskazania i ułożymy plan zabiegów.</span><span data-lang="en">Book a free consultation. We will assess your skin, check for contraindications and plan your treatments.</span></p>
+        <a class="btn btn-primary" href="rezerwacja.html?zabieg=konsultacja"><span data-lang="pl">Umów konsultację</span><span data-lang="en">Book a consultation</span></a>
       </div>
     </div>
   </section>

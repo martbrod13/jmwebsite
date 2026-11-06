@@ -1,5 +1,5 @@
 (function () {
-  const S = JM.store;
+  const S = JM.store, L = JM.L;
   const all = S.allTreatments();
   const row = (t) => `
     <li class="menu-item">
@@ -11,8 +11,8 @@
       <div class="menu-meta">
         <span class="menu-time">${S.formatDuration(t.duration)}</span>
         <span class="menu-links">
-          ${t.id === 'konsultacja' ? '' : `<a class="menu-book" href="zabiegi.html#${t.id}" aria-label="Opis zabiegu: ${t.name}">Opis zabiegu</a>`}
-          <a class="menu-book" href="rezerwacja.html?zabieg=${t.id}" aria-label="Zarezerwuj: ${t.name}">Zarezerwuj</a>
+          ${t.id === 'konsultacja' ? '' : `<a class="menu-book" href="zabiegi.html#${t.id}" aria-label="${L('Opis zabiegu', 'Treatment description')}: ${t.name}">${L('Opis zabiegu', 'Description')}</a>`}
+          <a class="menu-book" href="rezerwacja.html?zabieg=${t.id}" aria-label="${L('Zarezerwuj', 'Book')}: ${t.name}">${L('Zarezerwuj', 'Book')}</a>
         </span>
       </div>
     </li>`;
@@ -23,6 +23,6 @@
       <ul class="menu-list">${items.map(row).join('')}</ul>
     </section>`;
   document.getElementById('prices').innerHTML =
-    section('Konsultacja', 'konsultacja', [JM.consultation]) +
+    section(L('Konsultacja', 'Consultation'), 'konsultacja', [JM.consultation]) +
     JM.categories.map((c) => section(c.name, c.id, all.filter((t) => t.category === c.id))).join('');
 })();

@@ -1,11 +1,11 @@
 (function () {
-  const S = JM.store, ui = JM.ui;
+  const S = JM.store, ui = JM.ui, L = JM.L;
   const all = S.allTreatments();
   const list = (items) => '<ul class="dash-list">' + items.map((i) => `<li>${i}</li>`).join('') + '</ul>';
 
   document.getElementById('chip-nav').innerHTML =
     JM.categories.map((c) => `<li><a class="chip" href="#${c.id}">${c.name}</a></li>`).join('') +
-    '<li><a class="chip" href="#konsultacja">Konsultacja</a></li>';
+    '<li><a class="chip" href="#konsultacja">' + L('Konsultacja', 'Consultation') + '</a></li>';
 
   function item(t) {
     return `
@@ -20,21 +20,21 @@
         <div class="acc-panel" id="p-${t.id}" role="region" aria-label="${t.name}"><div>
           <div class="acc-content">
             <div>
-              <h3>Czym jest</h3><p class="acc-lead">${t.what}</p>
-              <h3>Na czym polega</h3><p>${t.how}</p>
-              <h3>Na co pomaga</h3>${list(t.helps)}
-              <h3>Kiedy się go stosuje</h3><p>${t.when}</p>
-              <h3>Jak przebiega</h3><p>${t.steps}</p>
+              <h3>${L('Czym jest', 'What it is')}</h3><p class="acc-lead">${t.what}</p>
+              <h3>${L('Na czym polega', 'How it works')}</h3><p>${t.how}</p>
+              <h3>${L('Na co pomaga', 'What it helps with')}</h3>${list(t.helps)}
+              <h3>${L('Kiedy się go stosuje', 'When it is used')}</h3><p>${t.when}</p>
+              <h3>${L('Jak przebiega', 'What happens during the visit')}</h3><p>${t.steps}</p>
             </div>
             <aside class="acc-aside">
-              <h3>Zalety zabiegu</h3>${list(t.benefits)}
+              <h3>${L('Zalety zabiegu', 'Benefits')}</h3>${list(t.benefits)}
               <dl>
-                <div><dt>Efekty i trwałość</dt><dd>${t.results}</dd></div>
-                <div><dt>Zalecana seria</dt><dd>${t.series}</dd></div>
-                <div><dt>Czas zabiegu</dt><dd>${S.formatDuration(t.duration)}</dd></div>
+                <div><dt>${L('Efekty i trwałość', 'Results and how long they last')}</dt><dd>${t.results}</dd></div>
+                <div><dt>${L('Zalecana seria', 'Recommended course')}</dt><dd>${t.series}</dd></div>
+                <div><dt>${L('Czas zabiegu', 'Treatment time')}</dt><dd>${S.formatDuration(t.duration)}</dd></div>
               </dl>
-              <a class="btn btn-primary btn-block" href="rezerwacja.html?zabieg=${t.id}">Zarezerwuj ten zabieg</a>
-              <p class="aside-link"><a href="cennik.html#${t.category}">Sprawdź cenę w cenniku</a></p>
+              <a class="btn btn-primary btn-block" href="rezerwacja.html?zabieg=${t.id}">${L('Zarezerwuj ten zabieg', 'Book this treatment')}</a>
+              <p class="aside-link"><a href="cennik.html#${t.category}">${L('Sprawdź cenę w cenniku', 'See the price list')}</a></p>
             </aside>
           </div>
         </div></div>
@@ -45,20 +45,20 @@
       <div class="acc-item acc-item-info" id="${c.id}-info">
         <h3 style="margin:0">
           <button class="acc-trigger" type="button" aria-expanded="false" aria-controls="p-${c.id}-info">
-            <span><span class="acc-title">Przygotowanie, przeciwwskazania i zalecenia po zabiegu</span></span>
+            <span><span class="acc-title">${L('Przygotowanie, przeciwwskazania i zalecenia po zabiegu', 'Preparation, contraindications and aftercare')}</span></span>
             <span class="acc-meta"></span>
             <span class="acc-icon" aria-hidden="true"></span>
           </button>
         </h3>
-        <div class="acc-panel" id="p-${c.id}-info" role="region" aria-label="Przygotowanie i zalecenia: ${c.name}"><div>
+        <div class="acc-panel" id="p-${c.id}-info" role="region" aria-label="${L('Przygotowanie i zalecenia', 'Preparation and aftercare')}: ${c.name}"><div>
           <div class="acc-content">
             <div>
-              <h3>Jak się przygotować</h3>${list(c.prep)}
-              <h3>Po zabiegu</h3>${list(c.after)}
+              <h3>${L('Jak się przygotować', 'How to prepare')}</h3>${list(c.prep)}
+              <h3>${L('Po zabiegu', 'After the treatment')}</h3>${list(c.after)}
             </div>
             <aside class="acc-aside">
-              <h3>Przeciwwskazania</h3>${list(c.contra)}
-              <p class="small" style="margin-top:18px">Przed zabiegiem wypełnisz w gabinecie kartę konsultacyjną. Jeśli nie wiesz, czy możesz wykonać zabieg, zadzwoń albo umów bezpłatną konsultację.</p>
+              <h3>${L('Przeciwwskazania', 'Contraindications')}</h3>${list(c.contra)}
+              <p class="small" style="margin-top:18px">${L('Przed zabiegiem wypełnisz w gabinecie kartę konsultacyjną. Jeśli nie wiesz, czy możesz wykonać zabieg, zadzwoń albo umów bezpłatną konsultację.', 'Before the treatment you will fill in a consultation form at the studio. If you are not sure whether the treatment is right for you, call us or book a free consultation.')}</p>
             </aside>
           </div>
         </div></div>

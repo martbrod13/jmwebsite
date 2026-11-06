@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Polityka cookies | Justyna Mańka Beauty & Aesthetics</title>
+  <meta name="title-en" content="Cookie policy | Justyna Mańka Beauty & Aesthetics">
+  <script>try{if(localStorage.getItem('jm_lang')==='en')document.documentElement.lang='en'}catch(e){}</script>
   <meta name="robots" content="noindex, nofollow">
   <link rel="icon" href="assets/img/favicon-32.png" sizes="32x32">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -11,21 +13,23 @@
   <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,500;1,6..96,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/style.css">
   <script src="assets/js/config.js" defer></script>
+  <script src="assets/js/i18n.js" defer></script>
   <script src="assets/js/treatments.js" defer></script>
+  <script src="assets/js/treatments.en.js" defer></script>
   <script src="assets/js/store.js" defer></script>
   <script src="assets/js/layout.js" defer></script>
 </head>
 <body data-page="dokumenty">
 <main id="main">
   <div class="container page-head">
-    <p class="crumbs"><a href="index.html">Strona główna</a> / Polityka cookies</p>
-    <h1>Polityka cookies</h1>
+    <p class="crumbs"><a href="index.html"><span data-lang="pl">Strona główna</span><span data-lang="en">Home</span></a> / <span data-lang="pl">Polityka cookies</span><span data-lang="en">Cookie policy</span></p>
+    <h1><span data-lang="pl">Polityka cookies</span><span data-lang="en">Cookie policy</span></h1>
   </div>
-  <article class="container prose">
+  <article class="container prose" data-lang="pl">
     <p class="doc-meta">Projekt dokumentu do weryfikacji przed publikacją strony.</p>
 
     <h2>Czym są pliki cookies</h2>
-    <p>Pliki cookies to niewielkie pliki zapisywane w przeglądarce. Podobnie działa pamięć lokalna przeglądarki (local storage), z której też korzystamy. Dzięki nim strona pamięta, że jesteś zalogowana, jaki termin wybrałaś w trakcie rezerwacji i jakie ustawienia cookies wybrałaś.</p>
+    <p>Pliki cookies to niewielkie pliki zapisywane w przeglądarce. Podobnie działa pamięć lokalna przeglądarki (local storage), z której też korzystamy. Dzięki nim strona pamięta, że jesteś zalogowana, jaki termin wybrałaś w trakcie rezerwacji i jakie ustawienia cookies wybrałaś i w jakim języku czytasz stronę.</p>
 
     <h2>Z jakich plików korzystamy</h2>
     <table>
@@ -34,6 +38,7 @@
         <tr><td>Niezbędne: sesja logowania</td><td>Utrzymanie zalogowania do konta</td><td>Nie</td></tr>
         <tr><td>Niezbędne: rezerwacja w toku</td><td>Zapamiętanie wybranego zabiegu i terminu, np. gdy w trakcie rezerwacji zakładasz konto</td><td>Nie</td></tr>
         <tr><td>Niezbędne: ustawienia cookies</td><td>Zapamiętanie Twojego wyboru w banerze cookies</td><td>Nie</td></tr>
+        <tr><td>Niezbędne: język strony</td><td>Zapamiętanie, czy wybrałaś wersję polską, czy angielską</td><td>Nie</td></tr>
         <tr><td>Zewnętrzne: Mapy Google</td><td>Wyświetlenie interaktywnej mapy na stronie kontaktu. Google może zapisać własne pliki cookies</td><td>Tak</td></tr>
       </tbody>
     </table>
@@ -44,6 +49,32 @@
 
     <h2>Więcej informacji</h2>
     <p>Zasady przetwarzania danych osobowych opisuje <a href="polityka-prywatnosci.html">polityka prywatności</a>.</p>
+  </article>
+  <article class="container prose" data-lang="en" lang="en">
+    <p class="lang-note">This is an English translation provided for convenience. The Polish version is the binding one.</p>
+    <p class="doc-meta">Draft document, to be checked before the website goes live.</p>
+
+    <h2>What cookies are</h2>
+    <p>Cookies are small files saved in your browser. Your browser’s local storage, which we also use, works in a similar way. They let the website remember that you are signed in, which time you chose while booking, your cookie settings and your language.</p>
+
+    <h2>Which ones we use</h2>
+    <table>
+      <thead><tr><th>Type</th><th>Purpose</th><th>Consent needed</th></tr></thead>
+      <tbody>
+        <tr><td>Necessary: sign-in session</td><td>Keeping you signed in to your account</td><td>No</td></tr>
+        <tr><td>Necessary: booking in progress</td><td>Remembering the chosen treatment and time, for example when you create an account during booking</td><td>No</td></tr>
+        <tr><td>Necessary: cookie settings</td><td>Remembering your choice in the cookie banner</td><td>No</td></tr>
+        <tr><td>Necessary: site language</td><td>Remembering whether you chose the Polish or English version</td><td>No</td></tr>
+        <tr><td>Third party: Google Maps</td><td>Showing the interactive map on the contact page. Google may set its own cookies</td><td>Yes</td></tr>
+      </tbody>
+    </table>
+    <p>We do not use advertising cookies or tracking tools.</p>
+
+    <h2>How to change your settings</h2>
+    <p>You can change your choice at any time in the <button type="button" class="link-button" data-cookie-settings>cookie settings</button>. You can also delete or block cookies in your browser settings. Blocking the necessary ones will stop signing in and online booking from working.</p>
+
+    <h2>More information</h2>
+    <p>The rules for processing personal data are described in the <a href="polityka-prywatnosci.html">privacy policy</a>.</p>
   </article>
 </main>
 </body>

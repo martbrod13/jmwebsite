@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Cennik | Justyna Mańka Beauty & Aesthetics</title>
+  <meta name="title-en" content="Prices | Justyna Mańka Beauty & Aesthetics">
+  <script>try{if(localStorage.getItem('jm_lang')==='en')document.documentElement.lang='en'}catch(e){}</script>
   <meta name="description" content="Cennik zabiegów: makijaż permanentny, mezoterapia, stymulatory tkankowe, zabiegi kwasami i inne. Gabinet kosmetologii estetycznej w Krakowie.">
   <meta name="robots" content="noindex, nofollow">
   <link rel="icon" href="assets/img/favicon-32.png" sizes="32x32">
@@ -13,7 +15,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,500;1,6..96,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/style.css">
   <script src="assets/js/config.js" defer></script>
+  <script src="assets/js/i18n.js" defer></script>
   <script src="assets/js/treatments.js" defer></script>
+  <script src="assets/js/treatments.en.js" defer></script>
   <script src="assets/js/store.js" defer></script>
   <script src="assets/js/layout.js" defer></script>
   <script src="assets/js/pages/cennik.js" defer></script>
@@ -21,44 +25,44 @@
 <body data-page="cennik">
 <main id="main">
   <div class="container page-head">
-    <p class="crumbs"><a href="index.html">Strona główna</a> / Cennik</p>
-    <h1>Cennik</h1>
-    <p class="lead">Ceny dotyczą jednego zabiegu. Opisy zabiegów znajdziesz w zakładce <a href="zabiegi.html">Zabiegi</a>.</p>
+    <p class="crumbs"><a href="index.html"><span data-lang="pl">Strona główna</span><span data-lang="en">Home</span></a> / <span data-lang="pl">Cennik</span><span data-lang="en">Prices</span></p>
+    <h1><span data-lang="pl">Cennik</span><span data-lang="en">Prices</span></h1>
+    <p class="lead"><span data-lang="pl">Ceny dotyczą jednego zabiegu. Opisy zabiegów znajdziesz w zakładce <a href="zabiegi.html">Zabiegi</a>.</span><span data-lang="en">Prices are for a single treatment. You will find the treatment descriptions on the <a href="zabiegi.html">Treatments</a> page.</span></p>
   </div>
   <div class="container">
     <div class="price-note">
-      <p>Przy zabiegach z ceną „od” kwota zależy od preparatu i obszaru. Ostateczną cenę potwierdzamy na konsultacji, zanim zaczniemy zabieg.</p>
-      <p>Zarejestrowane klientki mają 10% zniżki na pierwszy zabieg. <a href="konto.html#rejestracja">Załóż konto</a></p>
+      <p><span data-lang="pl">Przy zabiegach z ceną „od” kwota zależy od preparatu i obszaru. Ostateczną cenę potwierdzamy na konsultacji, zanim zaczniemy zabieg.</span><span data-lang="en">For treatments marked “from”, the price depends on the product and the area. We confirm the final price at the consultation, before we start.</span></p>
+      <p><span data-lang="pl">Zarejestrowane klientki mają 10% zniżki na pierwszy zabieg. <a href="konto.html#rejestracja">Załóż konto</a></span><span data-lang="en">Registered clients get 10% off their first treatment. <a href="konto.html#rejestracja">Create an account</a></span></p>
     </div>
     <div id="prices"></div>
 
     <section class="menu-section" aria-labelledby="faq-title">
-      <h2 id="faq-title">Najczęstsze pytania</h2>
+      <h2 id="faq-title"><span data-lang="pl">Najczęstsze pytania</span><span data-lang="en">Frequently asked questions</span></h2>
       <span class="ornament" aria-hidden="true"></span>
       <div class="faq">
         <details>
-          <summary>Czy mogę odwołać albo przenieść wizytę?<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
-          <p>Tak, bezpłatnie do 12 godzin przed terminem: w swoim profilu, przez link z SMS-a albo telefonicznie. Jeśli odwołasz wizytę później albo nie przyjdziesz bez odwołania, obowiązuje opłata w wysokości 50% ceny zabiegu. O wizycie przypomnimy Ci SMS-em 24 godziny wcześniej.</p>
+          <summary><span data-lang="pl">Czy mogę odwołać albo przenieść wizytę?</span><span data-lang="en">Can I cancel or move my visit?</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+          <p><span data-lang="pl">Tak, bezpłatnie do 12 godzin przed terminem: w swoim profilu, przez link z SMS-a albo telefonicznie. Jeśli odwołasz wizytę później albo nie przyjdziesz bez odwołania, obowiązuje opłata w wysokości 50% ceny zabiegu. O wizycie przypomnimy Ci SMS-em 24 godziny wcześniej.</span><span data-lang="en">Yes, free of charge up to 12 hours before the visit: in your profile, through the link in the text message or by phone. If you cancel later or do not come without cancelling, a fee of 50% of the treatment price applies. We will text you a reminder 24 hours before the visit.</span></p>
         </details>
         <details>
-          <summary>Jak działa 10% zniżki za założenie konta?<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
-          <p>Zniżka obejmuje pierwszy zabieg zarezerwowany po założeniu konta i nalicza się sama w podsumowaniu rezerwacji. Zniżki się nie sumują: jeśli w tym czasie trwa inna promocja, zastosujemy tę korzystniejszą.</p>
+          <summary><span data-lang="pl">Jak działa 10% zniżki za założenie konta?</span><span data-lang="en">How does the 10% account discount work?</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+          <p><span data-lang="pl">Zniżka obejmuje pierwszy zabieg zarezerwowany po założeniu konta i nalicza się sama w podsumowaniu rezerwacji. Zniżki się nie sumują: jeśli w tym czasie trwa inna promocja, zastosujemy tę korzystniejszą.</span><span data-lang="en">The discount covers the first treatment you book after creating an account and is applied automatically in the booking summary. Discounts do not add up: if another promotion is running at the time, we apply the better one.</span></p>
         </details>
         <details>
-          <summary>Czy muszę zakładać konto, żeby się umówić?<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
-          <p>Nie. Możesz zarezerwować wizytę jako gość, podając imię, nazwisko, telefon i e-mail. Konto daje zniżkę na pierwszy zabieg, historię wizyt i oferty dla zarejestrowanych klientek.</p>
+          <summary><span data-lang="pl">Czy muszę zakładać konto, żeby się umówić?</span><span data-lang="en">Do I need an account to book?</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+          <p><span data-lang="pl">Nie. Możesz zarezerwować wizytę jako gość, podając imię, nazwisko, telefon i e-mail. Konto daje zniżkę na pierwszy zabieg, historię wizyt i oferty dla zarejestrowanych klientek.</span><span data-lang="en">No. You can book as a guest with your name, phone number and email. An account gives you a discount on your first treatment, your visit history and offers for registered clients.</span></p>
         </details>
         <details>
-          <summary>Czy zabiegi bolą?<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
-          <p>Przy makijażu permanentnym, mezoterapii i stymulatorach używamy kremu znieczulającego. Większość klientek opisuje zabieg jako delikatne kłucie lub szczypanie. Peelingi chemiczne mogą przez chwilę piec.</p>
+          <summary><span data-lang="pl">Czy zabiegi bolą?</span><span data-lang="en">Do the treatments hurt?</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+          <p><span data-lang="pl">Przy makijażu permanentnym, mezoterapii i stymulatorach używamy kremu znieczulającego. Większość klientek opisuje zabieg jako delikatne kłucie lub szczypanie. Peelingi chemiczne mogą przez chwilę piec.</span><span data-lang="en">For permanent makeup, mesotherapy and skin boosters we use a numbing cream. Most clients describe the feeling as light pricking or stinging. Chemical peels may sting for a moment.</span></p>
         </details>
         <details>
-          <summary>Jak przygotować się do zabiegu?<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
-          <p>Zalecenia znajdziesz przy każdej grupie zabiegów na stronie Zabiegi. Przyjdź bez makijażu w okolicy zabiegowej i powiedz nam o lekach, które przyjmujesz.</p>
+          <summary><span data-lang="pl">Jak przygotować się do zabiegu?</span><span data-lang="en">How should I prepare for a treatment?</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+          <p><span data-lang="pl">Zalecenia znajdziesz przy każdej grupie zabiegów na stronie Zabiegi. Przyjdź bez makijażu w okolicy zabiegowej i powiedz nam o lekach, które przyjmujesz.</span><span data-lang="en">You will find the guidelines for each group of treatments on the Treatments page. Come without makeup on the treatment area and tell us about any medication you take.</span></p>
         </details>
         <details>
-          <summary>Kiedy i jak płacę?<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
-          <p>Za zabieg płacisz w gabinecie, po wizycie. Rezerwacja online nie wymaga przedpłaty.</p>
+          <summary><span data-lang="pl">Kiedy i jak płacę?</span><span data-lang="en">When and how do I pay?</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+          <p><span data-lang="pl">Za zabieg płacisz w gabinecie, po wizycie. Rezerwacja online nie wymaga przedpłaty.</span><span data-lang="en">You pay at the studio, after the visit. Booking online does not require a deposit.</span></p>
         </details>
       </div>
     </section>

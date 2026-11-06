@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Kontakt | Justyna Mańka Beauty & Aesthetics</title>
+  <meta name="title-en" content="Contact | Justyna Mańka Beauty & Aesthetics">
+  <script>try{if(localStorage.getItem('jm_lang')==='en')document.documentElement.lang='en'}catch(e){}</script>
   <meta name="description" content="Gabinet kosmetologii estetycznej, ul. Tadeusza Kościuszki 52A, Kraków. Telefon +48 510 680 831, kontakt@justynamanka.pl.">
   <meta name="robots" content="noindex, nofollow">
   <link rel="icon" href="assets/img/favicon-32.png" sizes="32x32">
@@ -13,7 +15,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,500;1,6..96,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/style.css">
   <script src="assets/js/config.js" defer></script>
+  <script src="assets/js/i18n.js" defer></script>
   <script src="assets/js/treatments.js" defer></script>
+  <script src="assets/js/treatments.en.js" defer></script>
   <script src="assets/js/store.js" defer></script>
   <script src="assets/js/layout.js" defer></script>
   <script src="assets/js/pages/kontakt.js" defer></script>
@@ -21,30 +25,30 @@
 <body data-page="kontakt">
 <main id="main">
   <div class="container page-head">
-    <p class="crumbs"><a href="index.html">Strona główna</a> / Kontakt</p>
-    <h1>Kontakt</h1>
-    <p class="lead">Zadzwoń, napisz albo <a href="rezerwacja.html">zarezerwuj wizytę online</a>.</p>
+    <p class="crumbs"><a href="index.html"><span data-lang="pl">Strona główna</span><span data-lang="en">Home</span></a> / <span data-lang="pl">Kontakt</span><span data-lang="en">Contact</span></p>
+    <h1><span data-lang="pl">Kontakt</span><span data-lang="en">Contact</span></h1>
+    <p class="lead"><span data-lang="pl">Zadzwoń, napisz albo <a href="rezerwacja.html">zarezerwuj wizytę online</a>.</span><span data-lang="en">Call us, write to us or <a href="rezerwacja.html">book a visit online</a>.</span></p>
   </div>
   <div class="container contact-grid">
     <div>
       <ul class="contact-items" id="contact-items"></ul>
-      <h2 class="h2" style="font-size:1.75rem">Godziny otwarcia</h2>
+      <h2 class="h2" style="font-size:1.75rem"><span data-lang="pl">Godziny otwarcia</span><span data-lang="en">Opening hours</span></h2>
       <ul class="hours-list" id="hours" style="margin-bottom:48px"></ul>
 
-      <h2 class="h2" style="font-size:1.75rem">Napisz do nas</h2>
+      <h2 class="h2" style="font-size:1.75rem"><span data-lang="pl">Napisz do nas</span><span data-lang="en">Write to us</span></h2>
       <form id="contact-form" novalidate>
         <div class="form-grid">
-          <div class="field"><label for="c-name">Imię</label><input id="c-name" name="name" autocomplete="given-name" required></div>
-          <div class="field"><label for="c-contact">E-mail lub telefon</label><input id="c-contact" name="contact" required></div>
-          <div class="field span-2"><label for="c-msg">Wiadomość</label><textarea id="c-msg" name="message" required></textarea></div>
+          <div class="field"><label for="c-name"><span data-lang="pl">Imię</span><span data-lang="en">Name</span></label><input id="c-name" name="name" autocomplete="given-name" required></div>
+          <div class="field"><label for="c-contact"><span data-lang="pl">E-mail lub telefon</span><span data-lang="en">Email or phone</span></label><input id="c-contact" name="contact" required></div>
+          <div class="field span-2"><label for="c-msg"><span data-lang="pl">Wiadomość</span><span data-lang="en">Message</span></label><textarea id="c-msg" name="message" required></textarea></div>
         </div>
-        <p class="small muted">Twoje dane wykorzystamy tylko, żeby odpowiedzieć na wiadomość. Więcej w <a href="polityka-prywatnosci.html">polityce prywatności</a>.</p>
-        <button class="btn btn-primary" type="submit">Wyślij wiadomość</button>
+        <p class="small muted"><span data-lang="pl">Twoje dane wykorzystamy tylko, żeby odpowiedzieć na wiadomość. Więcej w <a href="polityka-prywatnosci.html">polityce prywatności</a>.</span><span data-lang="en">We will use your details only to reply to your message. More in our <a href="polityka-prywatnosci.html">privacy policy</a>.</span></p>
+        <button class="btn btn-primary" type="submit"><span data-lang="pl">Wyślij wiadomość</span><span data-lang="en">Send message</span></button>
       </form>
     </div>
     <div>
       <div class="map-box" id="mapa"></div>
-      <p class="small" style="margin-top:12px"><a id="maps-link" target="_blank" rel="noopener">Otwórz w Mapach Google i wyznacz trasę</a></p>
+      <p class="small" style="margin-top:12px"><a id="maps-link" target="_blank" rel="noopener"><span data-lang="pl">Otwórz w Mapach Google i wyznacz trasę</span><span data-lang="en">Open in Google Maps for directions</span></a></p>
     </div>
   </div>
 </main>

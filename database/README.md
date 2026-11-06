@@ -89,6 +89,7 @@ erDiagram
    SELECT cron.schedule('przypomnienia-sms', '*/15 * * * *', $$SELECT salon.queue_due_reminders()$$);
    ```
 2. Co 15 minut baza dopisuje do `sms_log` przypomnienia dla wizyt, do których zostały 24 godziny (status `queued`).
+   Treść jest po polsku albo po angielsku, zależnie od `clients.language` (ustawiane według wersji strony, na której klientka rezerwowała).
 3. Funkcja serwerowa aplikacji (np. trasa API w Next.js wywoływana co kilka minut) wysyła wiadomości ze statusem `queued` przez bramkę SMS i zmienia ich status na `sent` albo `failed`.
 
 ## Przed użyciem z prawdziwymi danymi
