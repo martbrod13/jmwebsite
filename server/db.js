@@ -177,6 +177,26 @@ CREATE TABLE IF NOT EXISTS blocks (
 CREATE INDEX IF NOT EXISTS blocks_date ON blocks (date);
 `);
 
+// Galeria efektów: pliki w data/uploads/gallery, w bazie opis i zgoda klientki na publikację
+db.exec(`
+CREATE TABLE IF NOT EXISTS gallery (
+  id           INTEGER PRIMARY KEY,
+  file         TEXT NOT NULL UNIQUE,
+  thumb        TEXT NOT NULL UNIQUE,
+  width        INTEGER NOT NULL,
+  height       INTEGER NOT NULL,
+  category     TEXT NOT NULL,
+  alt_pl       TEXT NOT NULL,
+  alt_en       TEXT,
+  consent_note TEXT,
+  consent_at   TEXT NOT NULL,
+  consent_by   TEXT NOT NULL,
+  published    INTEGER NOT NULL DEFAULT 1,
+  sort         INTEGER NOT NULL DEFAULT 0,
+  created_at   TEXT NOT NULL
+);
+`);
+
 // Migracje: nowe kolumny dodajemy do istniejącej bazy bez utraty danych
 function addColumn(table, column, definition) {
   if (!db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);

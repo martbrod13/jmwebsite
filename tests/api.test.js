@@ -210,3 +210,25 @@ test('klientka zmienia termin przez link z SMS-a tylko na wolny termin', async (
   const bad = await g('POST', `/api/visit/${b.body.booking.token}/move`, s);
   assert.strictEqual(bad.status, 409);
 });
+
+test('galeria: zgoda wymagana, ukryte zdjęcie niedostępne publicznie, usuwanie kasuje plik', async () => {
+  const a = await adminClient();
+  const jpg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(200)]).toString('base64');
+  const base = { image: jpg, thumb: jpg, width: 800, height: 1000, category: 'mezoterapia', altPl: 'Efekt po serii' };
+  assert.strictEqual((await a('POST', '/api/admin/gallery', base)).status, 400); // bez zgody
+  assert.strictEqual((await a('POST', '/api/admin/gallery', Object.assign({}, base, { consent: true, image: Buffer.from('<svg/>').toString('base64') }))).status, 400); // nie obraz
+  assert.strictEqual((await client()('POST', '/api/admin/gallery', Object.assign({}, base, { consent: true }))).status, 401); // bez logowania
+  const r = await a('POST', '/api/admin/gallery', Object.assign({}, base, { consent: true }));
+  assert.strictEqual(r.status, 200);
+  const g = r.body.photos[r.body.photos.length - 1];
+  const pub = await client()('GET', '/api/gallery');
+  assert.ok(pub.body.photos.some((x) => x.id === g.id));
+  assert.ok(!('consentNote' in pub.body.photos[0]), 'publiczne API nie pokazuje notatek o zgodzie');
+  assert.strictEqual((await client()('GET', g.src)).status, 200);
+  await a('PATCH', '/api/admin/gallery/' + g.id, { published: false });
+  assert.strictEqual((await client()('GET', g.src)).status, 404);
+  assert.strictEqual((await a('GET', g.src)).status, 200); // panel nadal widzi
+  await a('DELETE', '/api/admin/gallery/' + g.id, {});
+  assert.strictEqual((await a('GET', g.src)).status, 404);
+  assert.ok(!(await client()('GET', '/api/gallery')).body.photos.some((x) => x.id === g.id));
+});
