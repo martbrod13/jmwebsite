@@ -248,3 +248,22 @@ test('przed startem strona jest ukryta przed Google, działa sprawdzanie stanu i
   assert.strictEqual(d.status, 200); assert.match(d.headers.get('content-disposition'), /jm-baza-/);
   assert.ok(d.text.startsWith('SQLite format 3'));
 });
+
+test('panel dostaje powiadomienie na żywo o nowej rezerwacji, a bez logowania nie', async () => {
+  assert.strictEqual((await fetch(BASE + '/api/admin/events')).status, 401);
+  const a = await adminClient();
+  const cookie = (await (async () => { const r = await fetch(BASE + '/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'martbrod99@gmail.com', password: 'demo' }) }); return r.headers.getSetCookie()[0].split(';')[0]; })());
+  void a;
+  const ctrl = new AbortController();
+  const res = await fetch(BASE + '/api/admin/events', { headers: { Cookie: cookie }, signal: ctrl.signal });
+  assert.strictEqual(res.status, 200);
+  const reader = res.body.getReader();
+  const s = await freeSlot('konsultacja', 30);
+  await client()('POST', '/api/bookings', { treatmentId: 'konsultacja', date: s.date, time: s.time, guest: guest('live@example.com') });
+  let text = '';
+  const until = Date.now() + 3000;
+  while (!text.includes('"type":"booked"') && Date.now() < until) { const { value } = await reader.read(); text += new TextDecoder().decode(value); }
+  ctrl.abort();
+  assert.match(text, /"type":"booked"/); assert.match(text, /"by":"client"/);
+  assert.doesNotMatch(text, /live@example\.com|600 000 001/, 'powiadomienie bez e-maila i telefonu');
+});

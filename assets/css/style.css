@@ -899,3 +899,11 @@ html[lang="en"] [data-lang="pl"] { display: none !important; }
 .file-pick label { cursor: pointer; }
 .file-pick:focus-within label { outline: 2px solid var(--gold-deep); outline-offset: 2px; }
 .label-text { display: block; font-weight: 500; font-size: .875rem; margin-bottom: 8px; }
+
+/* Panel na żywo */
+.admin-top-side { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.live-dot { display: inline-flex; align-items: center; gap: 8px; font-size: .8125rem; color: var(--taupe); }
+.live-dot::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #5b8a63; box-shadow: 0 0 0 3px rgba(91, 138, 99, .18); }
+.wk-ev.is-new { animation: jm-new 1.4s ease-out 3; }
+@keyframes jm-new { 0% { box-shadow: 0 0 0 0 rgba(214, 185, 127, .9); } 100% { box-shadow: 0 0 0 10px rgba(214, 185, 127, 0); } }
+@media (prefers-reduced-motion: reduce) { .wk-ev.is-new { animation: none; outline: 2px solid var(--gold); } }

@@ -11,6 +11,37 @@ JM.ready.then(function () {
   let view = 'pulpit', query = '', campaignChannel = 'sms';
   let data = {};
 
+  /* ---------- Na żywo: odświeżanie po rezerwacjach klientek ---------- */
+  const LIVE_VIEWS = ['pulpit', 'kalendarz', 'wizyty'];
+  const baseTitle = document.title;
+  let es = null, pendingRefresh = false, unseen = 0, highlightId = null;
+  const canNotify = () => 'Notification' in window && Notification.permission === 'granted';
+  function startLive() {
+    if (es || !window.EventSource) return;
+    es = new EventSource('/api/admin/events');
+    es.addEventListener('change', (e) => {
+      let d; try { d = JSON.parse(e.data); } catch (err) { return; }
+      if (d.by === 'client') {
+        const what = { booked: 'Nowa rezerwacja online', moved: 'Klientka zmieniła termin', cancelled: 'Klientka odwołała wizytę' }[d.type];
+        if (what) {
+          const text = `${d.client}, ${d.treatment}, ${ui.fmtDate(d.date)}, ${d.time}`;
+          ui.toast(`${what}: ${text}`);
+          if (d.type !== 'cancelled') highlightId = d.id;
+          if (document.hidden) {
+            unseen++; document.title = `(${unseen}) ${baseTitle}`;
+            if (canNotify()) { try { new Notification(what, { body: text, icon: '/assets/img/logo-mark.webp', tag: 'jm-' + d.id }); } catch (err) { /* przeglądarka bez powiadomień */ } }
+          }
+        }
+      }
+      if (!LIVE_VIEWS.includes(view)) return;
+      if (document.querySelector('dialog[open]')) pendingRefresh = true; else rerender();
+    });
+    es.onerror = () => { if (!admin) stopLive(); };
+  }
+  function stopLive() { if (es) { es.close(); es = null; } }
+  function afterDialog() { setTimeout(() => { if (pendingRefresh && !document.querySelector('dialog[open]')) { pendingRefresh = false; rerender(); } }, 50); }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { unseen = 0; document.title = baseTitle; } });
+
   const views = [
     ['pulpit', 'Pulpit'], ['kalendarz', 'Kalendarz'], ['wizyty', 'Wizyty'], ['klientki', 'Klientki'], ['zabiegi', 'Zabiegi i ceny'],
     ['promocje', 'Promocje'], ['galeria', 'Galeria'], ['wiadomosci', 'SMS-y i e-maile'], ['godziny', 'Godziny pracy'], ['konto', 'Moje konto']
@@ -249,7 +280,7 @@ JM.ready.then(function () {
       const closed = day.hours ? shade(lo, day.hours[0]) + shade(day.hours[1], hi) : shade(lo, hi, day.closed);
       const evs = cal.bookings.filter((b) => b.date === day.date).map((b) => {
         const s = toMin(b.time), e = toMin(b.end); const short = (e - s) < 40;
-        return `<button type="button" class="wk-ev${b.status === 'done' ? ' is-done' : ''}${b.status === 'no_show' ? ' is-noshow' : ''}${b.demo ? ' is-demo' : ''}${short ? ' is-short' : ''}" data-booking="${b.id}" style="top:${y(s)}px;height:${Math.max((e - s) * PPM - 2, 18)}px" title="${esc(b.time + '–' + b.end + ' ' + b.treatmentName + ', ' + b.client.name)}">
+        return `<button type="button" class="wk-ev${b.id === highlightId ? ' is-new' : ''}${b.status === 'done' ? ' is-done' : ''}${b.status === 'no_show' ? ' is-noshow' : ''}${b.demo ? ' is-demo' : ''}${short ? ' is-short' : ''}" data-booking="${b.id}" style="top:${y(s)}px;height:${Math.max((e - s) * PPM - 2, 18)}px" title="${esc(b.time + '–' + b.end + ' ' + b.treatmentName + ', ' + b.client.name)}">
           <span class="wk-ev-time">${b.time}–${b.end}${b.source && b.source !== 'online' ? ` · ${SOURCES[b.source]}` : ''}</span>
           <span class="wk-ev-name">${esc(b.client.name)}</span>
           ${short ? '' : `<span class="wk-ev-t">${esc(b.treatmentName)}</span>`}</button>`;
@@ -293,7 +324,8 @@ JM.ready.then(function () {
     document.body.appendChild(dlg); dlg.showModal();
     const close = () => { dlg.close(); dlg.remove(); };
     dlg.addEventListener('click', (e) => { if (e.target.closest('[data-close]') || e.target === dlg) close(); });
-    dlg.addEventListener('cancel', () => dlg.remove());
+    dlg.addEventListener('cancel', () => { dlg.remove(); afterDialog(); });
+    dlg.addEventListener('close', afterDialog);
     const form = dlg.querySelector('form');
     if (form && onSubmit) form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -580,7 +612,10 @@ JM.ready.then(function () {
           </div>
         </aside>
         <div class="admin-main">
-          <div class="admin-top"><h1>${title}</h1>${mode.sms === 'test' || mode.email === 'test' ? '<span class="demo-flag">Tryb testowy wiadomości</span>' : ''}</div>
+          <div class="admin-top"><h1>${title}</h1><div class="admin-top-side">
+            ${LIVE_VIEWS.includes(view) ? '<span class="live-dot" title="Nowe rezerwacje pojawiają się tu same, bez odświeżania">na żywo</span>' : ''}
+            ${'Notification' in window && Notification.permission === 'default' ? '<button type="button" class="link-button small" data-notify-on>Włącz powiadomienia</button>' : ''}
+            ${mode.sms === 'test' || mode.email === 'test' ? '<span class="demo-flag">Tryb testowy wiadomości</span>' : ''}</div></div>
           ${content}
         </div>
       </div>`;
@@ -634,7 +669,7 @@ JM.ready.then(function () {
   root.addEventListener('click', async (e) => {
     const el = e.target.closest('button'); if (!el) return;
     if (el.dataset.view) { view = el.dataset.view; render(true); return; }
-    if (el.hasAttribute('data-admin-logout')) { await api('POST', '/api/admin/logout', {}); admin = null; render(); return; }
+    if (el.hasAttribute('data-admin-logout')) { await api('POST', '/api/admin/logout', {}); admin = null; stopLive(); render(); return; }
     if (el.hasAttribute('data-clear-demo')) {
       if (!confirmDialog('Usunąć dane przykładowe?', 'Przykładowe klientki i ich wizyty znikną z bazy. Prawdziwe dane zostają.')) return;
       return act(() => api('POST', '/api/admin/demo/clear', {}), 'Usunięto dane przykładowe.');
@@ -655,6 +690,10 @@ JM.ready.then(function () {
       return act(() => api('DELETE', '/api/admin/promos/' + el.dataset.delPromo, {}), 'Promocja usunięta.');
     }
     if (el.dataset.channel) { campaignChannel = el.dataset.channel; rerender(); }
+    if (el.hasAttribute('data-notify-on')) {
+      Notification.requestPermission().then((p) => { ui.toast(p === 'granted' ? 'Powiadomienia włączone: nowa rezerwacja pokaże się na ekranie, nawet gdy panel jest w tle.' : 'Powiadomienia wyłączone. Nowe rezerwacje i tak pojawią się w panelu.'); rerender(); });
+      return;
+    }
     if (el.hasAttribute('data-backup-now')) return act(() => api('POST', '/api/admin/backup', {}), 'Kopia zapasowa gotowa.');
     if (el.dataset.gMove) return act(() => api('POST', `/api/admin/gallery/${el.dataset.gMove}/move`, { dir: Number(el.dataset.dir) }));
     if (el.dataset.gToggle) { const g = data.photos.find((x) => String(x.id) === el.dataset.gToggle); return act(() => api('PATCH', '/api/admin/gallery/' + g.id, { published: !g.published }), g.published ? 'Zdjęcie ukryte na stronie.' : 'Zdjęcie widoczne na stronie.'); }
@@ -705,7 +744,7 @@ JM.ready.then(function () {
     if (f.id === 'admin-login') {
       try {
         const r = await api('POST', '/api/admin/login', { email: f.querySelector('#a-email').value.trim(), password: f.querySelector('#a-pass').value });
-        admin = r.admin; view = admin.mustChange ? 'konto' : 'pulpit'; render(true);
+        admin = r.admin; view = admin.mustChange ? 'konto' : 'pulpit'; render(true); startLive();
       } catch (err) { root.innerHTML = loginView(err.message); }
       return;
     }
@@ -733,5 +772,5 @@ JM.ready.then(function () {
     }
   });
 
-  api('GET', '/api/admin/me').then((r) => { admin = r.admin; mode = r.mode; render(); }).catch(() => { root.innerHTML = loginView('Nie udało się połączyć z serwerem.'); });
+  api('GET', '/api/admin/me').then((r) => { admin = r.admin; mode = r.mode; render(); if (admin) startLive(); }).catch(() => { root.innerHTML = loginView('Nie udało się połączyć z serwerem.'); });
 });
