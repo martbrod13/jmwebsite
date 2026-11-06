@@ -576,7 +576,7 @@ body.menu-open { overflow: hidden; }
 /* ---------- Panel gabinetu ---------- */
 .admin-body { background: #f6f2ec; }
 .admin { display: grid; grid-template-columns: 248px 1fr; min-height: 100vh; }
-.admin-side { background: var(--ink); color: var(--on-ink); padding: 28px 18px; display: flex; flex-direction: column; gap: 28px; position: sticky; top: 0; height: 100vh; }
+.admin-side { background: var(--ink); color: var(--on-ink); padding: 28px 18px; display: flex; flex-direction: column; gap: 28px; position: sticky; top: 0; height: 100vh; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(214, 185, 127, .35) transparent; }
 .admin-side img { width: 120px; margin: 0 8px; }
 .admin-nav { list-style: none; display: grid; gap: 2px; }
 .admin-nav button { width: 100%; text-align: left; padding: 11px 12px; background: none; border: 0; color: var(--on-ink-soft); cursor: pointer; font-size: .9375rem; display: flex; justify-content: space-between; }
@@ -613,7 +613,8 @@ body.menu-open { overflow: hidden; }
   .admin-side img { width: 72px; }
   .admin-nav { display: flex; flex-wrap: wrap; gap: 4px; }
   .admin-nav button { padding: 8px 10px; }
-  .admin-side-foot { display: none; }
+  .admin-side-foot { margin: 0 0 0 auto; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+  .admin-side-foot .admin-who { display: none; }
   .stat-row { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 760px) {
@@ -777,3 +778,10 @@ html[lang="en"] [data-lang="pl"] { display: none !important; }
 /* Panel: ważne informacje */
 .panel-note { border-left: 2px solid var(--gold-deep); display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .panel-note p { margin: 0; flex: 1 1 380px; }
+
+/* Panel w niskim oknie albo przy powiększeniu: mniejsze odstępy, żeby całe menu się mieściło */
+@media (min-width: 961px) and (max-height: 820px) {
+  .admin-side { padding: 18px 14px; gap: 16px; }
+  .admin-side img { width: 84px; }
+  .admin-nav button { padding: 8px 12px; }
+}
