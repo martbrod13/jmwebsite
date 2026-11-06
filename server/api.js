@@ -4,6 +4,7 @@ const B = require('./booking');
 const M = require('./messaging');
 const Sec = require('./security');
 const seed = require('./seed');
+const G = require('./gallery');
 const C = B.C;
 
 /* ---------- Pomocnicze ---------- */
@@ -536,13 +537,25 @@ route('DELETE', '/api/admin/days-off/:date', (req, { params }) => {
   db.prepare('DELETE FROM days_off WHERE date = ?').run(params.date);
   return { days: db.prepare('SELECT * FROM days_off ORDER BY date').all() };
 });
+/* ---------- Galeria ---------- */
+route('GET', '/api/gallery', () => ({ photos: G.list(false) }));
+const galleryAction = (fn) => (req, ctx) => {
+  const a = requireAdmin(req);
+  try { fn(ctx, a); return { photos: G.list(true) }; } catch (e) { if (e instanceof G.GalleryError) throw new HttpError(400, e.message); throw e; }
+};
+route('GET', '/api/admin/gallery', (req) => { requireAdmin(req); return { photos: G.list(true) }; });
+route('POST', '/api/admin/gallery', galleryAction(({ body }, a) => G.add(body, a.email)));
+route('PATCH', '/api/admin/gallery/:id', galleryAction(({ params, body }) => G.update(Number(params.id), body)));
+route('POST', '/api/admin/gallery/:id/move', galleryAction(({ params, body }) => G.move(Number(params.id), Number(body.dir))));
+route('DELETE', '/api/admin/gallery/:id', galleryAction(({ params }) => G.remove(Number(params.id))));
+
 route('POST', '/api/admin/demo/clear', (req) => { requireAdmin(req); seed.clearDemo(); return { ok: true }; });
 
 /* ---------- Obsługa żądań ---------- */
-async function readBody(req) {
+async function readBody(req, limit = 64 * 1024) {
   return new Promise((resolve, reject) => {
     let size = 0; const chunks = [];
-    req.on('data', (c) => { size += c.length; if (size > 64 * 1024) { reject(new HttpError(413, 'Za duże żądanie.')); req.destroy(); } else chunks.push(c); });
+    req.on('data', (c) => { size += c.length; if (size > limit) { reject(new HttpError(413, 'Za duże żądanie.')); req.destroy(); } else chunks.push(c); });
     req.on('end', () => {
       if (!chunks.length) return resolve({});
       try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))); } catch (e) { reject(new HttpError(400, 'Nieprawidłowe dane.')); }
@@ -568,7 +581,8 @@ async function handle(req, res, url) {
       const origin = req.headers.origin;
       if (origin && new URL(origin).host !== req.headers.host) throw new HttpError(403, 'Niedozwolone żądanie.');
       if (!/application\/json/.test(req.headers['content-type'] || '')) throw new HttpError(415, 'Wymagany JSON.');
-      body = await readBody(req);
+      // zdjęcia do galerii są większe niż zwykłe formularze
+      body = await readBody(req, req.method === 'POST' && url.pathname === '/api/admin/gallery' ? 16 * 1024 * 1024 : 64 * 1024);
       if (typeof body !== 'object' || body === null || Array.isArray(body)) body = {};
     }
     const out = await r.handler(req, { params: url.pathname.match(r.re).groups || {}, query: url.searchParams, body, res, ip: Sec.clientIp(req) });

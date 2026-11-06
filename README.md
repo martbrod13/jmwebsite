@@ -39,7 +39,8 @@ Prawdziwa wysyłka włącza się w pliku `.env` (wzór: `.env.example`): SMS prz
 - Baza to jeden plik: `data/jm.db` (SQLite wbudowany w Node.js). Nie trafia do repozytorium (`.gitignore`), bo będą w nim dane osobowe.
 - Przy pierwszym uruchomieniu tworzą się konta panelu, promocje i kilka przykładowych klientek i wizyt. W panelu na Pulpicie jest przycisk **Usuń dane przykładowe**.
 - Żeby zacząć od zera: zatrzymaj serwer i usuń folder `data`.
-- Kopia zapasowa: skopiuj plik `data/jm.db` przy zatrzymanym serwerze.
+- Zdjęcia z galerii zapisują się w `data/uploads/gallery`.
+- Kopia zapasowa: skopiuj cały folder `data` przy zatrzymanym serwerze.
 
 ### Co jest w środku
 
@@ -50,10 +51,10 @@ Prawdziwa wysyłka włącza się w pliku `.env` (wzór: `.env.example`): SMS prz
 | `cennik.html` | Cennik w tabelach + najczęstsze pytania |
 | `rezerwacja.html` | Rezerwacja w 4 krokach: zabieg, kalendarz wolnych terminów, dane (gość / logowanie / rejestracja), potwierdzenie z podglądem SMS i plikiem do kalendarza |
 | `konto.html` | Logowanie, rejestracja ze zgodami, reset hasła przez e-mail, profil: wizyty, odwoływanie, oferty, dane, zgody z historią, usuwanie konta |
+| `galeria.html` | Galeria efektów ze zdjęciami dodanymi w panelu: filtr kategorii, powiększenie (strzałki, przesuwanie palcem). Bez zdjęć pokazuje odnośnik do Instagrama |
 | `wizyta.html` | Strona wizyty z linku w SMS-ie i e-mailu: podgląd, zmiana terminu i odwołanie bez logowania (adres `/w/<klucz>`) |
 | `kontakt.html` | Dane kontaktowe, godziny, formularz, mapa Google wczytywana dopiero po zgodzie |
-| `galeria.html` | Miejsce na zdjęcia efektów (do uzupełnienia) |
-| `panel.html` | Panel gabinetu: kalendarz tygodnia (wizyty z telefonu i Instagrama, blokowanie godzin, przenoszenie), wizyty (odwołanie, nieobecność, opłaty), klientki z eksportem CSV, ceny z historią, promocje, SMS-y i e-maile, dni wolne, zmiana hasła |
+| `panel.html` | Panel gabinetu: kalendarz tygodnia (wizyty z telefonu i Instagrama, blokowanie godzin, przenoszenie), wizyty (odwołanie, nieobecność, opłaty), klientki z eksportem CSV, ceny z historią, promocje, galeria (zdjęcia ze zgodą klientki, opis PL/EN, ukrywanie, kolejność), SMS-y i e-maile, dni wolne, zmiana hasła |
 | `regulamin.html`, `polityka-prywatnosci.html`, `polityka-cookies.html` | Projekty dokumentów |
 
 Zasady:

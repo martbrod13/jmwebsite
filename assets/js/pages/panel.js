@@ -13,7 +13,7 @@ JM.ready.then(function () {
 
   const views = [
     ['pulpit', 'Pulpit'], ['kalendarz', 'Kalendarz'], ['wizyty', 'Wizyty'], ['klientki', 'Klientki'], ['zabiegi', 'Zabiegi i ceny'],
-    ['promocje', 'Promocje'], ['wiadomosci', 'SMS-y i e-maile'], ['godziny', 'Godziny pracy'], ['konto', 'Moje konto']
+    ['promocje', 'Promocje'], ['galeria', 'Galeria'], ['wiadomosci', 'SMS-y i e-maile'], ['godziny', 'Godziny pracy'], ['konto', 'Moje konto']
   ];
   const money = (v) => S.formatPrice(v);
   const dt = (iso) => { const d = new Date(iso); return d.toLocaleDateString('pl-PL') + ', ' + S.pad(d.getHours()) + ':' + S.pad(d.getMinutes()); };
@@ -437,6 +437,102 @@ JM.ready.then(function () {
     });
   }
 
+  /* ---------- Galeria ---------- */
+  const catName = (id) => { const c = JM.categories.find((x) => x.id === id); return c ? (c.namePl || c.name) : id; };
+  const catOptions = (sel) => JM.categories.map((c) => `<option value="${c.id}"${c.id === sel ? ' selected' : ''}>${esc(c.namePl || c.name)}</option>`).join('');
+  function vGaleria() {
+    const photos = data.photos;
+    return `
+      <form class="panel-card" id="gallery-form" novalidate>
+        <h2>Dodaj zdjęcia</h2>
+        <p class="small muted">Zdjęcia zmniejszą się automatycznie, a dane z aparatu (np. lokalizacja GPS) zostaną usunięte, zanim trafią na serwer. Najlepiej wgrywać zdjęcia „przed i po” jako jedno zdjęcie (kolaż).</p>
+        <div class="form-grid">
+          <div class="field span-2"><label for="g-files">Zdjęcia (JPG, PNG albo WebP)</label><input id="g-files" name="files" type="file" accept="image/jpeg,image/png,image/webp" multiple required></div>
+          <div class="field"><label for="g-cat">Kategoria</label><select id="g-cat" name="category">${catOptions()}</select></div>
+          <div class="field"><label for="g-note">Notatka o zgodzie <span class="opt">(widzi tylko panel)</span></label><input id="g-note" name="consentNote" maxlength="200" placeholder="Np. Anna K., zgoda podpisana 12.11.2026"></div>
+          <div class="field"><label for="g-alt">Opis zdjęcia</label><input id="g-alt" name="altPl" maxlength="160" required placeholder="Np. Brwi pudrowe, efekt po wygojeniu"></div>
+          <div class="field"><label for="g-alt-en">Opis po angielsku <span class="opt">(opcjonalnie)</span></label><input id="g-alt-en" name="altEn" maxlength="160" placeholder="E.g. Powder brows, healed result"></div>
+        </div>
+        <label class="check"><input type="checkbox" name="consent" required><span>Mam pisemną zgodę klientki (lub klientek) na publikację tych zdjęć na stronie<small>Bez zgody zdjęcie z twarzą to publikacja wizerunku bez podstawy prawnej. Zgodę przechowuj w gabinecie; klientka może ją wycofać, wtedy ukryj albo usuń zdjęcie.</small></span></label>
+        <p class="small muted" id="g-progress" aria-live="polite"></p>
+        <button class="btn btn-primary" type="submit">Dodaj do galerii</button>
+      </form>
+      <div class="panel-card">
+        <h2>Zdjęcia w galerii (${photos.length})</h2>
+        ${photos.length ? `<ul class="g-admin">${photos.map((g, i) => `
+          <li class="${g.published ? '' : 'is-hidden'}">
+            <img src="${g.thumb}" alt="${esc(g.altPl)}" width="${g.width}" height="${g.height}" loading="lazy">
+            <div class="g-admin-body">
+              <p><strong style="font-weight:500">${esc(g.altPl)}</strong><br><span class="small muted">${esc(catName(g.category))}${g.altEn ? ' · EN: ' + esc(g.altEn) : ''}</span></p>
+              <p class="small muted">Zgoda: ${new Date(g.consentAt).toLocaleDateString('pl-PL')}${g.consentNote ? ' · ' + esc(g.consentNote) : ''}</p>
+              <p>${g.published ? '<span class="badge badge-ok">widoczne na stronie</span>' : '<span class="badge badge-off">ukryte</span>'}</p>
+              <div class="g-admin-actions">
+                <button type="button" class="icon-btn" data-g-move="${g.id}" data-dir="-1" aria-label="Przesuń wcześniej" ${i === 0 ? 'disabled' : ''}>${ui.icons.arrowL}</button>
+                <button type="button" class="icon-btn" data-g-move="${g.id}" data-dir="1" aria-label="Przesuń dalej" ${i === photos.length - 1 ? 'disabled' : ''}>${ui.icons.arrowR}</button>
+                <button type="button" class="btn btn-outline btn-small" data-g-edit="${g.id}">Edytuj</button>
+                <button type="button" class="btn btn-outline btn-small" data-g-toggle="${g.id}">${g.published ? 'Ukryj' : 'Pokaż'}</button>
+                <button type="button" class="link-button small" data-g-del="${g.id}">Usuń</button>
+              </div>
+            </div>
+          </li>`).join('')}</ul>` : '<p class="muted">Galeria jest pusta. Dopóki nie ma zdjęć, strona Galeria pokazuje odnośnik do Instagrama.</p>'}
+      </div>`;
+  }
+  // Zmniejsza zdjęcie w przeglądarce i zapisuje je od nowa (bez EXIF, z prawidłowym obrotem)
+  async function shrink(file, max, quality) {
+    const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    const w = Math.round(bmp.width * k), h = Math.round(bmp.height * k);
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const ctx = c.getContext('2d'); ctx.imageSmoothingQuality = 'high'; ctx.drawImage(bmp, 0, 0, w, h);
+    bmp.close && bmp.close();
+    let blob = await new Promise((r) => c.toBlob(r, 'image/webp', quality));
+    if (!blob || blob.type !== 'image/webp') blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', quality)); // starsze Safari
+    const b64 = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(',')[1]); fr.readAsDataURL(blob); });
+    return { b64, w, h };
+  }
+  async function uploadPhotos(f) {
+    const files = [...f.elements.files.files];
+    const prog = f.querySelector('#g-progress');
+    if (!files.length) { ui.toast('Wybierz zdjęcia.'); return; }
+    if (!f.elements.consent.checked) { ui.toast('Potwierdź zgodę klientki na publikację.'); f.elements.consent.focus(); return; }
+    if (!f.elements.altPl.value.trim()) { ui.toast('Dodaj krótki opis zdjęcia.'); f.elements.altPl.focus(); return; }
+    const btn = f.querySelector('[type=submit]'); btn.disabled = true;
+    let ok = 0;
+    try {
+      for (const [i, file] of files.entries()) {
+        prog.textContent = `Przygotowuję zdjęcie ${i + 1} z ${files.length}…`;
+        const big = await shrink(file, 1800, 0.84), small = await shrink(file, 720, 0.8);
+        await api('POST', '/api/admin/gallery', {
+          image: big.b64, thumb: small.b64, width: big.w, height: big.h, category: f.elements.category.value,
+          altPl: f.elements.altPl.value, altEn: f.elements.altEn.value, consent: true, consentNote: f.elements.consentNote.value
+        });
+        ok++;
+      }
+      ui.toast(ok === 1 ? 'Dodano zdjęcie do galerii.' : `Dodano ${ok} zdjęcia do galerii.`);
+      await rerender();
+    } catch (err) {
+      prog.textContent = ''; btn.disabled = false;
+      ui.toast((ok ? `Dodano ${ok}, potem błąd: ` : '') + (err.message || 'Nie udało się odczytać zdjęcia. Spróbuj zapisać je jako JPG.'));
+    }
+  }
+  function galleryEdit(g) {
+    openDialog(`
+      <form class="modal-body" novalidate>
+        <h2>Edytuj zdjęcie</h2>
+        <img src="${g.thumb}" alt="" style="max-height:220px;width:auto;margin-bottom:18px">
+        <div class="form-grid">
+          <div class="field span-2"><label for="ge-alt">Opis zdjęcia</label><input id="ge-alt" name="altPl" maxlength="160" value="${esc(g.altPl)}"></div>
+          <div class="field span-2"><label for="ge-alt-en">Opis po angielsku</label><input id="ge-alt-en" name="altEn" maxlength="160" value="${esc(g.altEn)}"></div>
+          <div class="field"><label for="ge-cat">Kategoria</label><select id="ge-cat" name="category">${catOptions(g.category)}</select></div>
+        </div>
+        <div class="modal-actions"><button class="btn btn-primary" type="submit">Zapisz</button><button class="btn btn-outline" type="button" data-close>Anuluj</button></div>
+      </form>`,
+    async (f, close) => {
+      await api('PATCH', '/api/admin/gallery/' + g.id, { altPl: f.elements.altPl.value, altEn: f.elements.altEn.value, category: f.elements.category.value });
+      close(); ui.toast('Zapisano.'); rerender();
+    });
+  }
+
   /* ---------- Dane dla widoków ---------- */
   async function loadView() {
     const today = new Date(); const past = new Date(); past.setDate(past.getDate() - 30);
@@ -447,6 +543,7 @@ JM.ready.then(function () {
       klientki: async () => (await api('GET', '/api/admin/clients')),
       zabiegi: async () => (await api('GET', '/api/admin/prices')),
       promocje: async () => (await api('GET', '/api/admin/promos')),
+      galeria: async () => (await api('GET', '/api/admin/gallery')),
       wiadomosci: async () => {
         const [r, m, c] = await Promise.all([api('GET', '/api/admin/reminders'), api('GET', '/api/admin/messages'), api('GET', '/api/admin/clients')]);
         mode = m.mode; return { reminders: r.reminders, messages: m.messages, clients: c.clients };
@@ -484,7 +581,7 @@ JM.ready.then(function () {
     if (!admin) { root.innerHTML = loginView(); return; }
     try {
       await loadView();
-      const fn = { pulpit: vPulpit, kalendarz: vKalendarz, wizyty: vWizyty, klientki: vKlientki, zabiegi: vZabiegi, promocje: vPromocje, wiadomosci: vWiadomosci, godziny: vGodziny, konto: vKonto }[view];
+      const fn = { pulpit: vPulpit, kalendarz: vKalendarz, wizyty: vWizyty, klientki: vKlientki, zabiegi: vZabiegi, promocje: vPromocje, galeria: vGaleria, wiadomosci: vWiadomosci, godziny: vGodziny, konto: vKonto }[view];
       root.innerHTML = shell(fn());
     } catch (err) {
       if (err.status === 401) { admin = null; root.innerHTML = loginView('Sesja wygasła. Zaloguj się ponownie.'); return; }
@@ -550,6 +647,13 @@ JM.ready.then(function () {
       return act(() => api('DELETE', '/api/admin/promos/' + el.dataset.delPromo, {}), 'Promocja usunięta.');
     }
     if (el.dataset.channel) { campaignChannel = el.dataset.channel; rerender(); }
+    if (el.dataset.gMove) return act(() => api('POST', `/api/admin/gallery/${el.dataset.gMove}/move`, { dir: Number(el.dataset.dir) }));
+    if (el.dataset.gToggle) { const g = data.photos.find((x) => String(x.id) === el.dataset.gToggle); return act(() => api('PATCH', '/api/admin/gallery/' + g.id, { published: !g.published }), g.published ? 'Zdjęcie ukryte na stronie.' : 'Zdjęcie widoczne na stronie.'); }
+    if (el.dataset.gEdit) { galleryEdit(data.photos.find((x) => String(x.id) === el.dataset.gEdit)); return; }
+    if (el.dataset.gDel) {
+      if (!confirmDialog('Usunąć zdjęcie?', 'Zdjęcie zniknie ze strony i z serwera. Tej operacji nie można cofnąć.')) return;
+      return act(() => api('DELETE', '/api/admin/gallery/' + el.dataset.gDel, {}), 'Zdjęcie usunięte.');
+    }
     if (el.dataset.week !== undefined) { const n = Number(el.dataset.week); calWeek = n ? addDays(calWeek, 7 * n) : mondayOf(new Date()); rerender(); return; }
     if (el.hasAttribute('data-new-booking')) { newBookingDialog(); return; }
     if (el.hasAttribute('data-new-block')) { blockDialog(); return; }
@@ -591,6 +695,7 @@ JM.ready.then(function () {
       } catch (err) { root.innerHTML = loginView(err.message); }
       return;
     }
+    if (f.id === 'gallery-form') return uploadPhotos(f);
     if (f.id === 'prices-form') {
       const prices = {}; f.querySelectorAll('.price-input').forEach((i) => { if (i.value !== '') prices[i.name] = Number(i.value); });
       return act(() => api('PUT', '/api/admin/prices', { prices }), 'Zapisano ceny.');

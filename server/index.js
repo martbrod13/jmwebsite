@@ -17,6 +17,8 @@ const seed = require('./seed');
 const api = require('./api');
 const M = require('./messaging');
 const B = require('./booking');
+const G = require('./gallery');
+const Sec = require('./security');
 
 const ROOT = path.join(__dirname, '..');
 const DEV = !env.production;
@@ -93,6 +95,14 @@ const server = http.createServer((req, res) => {
   const w = p.match(/^\/w\/([A-Za-z0-9_-]{16,64})$/);
   if (w) { res.writeHead(302, { Location: '/wizyta.html#' + w[1] }); return res.end(); }
   if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); return res.end(); }
+  // zdjęcia z galerii (z folderu data); ukryte zdjęcia widzi tylko zalogowany panel
+  const up = p.match(/^\/uploads\/gallery\/([^/]+)$/);
+  if (up) {
+    const file = G.fileFor(up[1], !!Sec.readSession(req, 'admin'));
+    if (!file) return notFound(res);
+    res.writeHead(200, { 'Content-Type': file.endsWith('.webp') ? 'image/webp' : 'image/jpeg', 'Cache-Control': 'public, max-age=3600' });
+    return fs.createReadStream(file).pipe(res);
+  }
   serveStatic(req, res, p);
 });
 
