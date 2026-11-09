@@ -167,7 +167,7 @@ async function adminClient() {
 
 test('wizyta dodana w panelu zajmuje termin w rezerwacji online', async () => {
   const a = await adminClient();
-  const s = await freeSlot('konsultacja', 10);
+  const s = await freeSlot('mezo-twarz', 10); // termin wolny dla dłuższego zabiegu, który wpisujemy
   const r = await a('POST', '/api/admin/bookings', { treatmentId: 'mezo-twarz', date: s.date, time: s.time, source: 'telefon', guest: { firstName: 'Basia', phone: '+48 601 000 111' }, notify: false });
   assert.strictEqual(r.status, 200, JSON.stringify(r.body));
   assert.strictEqual(r.body.booking.source, 'telefon');
@@ -335,7 +335,9 @@ test('statystyki: tylko dla panelu, 12 miesięcy i zestawienia za wybrany okres'
 test('lista oczekujących: zapis tylko na zajęty okres, SMS po zwolnieniu terminu, koniec po rezerwacji, wypisanie', async () => {
   const a = await adminClient();
   const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
-  const days = [day(40), day(41), day(42)];
+  // trzy dni otwarte (bez niedziel i świąt), daleko od terminów z innych testów
+  const open = (await client()('GET', `/api/availability?treatment=konsultacja&from=${day(40)}&to=${day(52)}`)).body.days;
+  const days = Object.keys(open).filter((d) => open[d] !== null).slice(0, 3);
   for (const d of days) await a('POST', '/api/admin/blocks', { date: d, start: '06:00', end: '23:00', note: 'test listy' });
   const g = client();
   // w okresie z wolnymi terminami nie da się zapisać
@@ -511,4 +513,24 @@ test('panel jako aplikacja: manifest i service worker', async () => {
   for (const icon of m.body.icons) assert.strictEqual((await client()('GET', icon.src)).status, 200);
   const sw = await client()('GET', '/panel-sw.js');
   assert.strictEqual(sw.status, 200); assert.match(sw.headers.get('content-type'), /javascript/);
+});
+
+test('polecenia i last minute przez API: kod z linku, ustawienia w panelu', async () => {
+  const k = client();
+  await k('POST', '/api/register', { firstName: 'Łucja', lastName: 'Polecająca', phone: '+48 600 777 888', email: 'lucja@example.com', password: 'haslo1234', terms: true });
+  const ref = (await k('GET', '/api/me/referral')).body.referral;
+  assert.match(ref.code, /^LUCJA-[A-Z2-9]{4}$/, 'polskie znaki w kodzie zamienione');
+  const p = await client()('GET', ref.link);
+  assert.strictEqual(p.status, 302); assert.strictEqual(p.headers.get('location'), '/rezerwacja.html?polecenie=' + ref.code);
+  assert.deepStrictEqual((await client()('GET', '/api/referral/' + ref.code.toLowerCase())).body, { valid: true, firstName: 'Łucja', percent: 15 });
+  assert.deepStrictEqual((await client()('GET', '/api/referral/NIE-MA00')).body, { valid: false });
+  const lm = (await client()('GET', '/api/last-minute')).body;
+  assert.strictEqual(lm.percent, 0); assert.ok(Array.isArray(lm.days));
+  const a = await adminClient();
+  assert.strictEqual((await a('PUT', '/api/admin/last-minute', { percent: 60, hours: 24 })).status, 400);
+  assert.strictEqual((await a('PUT', '/api/admin/last-minute', { percent: 10, hours: 24 })).body.lastMinute.percent, 10);
+  assert.strictEqual((await client()('GET', '/api/bootstrap')).body.lastMinute.percent, 10);
+  await a('PUT', '/api/admin/last-minute', { percent: 0, hours: 24 });
+  assert.strictEqual((await a('PUT', '/api/admin/referrals', { on: true, newPercent: 0, refPercent: 10 })).status, 400);
+  assert.strictEqual((await client()('GET', '/api/admin/referrals')).status, 401);
 });

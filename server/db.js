@@ -325,6 +325,17 @@ CREATE TABLE IF NOT EXISTS packages (
   created_by   TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS packages_client ON packages(client_key);
+-- Program poleceń: nagroda dla polecającej za każdą nową klientkę, która przyszła na wizytę
+CREATE TABLE IF NOT EXISTS referral_rewards (
+  id                  INTEGER PRIMARY KEY,
+  client_id           INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,   -- polecająca
+  referred_booking_id INTEGER NOT NULL UNIQUE REFERENCES bookings(id) ON DELETE CASCADE,
+  percent             REAL NOT NULL,
+  status              TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','available','reserved','used','cancelled')),
+  booking_id          INTEGER REFERENCES bookings(id) ON DELETE SET NULL,          -- wizyta, na której wykorzystano nagrodę
+  created_at          TEXT NOT NULL,
+  updated_at          TEXT NOT NULL
+);
 -- SMS po wizycie: po zabiegu X za N dni zaproponuj zabieg Y
 CREATE TABLE IF NOT EXISTS followup_rules (
   treatment_id TEXT PRIMARY KEY,
@@ -360,6 +371,10 @@ addColumn('reviews', 'publish_ok', 'INTEGER NOT NULL DEFAULT 1');
 addColumn('reviews', 'is_new', 'INTEGER NOT NULL DEFAULT 0');
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS reviews_booking ON reviews(booking_id) WHERE booking_id IS NOT NULL');
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS bookings_review_token ON bookings(review_token) WHERE review_token IS NOT NULL');
+// program poleceń: kod klientki z kontem i kto poleciła wizytę
+addColumn('clients', 'ref_code', 'TEXT');
+addColumn('bookings', 'referrer_id', 'INTEGER REFERENCES clients(id) ON DELETE SET NULL');
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS clients_ref_code ON clients(ref_code) WHERE ref_code IS NOT NULL');
 
 const nowIso = () => new Date().toISOString();
 

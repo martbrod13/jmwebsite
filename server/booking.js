@@ -2,7 +2,7 @@
  * Zasady gabinetu: godziny, wolne terminy, ceny, zniżki, rezerwacje i odwołania.
  * Wszystko liczone na serwerze — przeglądarka tylko to pokazuje.
  */
-const { db, tx, nowIso } = require('./db');
+const { db, tx, meta, nowIso } = require('./db');
 const C = require('./site-config');
 const { randomToken, shortCode } = require('./security');
 
@@ -103,6 +103,34 @@ function availability(treatmentId, from, to) {
   return out;
 }
 
+// Wolne okienka na dziś i jutro (sekcja „last minute” na stronie głównej):
+// ciągłe wolne odcinki, w które zmieści się co najmniej najkrótszy zabieg
+function freeWindows(days = 2) {
+  const all = allTreatments().filter((t) => t.duration > 0);
+  if (!all.length) return [];
+  const minDur = Math.min(...all.map((t) => t.duration));
+  const out = []; const d = new Date();
+  for (let i = 0; i < days; i++, d.setDate(d.getDate() + 1)) {
+    const ds = isoDate(d); const hrs = dayHours(ds); if (!hrs) continue;
+    const close = hrs[1] * 60; const taken = takenRanges(ds);
+    const slotCache = new Map();
+    const slots = (dur) => { if (!slotCache.has(dur)) slotCache.set(dur, slotsFor(ds, dur).map(toMin)); return slotCache.get(dur); };
+    const windows = [];
+    slots(minDur).forEach((m) => {
+      const w = windows[windows.length - 1];
+      if (w && m - w.last === C.booking.slotStep) w.last = m; else windows.push({ start: m, last: m });
+    });
+    const list = windows.map((w) => {
+      const busy = taken.filter(([a]) => a >= w.last + minDur).map(([a]) => a);
+      const end = Math.min(close, ...busy);
+      const fits = all.filter((t) => slots(t.duration).some((m) => m >= w.start && m + t.duration <= end)).length;
+      return { start: toTime(w.start), end: toTime(end), minutes: end - w.start, fits };
+    }).filter((w) => w.fits > 0).slice(0, 6);
+    if (list.length) out.push({ date: ds, windows: list });
+  }
+  return out;
+}
+
 /* ---------- Zniżki ---------- */
 function promotions({ activeOnly } = {}) {
   return db.prepare(`SELECT * FROM promotions ${activeOnly ? 'WHERE active = 1' : ''} ORDER BY date_from`).all().map((p) => ({
@@ -114,9 +142,17 @@ function promotions({ activeOnly } = {}) {
 function visitCount(clientId) {
   return db.prepare("SELECT count(*) AS n FROM bookings WHERE client_id = ? AND status <> 'cancelled'").get(clientId).n;
 }
-function bestDiscount(t, dateStr, client, price) {
+// Last minute: zniżka na wizyty, które zaczynają się w ciągu najbliższych godzin (ustawiana w panelu)
+function lastMinute() {
+  const percent = Number(meta.get('lastminute_percent') || 0), hours = Number(meta.get('lastminute_hours') || 24);
+  return { percent: percent > 0 && percent <= 50 ? percent : 0, hours: [12, 24, 48].includes(hours) ? hours : 24 };
+}
+const isLastMinute = (dateStr, time, hours) => { const ms = new Date(dateStr + 'T' + time + ':00').getTime() - Date.now(); return ms > 0 && ms <= hours * 36e5; };
+function bestDiscount(t, dateStr, client, price, opts = {}) {
   if (!price) return null;
-  const options = [];
+  const options = (opts.extra || []).slice();
+  const lm = lastMinute();
+  if (lm.percent && opts.time && isLastMinute(dateStr, opts.time, lm.hours)) options.push({ id: 'last-minute', label: 'Last minute', percent: lm.percent });
   if (client && visitCount(client.id) === 0) options.push({ id: 'pierwsza-wizyta', label: 'Pierwsza wizyta z kontem', percent: C.discounts.firstVisitPercent });
   promotions({ activeOnly: true }).forEach((p) => {
     if (p.membersOnly && !client) return;
@@ -132,7 +168,7 @@ function bestDiscount(t, dateStr, client, price) {
 /* ---------- Rezerwacje ---------- */
 class BookingError extends Error { constructor(code, msg) { super(msg); this.code = code; } }
 
-function createBooking({ treatmentId, date, time, notes, lang, client, guest }) {
+function createBooking({ treatmentId, date, time, notes, lang, client, guest, extraDiscounts }) {
   const t = treatment(treatmentId);
   if (!t) throw new BookingError('treatment', 'Nie ma takiego zabiegu.');
   if (!DATE_RE.test(date) || !TIME_RE.test(time)) throw new BookingError('slot', 'Nieprawidłowy termin.');
@@ -140,7 +176,7 @@ function createBooking({ treatmentId, date, time, notes, lang, client, guest }) 
   return tx(() => {
     // sprawdzamy dostępność w tej samej transakcji, w której zapisujemy — dwie osoby nie zajmą jednego terminu
     if (!slotsFor(date, t.duration).includes(time)) throw new BookingError('taken', 'Ten termin został właśnie zajęty. Wybierz inną godzinę.');
-    const d = bestDiscount(t, date, client, price);
+    const d = bestDiscount(t, date, client, price, { time, extra: extraDiscounts });
     const total = d ? round2(price - round2(price * d.percent / 100)) : price;
     const start = toMin(time);
     let code; do { code = shortCode(6); } while (db.prepare('SELECT 1 FROM bookings WHERE code = ?').get(code));
@@ -300,7 +336,7 @@ module.exports = {
   C, pad, isoDate, toMin, toTime, startOf, DATE_RE,
   treatment, allTreatments, currentPrice, priceMap, lowest30, setPrice,
   dayHours, bookingWindow, slotsFor, availability,
-  promotions, visitCount, bestDiscount,
+  promotions, visitCount, bestDiscount, lastMinute, freeWindows,
   BookingError, createBooking, createManualBooking, moveBooking, checkManualSlot, conflicts, withinHours, blocksBetween, addBlock, getBooking, getBookingByToken, cancelBooking, markNoShow, setFeeStatus, completePast,
   canCancel, isLateCancel, lateFee, contactOf, publicBooking
 };
