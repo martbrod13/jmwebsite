@@ -1,5 +1,5 @@
 /* API strony i panelu gabinetu. */
-const { db, tx, nowIso } = require('./db');
+const { db, tx, meta, nowIso } = require('./db');
 const B = require('./booking');
 const M = require('./messaging');
 const Sec = require('./security');
@@ -12,6 +12,7 @@ const R = require('./records');
 const A = require('./aftercare');
 const Rv = require('./reviews');
 const P = require('./packages');
+const Ref = require('./referrals');
 // krótki opis wizyty do powiadomienia w panelu (bez e-maila i telefonu)
 function live(type, b, by) {
   const c = B.contactOf(b);
@@ -54,6 +55,7 @@ function clientView(c) {
   return {
     id: c.id, firstName: c.first_name, lastName: c.last_name, email: c.email, phone: c.phone,
     birthMonth: c.birth_month || '', language: c.language, createdAt: c.created_at, visits: B.visitCount(c.id),
+    referralReward: (Ref.rewardOption(c.id) || {}).percent || 0,
     consents: { terms: cons.terms, marketingSms: cons.marketing_sms, marketingEmail: cons.marketing_email },
     consentLog: db.prepare('SELECT at, change FROM consent_log WHERE client_id = ? ORDER BY id').all(c.id)
   };
@@ -118,6 +120,7 @@ function adminBooking(b) {
   const c = B.contactOf(b); const key = clientKeyOf(b);
   return Object.assign(B.publicBooking(b), {
     clientId: b.client_id, cancelledAt: b.cancelled_at, demo: !!b.demo, record: R.summary(b.id), clientKey: key,
+    referralReward: Ref.rewardForBooking(b), referredBy: b.referrer_id ? (db.prepare('SELECT first_name, last_name FROM clients WHERE id = ?').get(b.referrer_id) || null) : null,
     packageOffers: !b.package_id && !b.voucher_id && ['confirmed', 'done'].includes(b.status) ? P.usableFor(key, b.treatment_id, b.date).map((p) => ({ id: p.id, name: p.name, left: p.left, sessions: p.sessions })) : [],
     client: c ? { name: c.firstName + ' ' + c.lastName, phone: c.phone, email: c.email, type: c.account ? 'konto' : 'gość' } : { name: 'Konto usunięte', phone: '—', email: '', type: '—' }
   });
@@ -173,7 +176,9 @@ route('GET', '/api/bootstrap', (req) => {
     user: c ? clientView(c) : null,
     prices: B.priceMap(), lowest30: lowest,
     promos: B.promotions({ activeOnly: true }),
-    window: B.bookingWindow()
+    window: B.bookingWindow(),
+    lastMinute: B.lastMinute(),
+    referral: (({ on, newPercent }) => ({ on, newPercent }))(Ref.settings())
   };
 });
 
@@ -194,6 +199,14 @@ route('POST', '/api/bookings', (req, { body, ip }) => {
     need(g.terms === true, req, 'terms', 'Zaakceptuj regulamin, żeby zarezerwować wizytę.', 'Accept the terms to book a visit.');
     guest = { firstName: str(g.firstName, 60), lastName: str(g.lastName, 60), phone: str(g.phone, 20), email: str(g.email, 120).toLowerCase(), marketingSms: !!g.marketingSms, marketingEmail: !!g.marketingEmail };
   }
+  // polecenie (nowa osoba z kodem) i nagroda za polecenie (zalogowana polecająca); wybierana jest najkorzystniejsza zniżka
+  const extraDiscounts = []; let referrer = null;
+  const refCode = str(body.referralCode, 20);
+  if (refCode) {
+    try { const r = Ref.check({ code: refCode, client, guest: body.guest }, langOf(req)); extraDiscounts.push(r.option); referrer = r.referrer; }
+    catch (e) { if (e instanceof Ref.RefError) throw new HttpError(400, e.message, 'referralCode'); throw e; }
+  }
+  if (client) { const rw = Ref.rewardOption(client.id); if (rw) extraDiscounts.push(rw); }
   // wizyta z pakietu: tylko zalogowana klientka i tylko jej pakiet na ten zabieg, ważny w dniu wizyty
   const packageId = client && body.packageId ? Number(body.packageId) : null;
   if (packageId) {
@@ -206,10 +219,11 @@ route('POST', '/api/bookings', (req, { body, ip }) => {
     try { V.planFor(voucherCode, 1, langOf(req)); } catch (e) { if (e instanceof V.VoucherError) throw new HttpError(400, e.message, 'voucherCode'); throw e; }
   }
   try {
-    let b = B.createBooking({ treatmentId: body.treatmentId, date: body.date, time: body.time, notes: str(body.notes, 400), lang: langOf(req), client, guest });
+    let b = B.createBooking({ treatmentId: body.treatmentId, date: body.date, time: body.time, notes: str(body.notes, 400), lang: langOf(req), client, guest, extraDiscounts });
     if (body.afterSms === true) { db.prepare('UPDATE bookings SET after_sms = 1 WHERE id = ?').run(b.id); b = B.getBooking(b.id); }
     if (voucherCode) { const plan = V.planFor(voucherCode, b.total, langOf(req)); V.attach(b.id, plan.voucher.id, plan.amount); b = B.getBooking(b.id); }
     if (packageId) { P.attach(b, packageId, client.email.toLowerCase(), langOf(req)); b = B.getBooking(b.id); }
+    Ref.afterBooking(b, referrer && referrer.id); b = B.getBooking(b.id);
     notify(b, 'confirmation'); live('booked', b, 'client');
     return { booking: Object.assign(B.publicBooking(b), { token: b.token }) };
   } catch (e) {
@@ -748,6 +762,36 @@ route('PUT', '/api/admin/aftercare/care', aftercareAction(({ body }) => A.setCar
 route('PUT', '/api/admin/aftercare/review', aftercareAction(({ body }) => A.setReview({ on: body.on === true, url: body.url })));
 route('PUT', '/api/admin/aftercare/rules', aftercareAction(({ body }) => A.setRule({ treatmentId: str(body.treatmentId, 60), weeks: body.weeks, nextId: str(body.nextId, 60) })));
 route('DELETE', '/api/admin/aftercare/rules/:id', aftercareAction(({ params }) => A.removeRule(params.id)));
+
+/* ---------- Program poleceń i last minute ---------- */
+route('GET', '/api/referral/:code', (req, { params, ip }) => {
+  if (!Sec.rateLimit('ref:' + ip, 60, 36e5)) throw new HttpError(429, T(req, 'Spróbuj później.', 'Please try again later.'));
+  const s = Ref.settings(); const r = s.on ? Ref.referrerByCode(params.code) : null;
+  return r ? { valid: true, firstName: r.first_name, percent: s.newPercent } : { valid: false };
+});
+route('GET', '/api/me/referral', (req) => ({ referral: Ref.forClient(requireClient(req)) }));
+route('GET', '/api/last-minute', () => { const lm = B.lastMinute(); return { percent: lm.percent, hours: lm.hours, days: B.freeWindows(2) }; });
+route('GET', '/api/admin/referrals', (req) => { requireAdmin(req); return { settings: Ref.settings(), list: Ref.adminList(), lastMinute: B.lastMinute() }; });
+route('PUT', '/api/admin/referrals', (req, { body }) => {
+  requireAdmin(req);
+  try { Ref.setSettings({ on: body.on === true, newPercent: body.newPercent, refPercent: body.refPercent }); } catch (e) { if (e instanceof Ref.RefError) throw new HttpError(400, e.message); throw e; }
+  return { settings: Ref.settings(), list: Ref.adminList(), lastMinute: B.lastMinute() };
+});
+route('PUT', '/api/admin/last-minute', (req, { body }) => {
+  requireAdmin(req);
+  const p = Number(body.percent), h = Number(body.hours);
+  if (!(Number.isInteger(p) && p >= 0 && p <= 50)) throw new HttpError(400, 'Zniżka last minute: od 0 (wyłączona) do 50%.');
+  if (![12, 24, 48].includes(h)) throw new HttpError(400, 'Wybierz 12, 24 albo 48 godzin.');
+  meta.set('lastminute_percent', p); meta.set('lastminute_hours', h);
+  return { settings: Ref.settings(), list: Ref.adminList(), lastMinute: B.lastMinute() };
+});
+route('POST', '/api/admin/bookings/:id/referral-reward', (req, { params }) => {
+  requireAdmin(req);
+  const b = B.getBooking(Number(params.id)); if (!b) throw new HttpError(404, 'Nie znaleziono wizyty.');
+  try { Ref.applyInPanel(b); } catch (e) { if (e instanceof Ref.RefError) throw new HttpError(400, e.message); throw e; }
+  live('changed', B.getBooking(b.id), 'salon');
+  return { booking: adminBooking(B.getBooking(b.id)) };
+});
 
 /* ---------- Opinie klientek ---------- */
 route('GET', '/api/reviews', () => ({ reviews: Rv.list(false), links: Rv.links() }));

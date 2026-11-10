@@ -15,6 +15,19 @@ JM.ready.then(function () {
   let msg = '';
   let myBookings = null; // wizyty zalogowanej klientki z serwera
   let myPackages = null; // pakiety zabiegów kupione w gabinecie
+  let myReferral = null; // program poleceń: kod i nagrody
+  function referralSection(r) {
+    const link = location.origin + r.link;
+    return `<section class="profile-section ref-section" aria-labelledby="ref-title">
+      <h2 id="ref-title">${L('Poleć koleżance', 'Refer a friend')}</h2>
+      <p>${L(`Koleżanka, która przyjdzie do nas pierwszy raz z Twoim kodem, dostaje ${r.settings.newPercent}% zniżki na pierwszą wizytę. Gdy jej wizyta się odbędzie, Ty dostajesz ${r.percent}% zniżki na swoją kolejną wizytę. Nagroda nalicza się sama przy rezerwacji.`, `A friend who visits us for the first time with your code gets ${r.settings.newPercent}% off her first visit. Once her visit has taken place, you get ${r.percent}% off your next visit. The reward is applied automatically when you book.`)}</p>
+      <div class="ref-code"><div><span class="small muted">${L('Twój kod', 'Your code')}</span><strong>${esc(r.code)}</strong></div>
+        <div class="btn-row"><button class="btn btn-primary btn-small" type="button" data-share-ref="${esc(link)}">${L('Wyślij link koleżance', 'Send the link to a friend')}</button><button class="btn btn-outline btn-small" type="button" data-copy-ref="${esc(link)}">${L('Kopiuj link', 'Copy link')}</button></div></div>
+      <p class="small muted">${r.available ? L(`Masz ${r.available} ${r.available === 1 ? 'nagrodę' : 'nagrody'} do wykorzystania: ${r.percent}% zniżki na następną wizytę.`, `You have ${r.available} reward${r.available === 1 ? '' : 's'} to use: ${r.percent}% off your next visit.`) : ''}
+        ${r.pending ? L(`Koleżanki, które zarezerwowały z Twoim kodem: ${r.pending}. Nagroda pojawi się po ich wizycie.`, `Friends who booked with your code: ${r.pending}. Your reward will appear after their visit.`) : ''}
+        ${!r.available && !r.pending ? L('Zniżki się nie łączą: przy rezerwacji naliczamy najkorzystniejszą. Szczegóły w regulaminie (§ 7c).', 'Discounts do not combine: we apply the best one when you book. Details in the terms (§ 7c).') : ''}</p>
+    </section>`;
+  }
   const resetToken = params.get('reset');
 
   const months = ['', ...JM.monthNames];
@@ -137,6 +150,8 @@ JM.ready.then(function () {
           </li>`).join('')}</ul>
         </section>` : ''}
 
+        ${myReferral && myReferral.settings.on ? referralSection(myReferral) : ''}
+
         <section class="profile-section" aria-labelledby="hist-title">
           <h2 id="hist-title">${L('Historia wizyt', 'Visit history')}</h2>
           ${past.length ? `<ul class="visit-list">${past.map((b) => visitRow(b, false)).join('')}</ul>` : `<div class="empty"><p>${L('Tu pojawią się Twoje odbyte i odwołane wizyty.', 'Your completed and cancelled visits will appear here.')}</p></div>`}
@@ -212,6 +227,7 @@ JM.ready.then(function () {
   async function loadBookings() {
     try { myBookings = await S.myBookings(); } catch (e) { myBookings = []; ui.toast(e.message); }
     try { myPackages = (await S.api('GET', '/api/me/packages')).packages; } catch (e) { myPackages = []; }
+    try { myReferral = (await S.api('GET', '/api/me/referral')).referral; } catch (e) { myReferral = null; }
     if (S.currentUser()) root.innerHTML = profileView(S.currentUser());
   }
   const setNavName = (text) => document.querySelectorAll('.nav-account span').forEach((s) => (s.textContent = text));
@@ -248,6 +264,16 @@ JM.ready.then(function () {
         if (dlg.returnValue !== 'ok' || !email) return;
         try { await S.forgotPassword(email); ui.toast(L('Jeśli konto istnieje, wysłaliśmy link na podany adres. Sprawdź też folder spam.', 'If the account exists, we have sent a link to that address. Check your spam folder too.')); } catch (err) { ui.toast(err.message); }
       });
+      return;
+    }
+    if (el.dataset.copyRef) {
+      try { await navigator.clipboard.writeText(el.dataset.copyRef); ui.toast(L('Skopiowano link.', 'Link copied.')); } catch (err) { ui.toast(el.dataset.copyRef); }
+      return;
+    }
+    if (el.dataset.shareRef) {
+      const text = L('Polecam gabinet Justyny Mańki. Z tym linkiem masz zniżkę na pierwszą wizytę:', 'I recommend Justyna Mańka’s studio. With this link you get a discount on your first visit:');
+      if (navigator.share) { try { await navigator.share({ title: 'Justyna Mańka Beauty & Aesthetics', text, url: el.dataset.shareRef }); } catch (err) { /* anulowano */ } }
+      else { try { await navigator.clipboard.writeText(text + ' ' + el.dataset.shareRef); ui.toast(L('Skopiowano wiadomość z linkiem. Wklej ją koleżance.', 'Message with the link copied. Paste it to your friend.')); } catch (err) { ui.toast(el.dataset.shareRef); } }
       return;
     }
     if (el.dataset.afterSms) {

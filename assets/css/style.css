@@ -1117,3 +1117,24 @@ html[lang="en"] [data-lang="pl"] { display: none !important; }
 .reviews-cta p { margin: 0; width: 100%; text-align: center; color: var(--ink-2); }
 .rv-stars { color: var(--gold-deep); letter-spacing: .15em; font-size: .875rem; } .rv-stars span { color: var(--linen); }
 .rv-fresh { border-color: var(--gold-deep); }
+.lm-note { background: var(--sand); border-left: 2px solid var(--gold-deep); padding: 14px 18px; margin: 0 0 20px; }
+.lm-note p { margin: 0 0 6px; font-size: .9375rem; }
+.lm-note strong { font-weight: 500; }
+.ref-box input[readonly] { background: var(--sand); }
+
+/* ---------- Last minute (strona główna) ---------- */
+.lastminute { background: var(--sand); border-bottom: 1px solid var(--hair-soft); padding: clamp(28px, 4vw, 44px) 0; }
+.lm-inner { display: grid; grid-template-columns: minmax(220px, 1fr) 2.2fr; gap: 24px 48px; align-items: start; }
+.lm-head h2 { font-family: var(--serif); font-weight: 400; font-size: clamp(1.5rem, 2.6vw, 2rem); line-height: 1.15; margin: 0 0 10px; }
+.lm-head p { margin: 0; color: var(--ink-2); font-size: .9375rem; max-width: 36ch; }
+.lm-days { display: grid; gap: 18px; }
+.lm-day-name { margin: 0 0 8px; font-size: .875rem; color: var(--taupe); }
+.lm-day ul { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 10px; }
+.lm-day a { display: flex; flex-direction: column; gap: 2px; padding: 10px 16px; min-width: 132px; border: 1px solid var(--linen); background: var(--paper); color: var(--ink); text-decoration: none; transition: border-color .15s, background .15s; }
+.lm-day a span { font-size: 1.0625rem; font-variant-numeric: tabular-nums; }
+.lm-day a small { font-size: .75rem; color: var(--taupe); }
+.lm-day a:hover, .lm-day a:focus-visible { border-color: var(--ink); }
+@media (max-width: 760px) { .lm-inner { grid-template-columns: 1fr; } }
+.ref-code { display: flex; justify-content: space-between; align-items: center; gap: 16px 24px; flex-wrap: wrap; border: 1px solid var(--linen); background: var(--paper); padding: 16px 20px; margin: 16px 0 12px; }
+.ref-code strong { display: block; font-family: var(--serif); font-weight: 400; font-size: 1.75rem; letter-spacing: .06em; }
+.ref-code .btn-row { margin: 0; }

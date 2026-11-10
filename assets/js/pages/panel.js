@@ -164,6 +164,42 @@ JM.ready.then(function () {
           <div class="field span-2"><label for="p-text">Opis dla klientek</label><input id="p-text" name="text" required maxlength="240" placeholder="Np. 10% taniej na peelingi chemiczne do końca lutego."></div>
         </div>
         <button class="btn btn-primary" type="submit">Dodaj promocję</button>
+      </form>
+      ${lastMinuteCard()}
+      ${referralCard()}`;
+  }
+  function lastMinuteCard() {
+    const lm = data.ref.lastMinute;
+    return `
+      <form class="panel-card" id="lm-form" novalidate>
+        <h2>Last minute</h2>
+        <p class="small muted">Na stronie głównej klientki widzą wolne okienka na dziś i jutro (jeśli są) i jednym kliknięciem przechodzą do zabiegów, które się w nich zmieszczą. Możesz dodać zniżkę na wizyty, które zaczynają się niedługo po rezerwacji. Tak jak przy promocjach, strona pokaże najniższą cenę z 30 dni.</p>
+        <div class="form-grid">
+          <div class="field"><label for="lm-p">Zniżka last minute (%)</label><input id="lm-p" name="percent" type="number" min="0" max="50" value="${lm.percent}"><span class="field-hint">0 = bez zniżki, same wolne terminy</span></div>
+          <div class="field"><label for="lm-h">Dla wizyt zaczynających się w ciągu</label><select id="lm-h" name="hours">${[12, 24, 48].map((h) => `<option value="${h}"${h === lm.hours ? ' selected' : ''}>${h} godzin</option>`).join('')}</select></div>
+        </div>
+        <button class="btn btn-outline btn-small" type="submit">Zapisz</button>
+      </form>`;
+  }
+  const REF_STATUS = { pending: ['czeka na wizytę koleżanki', ''], available: ['nagroda do wykorzystania', 'badge-ok'], reserved: ['nagroda zarezerwowana na wizytę', ''], used: ['nagroda wykorzystana', 'badge-off'], cancelled: ['wizyta koleżanki odwołana', 'badge-off'] };
+  function referralCard() {
+    const { settings: st, list } = data.ref;
+    return `
+      <form class="panel-card" id="ref-form" novalidate>
+        <h2>Program poleceń</h2>
+        <p class="small muted">Każda klientka z kontem ma w swoim koncie kod i link do wysłania koleżance. Nowa osoba z kodem dostaje zniżkę na pierwszą wizytę. Gdy ta wizyta się odbędzie, polecająca dostaje zniżkę na swoją kolejną wizytę (nalicza się sama przy rezerwacji online, a przy wizycie z telefonu doliczysz ją w oknie wizyty). Zniżki się nie sumują.</p>
+        <div class="form-grid">
+          <div class="field"><label for="rf-new">Zniżka dla nowej klientki (%)</label><input id="rf-new" name="newPercent" type="number" min="1" max="50" value="${st.newPercent}"></div>
+          <div class="field"><label for="rf-ref">Nagroda dla polecającej (%)</label><input id="rf-ref" name="refPercent" type="number" min="1" max="50" value="${st.refPercent}"></div>
+        </div>
+        <label class="check"><input type="checkbox" name="on" ${st.on ? 'checked' : ''}><span>Program poleceń włączony</span></label>
+        <button class="btn btn-outline btn-small" type="submit">Zapisz</button>
+        <h3 style="margin:24px 0 8px">Polecenia (${list.length})</h3>
+        ${list.length ? `<div class="table-scroll"><table class="table"><thead><tr><th>Polecająca</th><th>Nowa klientka</th><th>Wizyta</th><th>Status</th></tr></thead><tbody>
+          ${list.map((r) => { const [label, cls] = REF_STATUS[r.status]; return `<tr><td><button type="button" class="link-button" data-card="${esc(r.referrerKey)}">${esc(r.referrer)}</button></td><td>${esc(r.friend)}</td>
+            <td>${r.friendVisit ? `${ui.fmtShort(r.friendVisit.date)}.${r.friendVisit.date.slice(0, 4)}, ${esc(r.friendVisit.treatment)}` : '–'}</td>
+            <td><span class="badge ${cls}">${label}</span>${r.status !== 'pending' && r.status !== 'cancelled' ? ` <span class="small muted">−${r.percent}%${r.usedOn ? `, wizyta ${ui.fmtShort(r.usedOn)}` : ''}</span>` : ''}</td></tr>`; }).join('')}
+        </tbody></table></div>` : '<p class="small muted">Nikt jeszcze nie skorzystał z polecenia.</p>'}
       </form>`;
   }
   function segments(text) {
@@ -462,6 +498,8 @@ JM.ready.then(function () {
         <dl class="visit-dl">
           <div><dt>Termin</dt><dd>${ui.fmtDate(b.date)}, ${b.time}–${b.end}</dd></div>
           <div><dt>Klientka</dt><dd>${esc(b.client.name)}${b.demo ? ' <span class="badge badge-off">przykład</span>' : ''}<br><a href="tel:${esc(b.client.phone)}">${esc(b.client.phone)}</a>${b.client.email ? ` · <a href="mailto:${esc(b.client.email)}">${esc(b.client.email)}</a>` : ''}</dd></div>
+          ${b.referredBy ? `<div><dt>Polecenie</dt><dd>od ${esc(b.referredBy.first_name)} ${esc(b.referredBy.last_name)}</dd></div>` : ''}
+          ${b.referralReward ? `<div><dt>Nagroda</dt><dd><button type="button" class="btn btn-outline btn-small" data-dlg-reward>Dolicz nagrodę za polecenie (−${b.referralReward.percent}%)</button></dd></div>` : ''}
           ${b.package ? `<div><dt>Pakiet</dt><dd>${esc(b.package.name)} <button type="button" class="link-button small" data-dlg-unpack>Odepnij</button></dd></div>` : ''}
           ${b.packageOffers && b.packageOffers.length ? `<div><dt>Pakiet</dt><dd>${b.packageOffers.map((p) => `<button type="button" class="btn btn-outline btn-small" data-dlg-pack="${p.id}">Rozlicz z pakietu: ${esc(p.name)} (zostało ${p.left})</button>`).join(' ')}</dd></div>` : ''}
           <div><dt>Do zapłaty</dt><dd>${money(b.toPay)}${b.discount ? ` <span class="small muted">(−${b.discount.percent}% ${esc(b.discount.label)})</span>` : ''}${b.voucher ? `<br><span class="small muted">bon ${esc(b.voucher.code)}: −${money(b.voucher.amount)} (cena ${money(b.total)})</span>` : ''}</dd></div>
@@ -499,6 +537,7 @@ JM.ready.then(function () {
         catch (err) { d.querySelector('.q-slot').innerHTML = `<p class="form-msg">${esc(err.message)}</p>`; }
       }, true);
       dlg.addEventListener('click', async (e) => {
+        if (e.target.closest('[data-dlg-reward]')) { dlg.remove(); return act(() => api('POST', `/api/admin/bookings/${b.id}/referral-reward`, {}), 'Doliczono nagrodę za polecenie.'); }
         const pk = e.target.closest('[data-dlg-pack]');
         if (pk) { dlg.remove(); return act(() => api('POST', `/api/admin/bookings/${b.id}/package`, { packageId: Number(pk.dataset.dlgPack) }), 'Wizyta rozliczona z pakietu.'); }
         if (e.target.closest('[data-dlg-unpack]')) {
@@ -1158,7 +1197,7 @@ JM.ready.then(function () {
       karta: async () => ({ card: await api('GET', '/api/admin/client-card?key=' + encodeURIComponent(cardKey)) }),
       statystyki: async () => ({ stats: await api('GET', `/api/admin/stats?days=${statsDays}`) }),
       zabiegi: async () => (await api('GET', '/api/admin/prices')),
-      promocje: async () => (await api('GET', '/api/admin/promos')),
+      promocje: async () => { const [p, r] = await Promise.all([api('GET', '/api/admin/promos'), api('GET', '/api/admin/referrals')]); return Object.assign(p, { ref: r }); },
       galeria: async () => (await api('GET', '/api/admin/gallery')),
       bony: async () => (await api('GET', '/api/admin/vouchers')),
       pakiety: async () => { await ensureLists(); return api('GET', '/api/admin/packages'); },
@@ -1399,6 +1438,12 @@ JM.ready.then(function () {
       return;
     }
     if (f.id === 'gallery-form') return uploadPhotos(f);
+    if (f.id === 'lm-form') {
+      return act(() => api('PUT', '/api/admin/last-minute', { percent: Number(f.elements.percent.value), hours: Number(f.elements.hours.value) }), (r) => (r.lastMinute.percent ? `Zniżka last minute: ${r.lastMinute.percent}%.` : 'Zapisano. Last minute bez zniżki.'));
+    }
+    if (f.id === 'ref-form') {
+      return act(() => api('PUT', '/api/admin/referrals', { on: f.elements.on.checked, newPercent: Number(f.elements.newPercent.value), refPercent: Number(f.elements.refPercent.value) }), (r) => (r.settings.on ? 'Program poleceń zapisany.' : 'Program poleceń wyłączony.'));
+    }
     if (f.id === 'ptype-form') {
       const v = (n) => f.elements[n].value.trim();
       return act(() => api('POST', '/api/admin/package-types', { treatmentId: v('treatmentId'), sessions: Number(v('sessions')), price: Number(v('price')), validMonths: Number(v('validMonths')), name: v('name') }), 'Dodano pakiet.');

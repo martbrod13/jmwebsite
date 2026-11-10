@@ -82,7 +82,7 @@ function seoTags(html, page) {
 }
 function robots() {
   if (!env.indexing) return 'User-agent: *\nDisallow: /\n';
-  return ['User-agent: *', 'Allow: /', 'Disallow: /panel.html', 'Disallow: /konto.html', 'Disallow: /wizyta.html', 'Disallow: /api/', 'Disallow: /w/', 'Disallow: /l/', 'Disallow: /z/', 'Disallow: /o/', 'Disallow: /lista-oczekujacych.html', 'Disallow: /ankieta.html',
+  return ['User-agent: *', 'Allow: /', 'Disallow: /panel.html', 'Disallow: /konto.html', 'Disallow: /wizyta.html', 'Disallow: /api/', 'Disallow: /w/', 'Disallow: /l/', 'Disallow: /z/', 'Disallow: /o/', 'Disallow: /p/', 'Disallow: /lista-oczekujacych.html', 'Disallow: /ankieta.html',
     env.publicUrl ? `Sitemap: ${env.publicUrl}/sitemap.xml` : ''].filter(Boolean).join('\n') + '\n';
 }
 function sitemap() {
@@ -160,6 +160,9 @@ const server = http.createServer((req, res) => {
   // link z SMS-a listy oczekujących: /l/<klucz> → strona zapisu
   const wl = p.match(/^\/l\/([A-Za-z0-9_-]{16,64})$/);
   if (wl) { res.writeHead(302, { Location: '/lista-oczekujacych.html#' + wl[1] }); return res.end(); }
+  // link polecenia: /p/<kod> → rezerwacja z kodem polecenia
+  const rp = p.match(/^\/p\/([A-Za-z]{1,8}-[A-Za-z0-9]{4})$/);
+  if (rp) { res.writeHead(302, { Location: '/rezerwacja.html?polecenie=' + rp[1].toUpperCase() }); return res.end(); }
   // link do opinii: /o/<klucz> → strona opinii o wizycie
   const ro = p.match(/^\/o\/([A-Za-z0-9_-]{16,40})$/);
   if (ro) { res.writeHead(302, { Location: '/opinia.html#' + ro[1] }); return res.end(); }

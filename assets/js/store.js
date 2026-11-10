@@ -73,11 +73,21 @@ window.JM = window.JM || {};
   function discountLabel(d) {
     if (!d) return '';
     if (d.id === 'pierwsza-wizyta') return JM.L('Pierwsza wizyta z kontem', 'First visit with an account');
+    if (d.id === 'last-minute') return 'Last minute';
+    if (d.id === 'polecenie') return JM.L('Polecenie', 'Referral');
+    if (d.id === 'nagroda-polecenie') return JM.L('Nagroda za polecenie', 'Referral reward');
     const p = JM.promoEn && JM.promoEn[d.id]; return p ? p.title : d.label;
   }
-  function bestDiscount(t, dateStr, user) {
+  // opts.time: godzina wizyty (zniżka last minute), opts.extra: polecenie albo nagroda za polecenie
+  function bestDiscount(t, dateStr, user, opts = {}) {
     if (!t.price) return null;
-    const options = [];
+    const options = (opts.extra || []).slice();
+    const lm = cache.lastMinute;
+    if (lm && lm.percent && opts.time) {
+      const ms = new Date(dateStr + 'T' + opts.time + ':00').getTime() - Date.now();
+      if (ms > 0 && ms <= lm.hours * 36e5) options.push({ id: 'last-minute', percent: lm.percent });
+    }
+    if (user && user.referralReward) options.push({ id: 'nagroda-polecenie', percent: user.referralReward });
     if (user && !user.visits) options.push({ id: 'pierwsza-wizyta', percent: JM.discounts.firstVisitPercent });
     promos().forEach((p) => {
       if (p.membersOnly && !user) return;
@@ -90,8 +100,8 @@ window.JM = window.JM || {};
     if (d) d.label = discountLabel(d);
     return d;
   }
-  function priceSummary(t, dateStr, user) {
-    const d = bestDiscount(t, dateStr || isoDate(new Date()), user);
+  function priceSummary(t, dateStr, user, opts) {
+    const d = bestDiscount(t, dateStr || isoDate(new Date()), user, opts);
     const base = t.price;
     const cut = d ? Math.round(base * d.percent) / 100 : 0;
     return { base, discount: d, cut, total: Math.round((base - cut) * 100) / 100, lowest30: cache.lowest30[t.id] ?? base };
@@ -144,7 +154,8 @@ window.JM = window.JM || {};
     currentUser, register, login, logout, updateUser, setConsent, deleteUser, forgotPassword, resetPassword,
     myBookings, cancelMyBooking, moveMyBooking, visitByToken, cancelByToken, moveByToken, createBooking, availability, sendContact,
     cookieConsent, setCookieConsent,
-    get window() { return cache.window; }, get offline() { return cache.offline; }
+    get window() { return cache.window; }, get offline() { return cache.offline; },
+    get lastMinute() { return cache.lastMinute || { percent: 0, hours: 24 }; }, get referral() { return cache.referral || { on: false }; }
   };
   JM.ready = load();
 })();

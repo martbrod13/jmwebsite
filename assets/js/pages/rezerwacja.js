@@ -20,7 +20,9 @@ JM.ready.then(function () {
     notes: '', booking: null, error: '', phone: '', autoMonth: true,
     voucher: null, // { code, available } po sprawdzeniu kodu bonu
     waitlist: null, // formularz listy oczekujących dla wybranego zabiegu
-    packages: null, packagesFor: null, usePackage: null // pakiety zalogowanej klientki
+    packages: null, packagesFor: null, usePackage: null, // pakiety zalogowanej klientki
+    ref: null, refInfo: null, // kod polecenia z linku /p/<kod> albo wpisany
+    window: null // wolne okienko z sekcji last minute: { date, from, to }
   };
   // pole na kod bonu podarunkowego (krok 3)
   // pakiet zalogowanej klientki na ten zabieg, ważny w dniu wizyty
@@ -40,6 +42,30 @@ JM.ready.then(function () {
     return `<fieldset class="consent-box"><legend>${L('Pakiet', 'Package')}</legend>
       ${list.map((p) => `<label class="check"><input type="checkbox" name="usePackage" value="${p.id}" ${cur && cur.id === p.id ? 'checked' : ''}><span>${L(`Wizyta z pakietu: ${esc(p.name)}`, `Use my package: ${esc(p.nameEn)}`)}<small>${L(`Zostało ${p.left} z ${p.sessions}, ważny do ${ui.fmtShort(p.validUntil)}.${p.validUntil.slice(0, 4)}. Na miejscu nic nie płacisz.`, `${p.left} of ${p.sessions} left, valid until ${ui.fmtShort(p.validUntil)}.${p.validUntil.slice(0, 4)}. Nothing to pay on the day.`)}</small></span></label>`).join('')}
     </fieldset>`;
+  }
+  // polecenie: zniżka na pierwszą wizytę dla nowej osoby
+  const refApplies = () => !!(state.refInfo && state.refInfo.valid && (!user() || !user().visits));
+  function referralBox() {
+    if (!S.referral.on || (user() && user().visits)) return '';
+    const r = state.refInfo;
+    if (r && r.valid) {
+      return `<div class="field ref-box"><label for="rf-code">${L('Kod polecenia', 'Referral code')}</label>
+        <div class="voucher-row"><input id="rf-code" name="referralCode" value="${esc(state.ref)}" readonly>
+        <button type="button" class="btn btn-outline btn-small" data-ref-remove>${L('Usuń', 'Remove')}</button></div>
+        <span class="field-hint">${L(`Polecenie od: ${esc(r.firstName)}. Zniżka ${r.percent}% na pierwszą wizytę.`, `Referred by ${esc(r.firstName)}. ${r.percent}% off your first visit.`)}</span></div>`;
+    }
+    return `<details class="voucher-box"${r && !r.valid ? ' open' : ''}><summary>${L('Masz kod polecenia od koleżanki?', 'Have a referral code from a friend?')}</summary>
+      <div class="field"><label for="rf-code">${L('Kod polecenia', 'Referral code')}</label>
+        <div class="voucher-row"><input id="rf-code" name="referralCode" maxlength="20" autocomplete="off" placeholder="${L('np.', 'e.g.')} OLA-7K3P" value="${esc(r && !r.valid ? state.ref : '')}">
+        <button type="button" class="btn btn-outline btn-small" data-ref-check>${L('Sprawdź', 'Check')}</button></div>
+        <span class="field-hint" id="rf-msg">${r && !r.valid ? L('Nie ma takiego kodu. Sprawdź, czy jest wpisany dokładnie.', 'This code does not exist. Check it is typed exactly.') : L('Zniżka z polecenia jest dla osób, które jeszcze nie były u nas na wizycie.', 'The referral discount is for people who have not visited us yet.')}</span></div>
+    </details>`;
+  }
+  async function loadReferral(code) {
+    state.ref = String(code || '').trim().toUpperCase();
+    try { state.refInfo = await S.api('GET', '/api/referral/' + encodeURIComponent(state.ref)); } catch (e) { state.refInfo = { valid: false }; }
+    try { if (state.refInfo.valid) sessionStorage.setItem('jm_ref', state.ref); else sessionStorage.removeItem('jm_ref'); } catch (e) { /* ignore */ }
+    render();
   }
   function voucherBox() {
     const v = state.voucher;
@@ -70,6 +96,18 @@ JM.ready.then(function () {
     }
   }
 
+  // polecenie z linku albo zapamiętane w tej karcie przeglądarki
+  const qp = new URLSearchParams(location.search);
+  let refStart = qp.get('polecenie');
+  try { refStart = refStart || sessionStorage.getItem('jm_ref'); } catch (e) { /* ignore */ }
+  // wolne okienko z sekcji last minute (strona główna): najpierw zabieg, który się zmieści
+  const wd = qp.get('data'), wf = qp.get('od'), wt = qp.get('do');
+  if (!state.treatmentId && wd && /^\d{4}-\d{2}-\d{2}$/.test(wd) && /^\d{2}:\d{2}$/.test(wf || '') && /^\d{2}:\d{2}$/.test(wt || '') && wd >= S.isoDate(today)) {
+    state.window = { date: wd, from: wf, to: wt };
+    state.date = wd; state.month = new Date(Number(wd.slice(0, 4)), Number(wd.slice(5, 7)) - 1, 1); state.autoMonth = false;
+  }
+  const toMin = (hm) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5));
+
   const t = () => (state.treatmentId ? S.treatment(state.treatmentId) : null);
   const user = () => S.currentUser();
   function saveDraft() {
@@ -79,9 +117,12 @@ JM.ready.then(function () {
   /* ---------- Krok 1: zabieg ---------- */
   function stepTreatment() {
     const cats = [{ id: 'all', name: L('Wszystkie', 'All') }, { id: 'konsultacja', name: L('Konsultacja', 'Consultation') }].concat(JM.categories);
-    const items = [JM.consultation].concat(S.allTreatments()).filter((x) => state.cat === 'all' || x.category === state.cat);
+    const w = state.window; const wMin = w ? toMin(w.to) - toMin(w.from) : 0;
+    const items = [JM.consultation].concat(S.allTreatments()).filter((x) => state.cat === 'all' || x.category === state.cat).filter((x) => !w || x.duration <= wMin);
     return `
       <h2 class="step-title">${L('Wybierz zabieg', 'Choose a treatment')}</h2>
+      ${w ? `<div class="lm-note" role="status"><p><strong>${L('Wolny termin', 'Free slot')}: ${ui.fmtDate(w.date)}, ${w.from}–${w.to}.</strong> ${L('Poniżej są zabiegi, które się w nim zmieszczą. Godzinę wybierzesz w następnym kroku.', 'Below are the treatments that fit. You will choose the exact time in the next step.')}${S.lastMinute.percent ? ' ' + L(`Przy rezerwacji na najbliższe ${S.lastMinute.hours} godzin cena jest niższa o ${S.lastMinute.percent}%.`, `Bookings within the next ${S.lastMinute.hours} hours are ${S.lastMinute.percent}% off.`) : ''}</p>
+        <button type="button" class="link-button small" data-window-clear>${L('Pokaż wszystkie zabiegi', 'Show all treatments')}</button></div>` : ''}
       <div class="chip-nav" role="group" aria-label="${L('Kategorie', 'Categories')}">
         ${cats.map((c) => `<button type="button" class="chip" data-cat="${c.id}" aria-pressed="${state.cat === c.id}">${c.name}</button>`).join('')}
       </div>
@@ -248,6 +289,7 @@ JM.ready.then(function () {
           <div class="field"><label for="notes">${L('Uwagi do wizyty', 'Notes for your visit')} <span class="opt">(${L('opcjonalnie', 'optional')})</span></label>
             <textarea id="notes" name="notes" maxlength="400" placeholder="${L('Np. pierwszy raz na tym zabiegu', 'E.g. first time having this treatment')}">${esc(state.notes)}</textarea></div>
           ${packageBox()}
+          ${activePackage() ? '' : referralBox()}
           ${activePackage() ? '' : voucherBox()}
           <fieldset class="consent-box"><legend class="sr-only">${L('Zgody', 'Consents')}</legend>${afterSmsBox()}</fieldset>
           <p class="small muted">${L(`Rezerwując, akceptujesz zasady odwołania z <a href="regulamin.html#odwolanie">regulaminu</a>: bezpłatnie do ${JM.booking.cancelHours} godzin przed wizytą, później opłata ${JM.booking.lateCancelFeePercent}% ceny zabiegu. Potwierdzenie wyślemy SMS-em na numer ${esc(u.phone)}, a przypomnienie ${JM.booking.reminderHours} godziny przed wizytą.`,
@@ -294,6 +336,7 @@ JM.ready.then(function () {
             <div class="field"><label for="g-email">E-mail</label><input id="g-email" name="email" type="email" autocomplete="email" required value="${esc(g.email)}"></div>
             <div class="field span-2"><label for="g-notes">${L('Uwagi do wizyty', 'Notes for your visit')} <span class="opt">(${L('opcjonalnie', 'optional')})</span></label><textarea id="g-notes" name="notes" maxlength="400">${esc(g.notes)}</textarea></div>
           </div>
+          ${referralBox()}
           ${voucherBox()}
           <fieldset class="consent-box">
             <legend>${L('Zgody', 'Consents')}</legend>
@@ -355,7 +398,7 @@ JM.ready.then(function () {
   function renderSummary() {
     const tr = t(); const u = user();
     if (!tr) { summary.innerHTML = `<h2>${L('Podsumowanie', 'Summary')}</h2><p class="muted">${L('Wybierz zabieg, żeby zobaczyć szczegóły i cenę.', 'Choose a treatment to see the details and price.')}</p>`; return; }
-    const ps = S.priceSummary(tr, state.date || S.isoDate(today), state.step === 4 ? null : u);
+    const ps = S.priceSummary(tr, state.date || S.isoDate(today), state.step === 4 ? null : u, { time: state.time, extra: refApplies() && state.step >= 2 ? [{ id: 'polecenie', percent: state.refInfo.percent }] : [] });
     const bk = state.booking;
     const p = state.step === 4 && bk ? { base: bk.price, cut: Math.round((bk.price - bk.total) * 100) / 100, total: bk.total, lowest30: bk.lowest30 ?? bk.price,
       discount: bk.discount ? Object.assign({}, bk.discount, { label: S.discountLabel(bk.discount) }) : null } : ps;
@@ -421,7 +464,9 @@ JM.ready.then(function () {
     try {
       state.booking = await S.createBooking(Object.assign({ treatmentId: t().id, date: state.date, time: state.time }, data));
       state.phone = data.guest ? data.guest.phone : '';
-      state.step = 4; state.error = ''; render(true);
+      state.step = 4; state.error = '';
+      try { sessionStorage.removeItem('jm_ref'); } catch (e) { /* ignore */ }
+      render(true);
     } catch (err) {
       if (err.field === 'slot') { state.error = err.message; state.step = 2; state.time = null; refreshAvailability(); render(true); return; }
       const el = err.field && form.elements[err.field];
@@ -451,6 +496,12 @@ JM.ready.then(function () {
       render(); return;
     }
     if (el.hasAttribute('data-save-draft')) { saveDraft(); return; }
+    if (el.hasAttribute('data-window-clear')) { state.window = null; render(); return; }
+    if (el.hasAttribute('data-ref-remove')) { state.ref = null; state.refInfo = null; try { sessionStorage.removeItem('jm_ref'); } catch (e2) { /* ignore */ } render(); return; }
+    if (el.hasAttribute('data-ref-check')) {
+      const inp = document.getElementById('rf-code'); if (!inp.value.trim()) { inp.focus(); return; }
+      el.disabled = true; await loadReferral(inp.value); return;
+    }
     if (el.hasAttribute('data-check-voucher')) {
       const inp = document.getElementById('vc-code'), msg = document.getElementById('vc-msg');
       const code = inp.value.trim(); if (!code) { inp.focus(); return; }
@@ -470,7 +521,11 @@ JM.ready.then(function () {
   });
   flow.addEventListener('change', (e) => {
     if (e.target.name === 'treatment') {
-      state.treatmentId = e.target.value; state.date = null; state.time = null; state.autoMonth = true; state.month = new Date(today.getFullYear(), today.getMonth(), 1); render(); loadMonth();
+      state.treatmentId = e.target.value; state.time = null;
+      // z sekcji last minute zostaje wybrany dzień; w innym wypadku zaczynamy od najbliższego wolnego
+      if (state.window) { state.date = state.window.date; state.autoMonth = false; state.month = new Date(Number(state.date.slice(0, 4)), Number(state.date.slice(5, 7)) - 1, 1); }
+      else { state.date = null; state.autoMonth = true; state.month = new Date(today.getFullYear(), today.getMonth(), 1); }
+      render(); loadMonth();
       flow.querySelector('[data-go="2"]').focus();
     }
   });
@@ -502,7 +557,7 @@ JM.ready.then(function () {
       const g = Object.fromEntries(['firstName', 'lastName', 'phone', 'email'].map((k) => [k, f.elements[k].value.trim()]));
       g.marketingSms = f.elements.marketingSms.checked; g.marketingEmail = f.elements.marketingEmail.checked; g.terms = f.elements.terms.checked;
       state.afterSms = f.elements.afterSms.checked;
-      finish(f, { guest: g, notes: f.elements.notes.value.trim(), voucherCode: f.elements.voucherCode.value.trim() || undefined, afterSms: state.afterSms });
+      finish(f, { guest: g, notes: f.elements.notes.value.trim(), voucherCode: f.elements.voucherCode.value.trim() || undefined, afterSms: state.afterSms, referralCode: refApplies() ? state.ref : undefined });
     } else if (f.id === 'login-form') {
       if (!validate(f, { email: emailOk, password: (el) => (el.value ? '' : L('Wpisz hasło.', 'Enter your password.')) })) return;
       try { await S.login(f.elements.email.value, f.elements.password.value); state.error = ''; render(true); ui.toast(L('Zalogowano.', 'Signed in.')); }
@@ -510,7 +565,7 @@ JM.ready.then(function () {
     } else if (f.id === 'confirm-form') {
       state.afterSms = f.elements.afterSms.checked;
       const pk = activePackage();
-      finish(f, { notes: f.elements.notes.value.trim(), voucherCode: (!pk && f.elements.voucherCode && f.elements.voucherCode.value.trim()) || undefined, afterSms: state.afterSms, packageId: pk ? pk.id : undefined });
+      finish(f, { notes: f.elements.notes.value.trim(), voucherCode: (!pk && f.elements.voucherCode && f.elements.voucherCode.value.trim()) || undefined, afterSms: state.afterSms, packageId: pk ? pk.id : undefined, referralCode: !pk && refApplies() ? state.ref : undefined });
     }
   });
 
@@ -529,5 +584,6 @@ JM.ready.then(function () {
   }
 
   render();
+  if (refStart) loadReferral(refStart);
   if (state.treatmentId) loadMonth();
 });

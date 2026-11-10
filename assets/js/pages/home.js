@@ -1,6 +1,26 @@
 /* Strona główna: opinie klientek i zaproszenie do wystawienia opinii (na stronie, w Google, na Booksy). */
 JM.ready.then(async function () {
   const S = JM.store, ui = JM.ui, esc = ui.esc, L = JM.L;
+
+  // Last minute: wolne okienka na dziś i jutro, kliknięcie otwiera rezerwację z zabiegami, które się zmieszczą
+  (async () => {
+    const lm = document.getElementById('last-minute'); if (!lm) return;
+    let d; try { d = await S.api('GET', '/api/last-minute'); } catch (e) { return; }
+    if (!d.days.length) return;
+    const today = S.isoDate(new Date());
+    const dayName = (iso) => (iso === today ? L('Dziś', 'Today') : L('Jutro', 'Tomorrow')) + ', ' + new Date(iso + 'T12:00:00').toLocaleDateString(JM.lang === 'en' ? 'en-GB' : 'pl-PL', { weekday: 'long', day: 'numeric', month: 'long' });
+    const fits = (n) => L(`pasuje ${n} ${n === 1 ? 'zabieg' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'zabiegi' : 'zabiegów'}`, `${n} ${n === 1 ? 'treatment fits' : 'treatments fit'}`);
+    const hasToday = d.days.some((x) => x.date === today), hasTomorrow = d.days.some((x) => x.date !== today);
+    document.getElementById('lm-title').textContent = hasToday && hasTomorrow ? L('Wolne terminy na dziś i jutro', 'Free times today and tomorrow') : hasToday ? L('Wolne terminy na dziś', 'Free times today') : L('Wolne terminy na jutro', 'Free times tomorrow');
+    document.getElementById('lm-lead').textContent = d.percent
+      ? L(`Przy rezerwacji wizyty, która zaczyna się w ciągu ${d.hours} godzin, cena jest niższa o ${d.percent}%.`, `Visits starting within the next ${d.hours} hours are ${d.percent}% off.`)
+      : L('Zwolniło się miejsce? Wybierz godzinę, a pokażemy zabiegi, które się zmieszczą.', 'Pick a time and we will show the treatments that fit.');
+    document.getElementById('lm-days').innerHTML = d.days.map((day) => `
+      <div class="lm-day"><p class="lm-day-name">${esc(dayName(day.date))}</p>
+        <ul>${day.windows.map((w) => `<li><a href="rezerwacja.html?data=${day.date}&amp;od=${w.start}&amp;do=${w.end}"><span>${w.start}–${w.end}</span><small>${fits(w.fits)}</small></a></li>`).join('')}</ul>
+      </div>`).join('');
+    lm.hidden = false;
+  })();
   const box = document.getElementById('opinie'); if (!box) return;
   let reviews = [], links = {};
   try { ({ reviews, links } = await S.api('GET', '/api/reviews')); } catch (e) { return; }
